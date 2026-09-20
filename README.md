@@ -54,6 +54,7 @@ Se cambia con el botón del propio panel («Ocultar» / «Fijar») y la elecció
 Requisitos: **Windows 11** (o 10 22H2) y permisos de administrador.
 
 1. Descarga `EdgeWidget.exe` de la [última versión](../../releases/latest), o compílalo (ver abajo).
+   Los ejecutables de Releases los publica [GitHub Actions](../../actions) a partir de este código.
 2. Ejecuta el instalador desde PowerShell:
 
 ```powershell
@@ -201,6 +202,14 @@ powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
 
 **Release** genera un único archivo autocontenido de ~65 MB (no hace falta tener .NET instalado) y
 exige administrador. **Debug** arranca sin elevar, para iterar la interfaz sin UAC.
+
+Cada etiqueta `v*` (por ejemplo `v1.2.0`) lanza el mismo `dotnet publish` en
+[Actions](../../actions) y adjunta `EdgeWidget.exe` a la [Release](../../releases):
+
+```powershell
+git tag v1.2.0
+git push origin v1.2.0
+```
 
 ### Revisar la interfaz sin ejecutar el widget
 

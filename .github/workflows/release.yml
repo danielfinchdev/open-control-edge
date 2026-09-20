@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Same publish as README / build.yml. Release csproj keeps DebugType=none.
+      - name: Publish
+        run: dotnet publish src/EdgeWidget/EdgeWidget.csproj -c Release -r win-x64 -o dist
+
+      - name: Upload EdgeWidget.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdgeWidget.exe
+          path: dist/EdgeWidget.exe
+          if-no-files-found: error
+
+      - name: Attach EdgeWidget.exe to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $title = "EdgeWidget $($tag.Substring(1))"
+          gh release view $tag --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag dist/EdgeWidget.exe --clobber
+          } else {
+            gh release create $tag dist/EdgeWidget.exe --title $title --generate-notes
+          }
