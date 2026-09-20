@@ -55,6 +55,8 @@ Requisitos: **Windows 11** (o 10 22H2) y permisos de administrador.
 
 1. Descarga `EdgeWidget.exe` de la [última versión](../../releases/latest), o compílalo (ver abajo).
    Los ejecutables de Releases los publica [GitHub Actions](../../actions) a partir de este código.
+   Cuando el flujo de Release publique attestations, se pueden verificar con
+   `gh attestation verify EdgeWidget.exe -R danielfinchdev/EdgeWidget`.
 2. Ejecuta el instalador desde PowerShell:
 
 ```powershell

@@ -11,7 +11,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>EdgeWidget</AssemblyName>
     <RootNamespace>EdgeWidget</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.1.2</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
