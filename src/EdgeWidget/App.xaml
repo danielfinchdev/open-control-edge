@@ -1,0 +1,196 @@
+<Application x:Class="EdgeWidget.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+
+        <!-- Edge widget sizes are the original design scaled to 85 %. -->
+
+        <Style x:Key="SecondaryText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#8E8E93" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="ValueText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style x:Key="RingLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,7,0,0" />
+        </Style>
+
+        <!-- ───── Panel buttons: one family. Same timing and easing, grey #8E8E93 at rest, white on hover. ───── -->
+
+        <Duration x:Key="PanelHoverDuration">0:0:0.15</Duration>
+        <CubicEase x:Key="PanelHoverEase" EasingMode="EaseOut" />
+
+        <!-- "Ocultar" / "Fijar" / "Actualizar": text only; hover adds a #1C1C1E rounded background. -->
+        <Style x:Key="PanelTextButton" TargetType="Button">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Height="26" Padding="12,0" CornerRadius="8">
+                            <Border.Background>
+                                <!-- Same colour at zero alpha, so the fade never passes through a darker tint. -->
+                                <SolidColorBrush Color="#001C1C1E" />
+                            </Border.Background>
+                            <TextBlock x:Name="Label" VerticalAlignment="Center"
+                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="#8E8E93" />
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Hover only while enabled: a disabled button ("Actualizando") keeps the resting look. -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsEnabled" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <MultiTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Chrome"
+                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                            To="#FF1C1C1E" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                            <ColorAnimation Storyboard.TargetName="Label"
+                                                            Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)"
+                                                            To="#FFFFFFFF" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.EnterActions>
+                                <MultiTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Chrome"
+                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                            To="#001C1C1E" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                            <ColorAnimation Storyboard.TargetName="Label"
+                                                            Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)"
+                                                            To="#FF8E8E93" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.ExitActions>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Close: 16×16 X with round caps; hover fills a #FF453A disc and turns the X white. -->
+        <Style x:Key="PanelCloseButton" TargetType="Button">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <Ellipse x:Name="Disc">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="#00FF453A" />
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <Path x:Name="Glyph" Data="M 4.75,4.75 L 11.25,11.25 M 11.25,4.75 L 4.75,11.25"
+                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                <Path.Stroke>
+                                    <SolidColorBrush Color="#8E8E93" />
+                                </Path.Stroke>
+                            </Path>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Disc"
+                                                            Storyboard.TargetProperty="(Shape.Fill).(SolidColorBrush.Color)"
+                                                            To="#FFFF453A" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                            <ColorAnimation Storyboard.TargetName="Glyph"
+                                                            Storyboard.TargetProperty="(Shape.Stroke).(SolidColorBrush.Color)"
+                                                            To="#FFFFFFFF" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Disc"
+                                                            Storyboard.TargetProperty="(Shape.Fill).(SolidColorBrush.Color)"
+                                                            To="#00FF453A" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                            <ColorAnimation Storyboard.TargetName="Glyph"
+                                                            Storyboard.TargetProperty="(Shape.Stroke).(SolidColorBrush.Color)"
+                                                            To="#FF8E8E93" Duration="{StaticResource PanelHoverDuration}"
+                                                            EasingFunction="{StaticResource PanelHoverEase}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tray menu item: fully custom template, no theme style involved. -->
+        <Style x:Key="MenuButton" TargetType="Button">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="8" Padding="12,9">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" RecognizesAccessKey="False" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#242426" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#242426" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#303033" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Application.Resources>
+</Application>

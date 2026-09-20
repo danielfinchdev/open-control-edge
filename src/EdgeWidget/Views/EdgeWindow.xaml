@@ -1,0 +1,291 @@
+<Window x:Class="EdgeWidget.Views.EdgeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:EdgeWidget.Ui"
+        Title="EdgeWidget"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Focusable="False"
+        UseLayoutRounding="True"
+        FontFamily="Segoe UI"
+        Foreground="White"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Grayscale">
+
+    <!-- All sizes are the original design scaled to 85 % (rings 64 → 54, panel 110 → 94, card 300 → 255 …). -->
+    <Canvas x:Name="Root" ClipToBounds="True">
+
+        <!-- Auto mode, collapsed: 5 px strip on the right edge (hover target, deliberately not scaled). -->
+        <Rectangle x:Name="Strip" Width="5" Height="400" Fill="#99808080" />
+
+        <!-- Detail card (to the left of the panel). -->
+        <Grid x:Name="Card" Opacity="0" IsHitTestVisible="False">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="CardShift" />
+            </Grid.RenderTransform>
+
+            <ui:CardShape x:Name="CardBackground" Fill="#0A0A0A" CornerRadius="17" BeakLength="8.5" BeakHalfHeight="9.5">
+                <ui:CardShape.Effect>
+                    <DropShadowEffect BlurRadius="31" ShadowDepth="8.5" Direction="270" Color="Black" Opacity="0.55" RenderingBias="Quality" />
+                </ui:CardShape.Effect>
+            </ui:CardShape>
+
+            <Border x:Name="ContentClip" ClipToBounds="True" Margin="0,0,8.5,0">
+                <Grid x:Name="CardContent" Margin="17" VerticalAlignment="Top">
+
+                    <!-- Claude -->
+                    <StackPanel x:Name="ClaudeCard">
+                        <DockPanel>
+                            <TextBlock x:Name="ClaudeHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{x:Static ui:Icons.ClaudeSparkImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock Text="Claude" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel x:Name="ClaudeMetrics" Margin="0,15,0,0">
+                            <TextBlock Text="Sesión actual" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="SessionBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="SessionValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <DockPanel Margin="0,15,0,0">
+                                <TextBlock x:Name="WeeklyReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                <TextBlock Text="Límite semanal" Style="{StaticResource SecondaryText}" />
+                            </DockPanel>
+                            <ui:LinearBar x:Name="WeeklyBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="WeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <!-- Usage credits spent (spend.used). The endpoint carries no remaining balance. -->
+                            <DockPanel x:Name="ClaudeSpendRow" Margin="0,15,0,0" Visibility="Collapsed">
+                                <TextBlock x:Name="ClaudeSpendValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
+                                <TextBlock Text="Gastado" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="ClaudeMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
+                                   Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- Codex: one row per window the API returns, labelled by its length. -->
+                    <StackPanel x:Name="CodexCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="CodexHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{x:Static ui:Icons.CodexImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock Text="Codex" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel x:Name="CodexMetrics" Margin="0,15,0,0">
+                            <TextBlock x:Name="CodexPrimaryLabel" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="CodexPrimaryBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="CodexPrimaryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <StackPanel x:Name="CodexSecondaryRow" Visibility="Collapsed">
+                                <DockPanel Margin="0,15,0,0">
+                                    <TextBlock x:Name="CodexSecondaryReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                    <TextBlock x:Name="CodexSecondaryLabel" Style="{StaticResource SecondaryText}" />
+                                </DockPanel>
+                                <ui:LinearBar x:Name="CodexSecondaryBar" Height="3.5" Margin="0,7,0,0" />
+                                <TextBlock x:Name="CodexSecondaryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
+                                   Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- Grok Bot: cifras escritas a mano en EdgeWidget.settings.json (no hay API de uso). -->
+                    <StackPanel x:Name="GrokCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="GrokHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{x:Static ui:Icons.GrokImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock Text="Grok Bot" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel x:Name="GrokMetrics" Margin="0,15,0,0">
+                            <TextBlock Text="Semanal" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="GrokWeeklyBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="GrokWeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <StackPanel x:Name="GrokOnDemandRow" Visibility="Collapsed">
+                                <TextBlock Text="Bajo demanda" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                                <ui:LinearBar x:Name="GrokOnDemandBar" Height="3.5" Margin="0,7,0,0" />
+                                <TextBlock x:Name="GrokOnDemandValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="GrokMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- CPU -->
+                    <StackPanel x:Name="CpuCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="CpuSince" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{x:Static ui:Icons.CpuImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CpuTitle" Text="CPU" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel Margin="0,15,0,0">
+                            <TextBlock Text="Temperatura" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="TempBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="TempValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <TextBlock Text="Máxima de la sesión" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <ui:LinearBar x:Name="MaxBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="MaxValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <TextBlock Text="Carga de CPU" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <ui:LinearBar x:Name="LoadBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="LoadValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="CpuMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,14,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- GPU (NVIDIA) -->
+                    <StackPanel x:Name="GpuCard" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.GpuImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock x:Name="GpuTitle" Text="GPU" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,15,0,0">
+                            <TextBlock Text="Temperatura" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="GpuTempBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="GpuTempValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <TextBlock Text="Uso" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <ui:LinearBar x:Name="GpuLoadBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="GpuLoadValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+
+                            <!-- Only when the GPU exposes "GPU Memory Used"; the bar needs "GPU Memory Total" too. -->
+                            <StackPanel x:Name="GpuMemoryRow" Visibility="Collapsed">
+                                <TextBlock Text="Memoria usada" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                                <ui:LinearBar x:Name="GpuMemoryBar" Height="3.5" Margin="0,7,0,0" />
+                                <TextBlock x:Name="GpuMemoryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="GpuMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,14,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Panel: black, only the left corners rounded. -->
+        <Border x:Name="EdgePanel" Width="94" Background="#000000" CornerRadius="24,0,0,24">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="PanelShift" X="94" />
+            </Border.RenderTransform>
+
+            <Grid x:Name="PanelRoot">
+                <StackPanel x:Name="PanelStack" Margin="0,22,0,12">
+                    <!-- Un clic renueva la sesión de Claude y abre Claude Code (ver App.RenewClaudeSession). -->
+                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
+                          ToolTip="Renovar la sesión de Claude y abrir Claude Code"
+                          MouseLeftButtonUp="OnClaudeClick">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="ClaudeRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                                          RingBrush="#D97757" TrackBrush="#2A2A2A"
+                                          Icon="{x:Static ui:Icons.ClaudeSpark}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform>
+                                    <ScaleTransform />
+                                </ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="ClaudeLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Hidden unless there is a usable Codex login (see CodexUsageService). -->
+                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="CodexRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                                          RingBrush="#30D158" TrackBrush="#2A2A2A"
+                                          Icon="{x:Static ui:Icons.Codex}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform>
+                                    <ScaleTransform />
+                                </ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="CodexLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Oculto mientras no haya bloque "grok" en los ajustes. -->
+                    <Grid x:Name="GrokItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="GrokRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                                          RingBrush="#30D158" TrackBrush="#2A2A2A"
+                                          Icon="{x:Static ui:Icons.Grok}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform>
+                                    <ScaleTransform />
+                                </ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="GrokLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,24,0,0">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="CpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                                          RingBrush="#30D158" TrackBrush="#2A2A2A"
+                                          Icon="{x:Static ui:Icons.Cpu}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform>
+                                    <ScaleTransform />
+                                </ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="CpuLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
+                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="GpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                                          RingBrush="#30D158" TrackBrush="#2A2A2A"
+                                          Icon="{x:Static ui:Icons.Gpu}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform>
+                                    <ScaleTransform />
+                                </ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="GpuLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Same button, same place in both modes: "Ocultar" when pinned, "Fijar" in auto (label set in code). -->
+                    <Button x:Name="ModeButton" Style="{StaticResource PanelTextButton}" Content="Ocultar"
+                            AutomationProperties.AutomationId="ModeButton"
+                            HorizontalAlignment="Center" Margin="0,10,0,0" Click="OnModeClick" />
+
+                    <!-- Refreshes CPU, GPU, Claude and Codex; reads "Actualizando" and is disabled until that finishes. -->
+                    <Button x:Name="RefreshButton" Style="{StaticResource PanelTextButton}" Content="Actualizar"
+                            AutomationProperties.AutomationId="PanelRefreshButton"
+                            HorizontalAlignment="Center" Click="OnRefreshClick" />
+                </StackPanel>
+
+                <!-- Quits the whole application, like "Salir" in the tray menu. -->
+                <Button x:Name="CloseButton" Style="{StaticResource PanelCloseButton}"
+                        AutomationProperties.AutomationId="CloseButton" AutomationProperties.Name="Cerrar"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,10,0" Click="OnCloseClick" />
+            </Grid>
+        </Border>
+
+    </Canvas>
+</Window>

@@ -1,0 +1,21 @@
+# Compilación
+bin/
+obj/
+dist/
+*.user
+*.suo
+
+# Copias de seguridad y registros locales
+backup/
+*.log
+
+# Ajustes locales (se generan solos en %LOCALAPPDATA%)
+EdgeWidget.settings.json
+
+# Notas sobre este equipo concreto: no son parte del programa
+NOTAS-DEL-EQUIPO.md
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
