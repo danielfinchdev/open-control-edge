@@ -19,3 +19,7 @@ NOTAS-DEL-EQUIPO.md
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Handoff / locks del equipo (local; no publicar)
+handoff/
+
