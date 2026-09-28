@@ -20,6 +20,7 @@ public partial class TrayMenuWindow : Window
 
     internal event Action? RefreshRequested;
     internal event Action? ExitRequested;
+    internal event Action? ApiKeysRequested;
 
     public TrayMenuWindow()
     {
@@ -106,5 +107,11 @@ public partial class TrayMenuWindow : Window
     {
         CloseMenu();
         ExitRequested?.Invoke();
+    }
+
+    private void OnApiKeysClick(object sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        ApiKeysRequested?.Invoke();
     }
 }

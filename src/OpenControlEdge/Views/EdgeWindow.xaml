@@ -124,6 +124,52 @@
                         <TextBlock x:Name="CursorMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,15,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
+                    <StackPanel x:Name="OpenCodeCard" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.OpenCodeImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="OpenCode" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                        </StackPanel>
+                        <StackPanel x:Name="OpenCodeMetrics" Margin="0,15,0,0">
+                            <TextBlock Text="Tokens de entrada" Style="{StaticResource SecondaryText}" />
+                            <TextBlock x:Name="OpenCodeInput" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <TextBlock Text="Tokens de salida" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <TextBlock x:Name="OpenCodeOutput" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <TextBlock Text="Tokens de razonamiento" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <TextBlock x:Name="OpenCodeReasoning" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <TextBlock Text="Caché (lectura / escritura)" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <TextBlock x:Name="OpenCodeCache" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <TextBlock Text="Coste acumulado" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
+                            <TextBlock x:Name="OpenCodeCost" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <TextBlock x:Name="OpenCodeMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="DeepSeekCard" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.DeepSeekImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="DeepSeek" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                        </StackPanel>
+                        <StackPanel x:Name="DeepSeekMetrics" Margin="0,15,0,0">
+                            <TextBlock Text="Saldo restante" Style="{StaticResource SecondaryText}" />
+                            <TextBlock x:Name="DeepSeekBalance" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <TextBlock x:Name="DeepSeekMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="OpenRouterCard" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.OpenRouterImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="OpenRouter" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                        </StackPanel>
+                        <StackPanel x:Name="OpenRouterMetrics" Margin="0,15,0,0">
+                            <TextBlock x:Name="OpenRouterMetricLabel" Text="Gasto" Style="{StaticResource SecondaryText}" />
+                            <TextBlock x:Name="OpenRouterUsage" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <TextBlock x:Name="OpenRouterRemainingLabel" Text="Límite restante" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" Visibility="Collapsed" />
+                            <TextBlock x:Name="OpenRouterRemaining" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" Visibility="Collapsed" />
+                        </StackPanel>
+                        <TextBlock x:Name="OpenRouterMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,15,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
                     <!-- CPU -->
                     <StackPanel x:Name="CpuCard" Visibility="Collapsed">
                         <DockPanel>
@@ -234,6 +280,30 @@
                             <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
+                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="OpenCodeRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.OpenCode}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="OpenCodeLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="DeepSeekRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.DeepSeek}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="DeepSeekLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="OpenRouterRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.OpenRouter}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
                     <Grid x:Name="CpuItem" Background="Transparent" Margin="0,24,0,0">
                         <StackPanel>
                             <ui:RingGauge x:Name="CpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
@@ -270,6 +340,7 @@
                     <Button x:Name="RefreshButton" Style="{StaticResource PanelTextButton}" Content="Actualizar"
                             AutomationProperties.AutomationId="PanelRefreshButton"
                             HorizontalAlignment="Center" Click="OnRefreshClick" />
+
                 </StackPanel>
 
                 <!-- Quits the whole application, like "Salir" in the tray menu. -->

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -27,8 +28,11 @@ public partial class EdgeWindow : Window
     internal const int RingClaude = 0;
     internal const int RingCodex = 1;
     internal const int RingCursor = 2;
-    internal const int RingCpu = 3;
-    internal const int RingGpu = 4;
+    internal const int RingOpenCode = 3;
+    internal const int RingDeepSeek = 4;
+    internal const int RingOpenRouter = 5;
+    internal const int RingCpu = 6;
+    internal const int RingGpu = 7;
 
     // Geometry in DIPs — the original design scaled to 85 %.
     private const double PanelWidth = 94;
@@ -40,7 +44,7 @@ public partial class EdgeWindow : Window
     private const double CardSideRoom = 34;      // room for the card shadow on the left
     private const double CardVerticalRoom = 41;  // keep the card (and its shadow) inside the window
     private const double WindowWidthDip = CardSideRoom + CardBodyWidth + BeakLength + CardGap + PanelWidth;
-    private const double WindowHeightDip = 600;
+    private const double WindowHeightDip = 900;
 
     private const int PanelMs = 250;
     private const int RingHoverMs = 150;
@@ -99,9 +103,9 @@ public partial class EdgeWindow : Window
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, CpuItem, GpuItem };
-        _rings = new[] { ClaudeRing, CodexRing, CursorRing, CpuRing, GpuRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, CpuCard, GpuCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard };
 
         Width = WindowWidthDip;
         Height = WindowHeightDip;
@@ -166,6 +170,7 @@ public partial class EdgeWindow : Window
         Log.Trace("Edge", "close button clicked");
         CloseRequested?.Invoke();
     }
+
 
     private void OnRefreshClick(object sender, RoutedEventArgs e)
     {
@@ -351,6 +356,108 @@ public partial class EdgeWindow : Window
 
         RefreshTimeTexts();
         if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    internal void SetOpenCode(OpenCodeSnapshot snapshot)
+    {
+        SetRingVisible(RingOpenCode, !snapshot.Hidden);
+        if (snapshot.Hidden) return;
+        if (snapshot.Message is null && snapshot.CostUsd is decimal cost)
+        {
+            decimal total = (decimal)snapshot.TokensIn + snapshot.TokensOut + snapshot.TokensReasoning
+                + snapshot.TokensCacheRead + snapshot.TokensCacheWrite;
+            OpenCodeLabel.Text = CompactCount(total);
+            Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
+            OpenCodeInput.Text = snapshot.TokensIn.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
+            OpenCodeOutput.Text = snapshot.TokensOut.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
+            OpenCodeReasoning.Text = snapshot.TokensReasoning.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
+            OpenCodeCache.Text = $"{snapshot.TokensCacheRead.ToString("N0", CultureInfo.GetCultureInfo("es-ES"))} / {snapshot.TokensCacheWrite.ToString("N0", CultureInfo.GetCultureInfo("es-ES"))}";
+            OpenCodeCost.Text = Fmt.Amount(new Money(cost, "USD"));
+            OpenCodeMetrics.Visibility = Visibility.Visible;
+            OpenCodeMessage.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            OpenCodeLabel.Text = "--";
+            Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
+            OpenCodeMetrics.Visibility = Visibility.Collapsed;
+            OpenCodeMessage.Text = snapshot.Message ?? "Sin datos";
+            OpenCodeMessage.Visibility = Visibility.Visible;
+        }
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    internal void SetDeepSeek(DeepSeekSnapshot snapshot)
+    {
+        SetRingVisible(RingDeepSeek, !snapshot.Hidden);
+        if (snapshot.Hidden) return;
+        if (snapshot.Balance is Money balance)
+        {
+            DeepSeekLabel.Text = CompactMoney(balance);
+            Animate(DeepSeekRing, RingGauge.ValueProperty, 0, 300);
+            DeepSeekBalance.Text = Fmt.Amount(balance);
+            DeepSeekMetrics.Visibility = Visibility.Visible;
+            DeepSeekMessage.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            DeepSeekLabel.Text = "--";
+            Animate(DeepSeekRing, RingGauge.ValueProperty, 0, 300);
+            DeepSeekMetrics.Visibility = Visibility.Collapsed;
+            DeepSeekMessage.Text = snapshot.Message ?? "Sin datos";
+            DeepSeekMessage.Visibility = Visibility.Visible;
+        }
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    internal void SetOpenRouter(OpenRouterSnapshot snapshot)
+    {
+        SetRingVisible(RingOpenRouter, !snapshot.Hidden);
+        if (snapshot.Hidden) return;
+        if (snapshot.Message is null)
+        {
+            if (snapshot.LimitUsd is decimal limit && limit > 0 && snapshot.RemainingUsd is decimal remaining)
+            {
+                double percent = (double)Math.Clamp(snapshot.UsageUsd / limit * 100, 0, 100);
+                OpenRouterLabel.Text = Fmt.Percent(percent);
+                OpenRouterRing.RingBrush = Palette.ForPercent(percent);
+                Animate(OpenRouterRing, RingGauge.ValueProperty, Fraction(percent), 600);
+                OpenRouterMetricLabel.Text = "Uso del límite";
+                OpenRouterUsage.Text = $"{Fmt.Amount(new Money(snapshot.UsageUsd, "USD"))} de {Fmt.Amount(new Money(limit, "USD"))}";
+                OpenRouterRemainingLabel.Visibility = Visibility.Visible;
+                OpenRouterRemaining.Visibility = Visibility.Visible;
+                OpenRouterRemaining.Text = Fmt.Amount(new Money(remaining, "USD"));
+            }
+            else
+            {
+                OpenRouterLabel.Text = CompactMoney(new Money(snapshot.UsageUsd, "USD"));
+                Animate(OpenRouterRing, RingGauge.ValueProperty, 0, 300);
+                OpenRouterMetricLabel.Text = "Gasto acumulado";
+                OpenRouterUsage.Text = Fmt.Amount(new Money(snapshot.UsageUsd, "USD"));
+                OpenRouterRemainingLabel.Visibility = Visibility.Collapsed;
+                OpenRouterRemaining.Visibility = Visibility.Collapsed;
+            }
+            OpenRouterMetrics.Visibility = Visibility.Visible;
+            OpenRouterMessage.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            OpenRouterLabel.Text = "--";
+            Animate(OpenRouterRing, RingGauge.ValueProperty, 0, 300);
+            OpenRouterMetrics.Visibility = Visibility.Collapsed;
+            OpenRouterMessage.Text = snapshot.Message;
+            OpenRouterMessage.Visibility = Visibility.Visible;
+        }
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    private static string CompactCount(decimal value) => value >= 1_000_000 ? $"{value / 1_000_000m:0.#}M"
+        : value >= 10_000 ? $"{value / 1_000m:0.#}K" : value.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
+
+    private static string CompactMoney(Money money)
+    {
+        string symbol = money.Currency == "USD" ? "$" : money.Currency == "CNY" ? "¥" : money.Currency;
+        return money.Amount >= 1000 ? $"{symbol}{money.Amount / 1000m:0.#}k" : $"{symbol}{money.Amount:0.##}";
     }
 
     internal void SetCpu(CpuSnapshot snapshot)

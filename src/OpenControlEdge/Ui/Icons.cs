@@ -9,18 +9,26 @@ public static class Icons
     public static DrawingGroup ClaudeSpark { get; } = CreateSpark();
     public static DrawingGroup Codex { get; } = CreateCodex();
     public static DrawingGroup Cursor { get; } = CreateCursor();
+    public static DrawingGroup OpenCode { get; } = CreateOpenCode();
+    public static DrawingGroup DeepSeek { get; } = CreateDeepSeek();
+    public static DrawingGroup OpenRouter { get; } = CreateOpenRouter();
     public static DrawingGroup Cpu { get; } = CreateCpu();
     public static DrawingGroup Gpu { get; } = CreateGpu();
     public static DrawingGroup Refresh { get; } = CreateRefresh();
     public static DrawingGroup Power { get; } = CreatePower();
+    public static DrawingGroup Key { get; } = CreateKey();
 
     public static DrawingImage ClaudeSparkImage { get; } = ToImage(ClaudeSpark);
     public static DrawingImage CodexImage { get; } = ToImage(Codex);
     public static DrawingImage CursorImage { get; } = ToImage(Cursor);
+    public static DrawingImage OpenCodeImage { get; } = ToImage(OpenCode);
+    public static DrawingImage DeepSeekImage { get; } = ToImage(DeepSeek);
+    public static DrawingImage OpenRouterImage { get; } = ToImage(OpenRouter);
     public static DrawingImage CpuImage { get; } = ToImage(Cpu);
     public static DrawingImage GpuImage { get; } = ToImage(Gpu);
     public static DrawingImage RefreshImage { get; } = ToImage(Refresh);
     public static DrawingImage PowerImage { get; } = ToImage(Power);
+    public static DrawingImage KeyImage { get; } = ToImage(Key);
 
     private static DrawingGroup CreateSpark()
     {
@@ -95,6 +103,63 @@ public static class Icons
         }
         group.Children.Add(new GeometryDrawing(null, RoundPen(1.5), facets));
 
+        group.Freeze();
+        return group;
+    }
+
+    private static DrawingGroup CreateOpenCode()
+    {
+        var group = NewGroup();
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(9, 5), false, false);
+            ctx.LineTo(new Point(4, 12), true, true);
+            ctx.LineTo(new Point(9, 19), true, true);
+            ctx.BeginFigure(new Point(15, 5), false, false);
+            ctx.LineTo(new Point(20, 12), true, true);
+            ctx.LineTo(new Point(15, 19), true, true);
+            Line(ctx, new Point(11, 17), new Point(13, 7));
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(2), geometry));
+        group.Freeze();
+        return group;
+    }
+
+    private static DrawingGroup CreateDeepSeek()
+    {
+        var group = NewGroup();
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(4, 8), false, false);
+            ctx.BezierTo(new Point(7, 4), new Point(11, 4), new Point(13, 8), true, true);
+            ctx.BezierTo(new Point(15, 12), new Point(18, 12), new Point(20, 8), true, true);
+            ctx.BeginFigure(new Point(4, 16), false, false);
+            ctx.BezierTo(new Point(7, 12), new Point(11, 12), new Point(13, 16), true, true);
+            ctx.BezierTo(new Point(15, 20), new Point(18, 20), new Point(20, 16), true, true);
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.9), geometry));
+        group.Freeze();
+        return group;
+    }
+
+    private static DrawingGroup CreateOpenRouter()
+    {
+        var group = NewGroup();
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(6, 6), false, false);
+            ctx.BezierTo(new Point(12, 6), new Point(12, 18), new Point(18, 18), true, true);
+            ctx.BeginFigure(new Point(6, 18), false, false);
+            ctx.BezierTo(new Point(12, 18), new Point(12, 6), new Point(18, 6), true, true);
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), geometry));
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), new EllipseGeometry(new Point(5, 6), 2.2, 2.2)));
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), new EllipseGeometry(new Point(19, 6), 2.2, 2.2)));
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), new EllipseGeometry(new Point(5, 18), 2.2, 2.2)));
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), new EllipseGeometry(new Point(19, 18), 2.2, 2.2)));
         group.Freeze();
         return group;
     }
@@ -176,6 +241,23 @@ public static class Icons
             Line(ctx, new Point(12, 3.2), new Point(12, 11));
         }
         group.Children.Add(new GeometryDrawing(null, RoundPen(2.0), geometry));
+        group.Freeze();
+        return group;
+    }
+
+    private static DrawingGroup CreateKey()
+    {
+        var group = NewGroup();
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(14.5, 9.5), false, false);
+            ctx.ArcTo(new Point(7.5, 16.5), new Size(5, 5), 0, false, SweepDirection.Clockwise, true, true);
+            Line(ctx, new Point(11.1, 12.9), new Point(19.8, 4.2));
+            Line(ctx, new Point(16.7, 7.3), new Point(19.2, 9.8));
+            Line(ctx, new Point(14.5, 9.5), new Point(17, 12));
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.9), geometry));
         group.Freeze();
         return group;
     }

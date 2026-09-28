@@ -24,12 +24,24 @@ internal static class Snapshot
         var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null);
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)),
             new UsageWindow(18, now.AddDays(12)), null);
+        const string openCodeFixture = """{"totalTokens":{"input":12345,"output":6789,"reasoning":321,"cache":{"read":2100,"write":55}},"totalCost":1.2345,"totalSessions":7}""";
+        var (fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost) = OpenCodeUsageParser.Parse(openCodeFixture);
+        if (fixtureInput != 12345 || fixtureOutput != 6789 || fixtureReasoning != 321 || fixtureCacheRead != 2100
+            || fixtureCacheWrite != 55 || fixtureCost != 1.2345m)
+            throw new InvalidDataException("OpenCode fixture parser check failed");
+        var openCode = new OpenCodeSnapshot(false, fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost, null);
+        var deepSeek = new DeepSeekSnapshot(false, DeepSeekBalanceParser.Parse("""{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"110.00","granted_balance":"10.00","topped_up_balance":"100.00"},{"currency":"USD","total_balance":"4.25","granted_balance":"1.00","topped_up_balance":"3.25"}]}"""), null);
+        var openRouterParsed = OpenRouterKeyParser.Parse("""{"data":{"usage":25.5,"limit":100,"limit_remaining":74.5}}""");
+        var openRouter = new OpenRouterSnapshot(false, openRouterParsed.Usage, openRouterParsed.Limit, openRouterParsed.Remaining, null);
         var cpu = new CpuSnapshot("Intel Core i7-8750H", 64, 78, 23, null);
         var gpu = new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", 41, 12, 783, 4096, null);
 
         var window = new EdgeWindow(DateTime.Now.AddMinutes(-42), PanelMode.Auto) { PreviewMode = true, AnimationsEnabled = false };
         window.SetCodex(codexMonthly);
         window.SetCursor(cursor);
+        window.SetOpenCode(openCode);
+        window.SetDeepSeek(deepSeek);
+        window.SetOpenRouter(openRouter);
         window.SetGpu(gpu);
         window.Show();
         window.SetClaude(claude);
@@ -40,7 +52,7 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "02_auto_expanded_fijar.png"));
 
         window.ApplyMode(PanelMode.Pinned);
-        window.SaveSnapshot(Path.Combine(directory, "03_pinned_five_rings.png"));
+        window.SaveSnapshot(Path.Combine(directory, "03_pinned_eight_rings.png"));
 
         PaintHover(window.ModeButton, hovered: true);
         PaintHover(window.CloseButton, hovered: true);
@@ -65,12 +77,38 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingCursor);
         window.SaveSnapshot(Path.Combine(directory, "09_card_cursor.png"));
 
+        window.ShowCardNow(EdgeWindow.RingOpenCode);
+        window.SaveSnapshot(Path.Combine(directory, "21_card_opencode_local_fixture.png"));
+
+        window.ShowCardNow(EdgeWindow.RingDeepSeek);
+        window.SaveSnapshot(Path.Combine(directory, "22_card_deepseek_balance.png"));
+
+        window.ShowCardNow(EdgeWindow.RingOpenRouter);
+        window.SaveSnapshot(Path.Combine(directory, "23_card_openrouter_limit.png"));
+
+        window.SetOpenRouter(new OpenRouterSnapshot(false, 3.21m, null, null, null));
+        window.ShowCardNow(EdgeWindow.RingOpenRouter);
+        window.SaveSnapshot(Path.Combine(directory, "24_card_openrouter_spend_without_limit.png"));
+
         window.SetCursor(CursorSnapshot.Failed("Error HTTP 503"));
         window.ShowCardNow(EdgeWindow.RingCursor);
         window.SaveSnapshot(Path.Combine(directory, "17_cursor_error.png"));
         window.SetCursor(CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage));
         window.SaveSnapshot(Path.Combine(directory, "18_cursor_no_session.png"));
         window.SetCursor(cursor);
+
+        window.SetOpenCode(OpenCodeSnapshot.Failed("Sin base de datos de sesiones"));
+        window.ShowCardNow(EdgeWindow.RingOpenCode);
+        window.SaveSnapshot(Path.Combine(directory, "25_opencode_no_local_data.png"));
+        window.SetDeepSeek(DeepSeekSnapshot.Failed("Clave API no válida"));
+        window.ShowCardNow(EdgeWindow.RingDeepSeek);
+        window.SaveSnapshot(Path.Combine(directory, "26_deepseek_error.png"));
+        window.SetOpenRouter(OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…"));
+        window.ShowCardNow(EdgeWindow.RingOpenRouter);
+        window.SaveSnapshot(Path.Combine(directory, "27_openrouter_no_key.png"));
+        window.SetOpenCode(openCode);
+        window.SetDeepSeek(deepSeek);
+        window.SetOpenRouter(openRouter);
 
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(directory, "10_card_cpu.png"));
@@ -103,12 +141,24 @@ internal static class Snapshot
         window.SetClaude(claude);
         window.SetCodex(codexMonthly);
         window.SetCursor(CursorSnapshot.Absent());
+        window.SetOpenCode(OpenCodeSnapshot.Absent());
+        window.SetDeepSeek(DeepSeekSnapshot.Absent());
+        window.SetOpenRouter(OpenRouterSnapshot.Absent());
         window.SaveSnapshot(Path.Combine(directory, "19_only_claude_and_codex.png"));
 
         window.SetClaude(ClaudeSnapshot.Absent());
         window.SetCodex(CodexSnapshot.Absent());
         window.SetCursor(CursorSnapshot.Absent());
+        window.SetOpenCode(OpenCodeSnapshot.Absent());
+        window.SetDeepSeek(DeepSeekSnapshot.Absent());
+        window.SetOpenRouter(OpenRouterSnapshot.Absent());
         window.SaveSnapshot(Path.Combine(directory, "20_no_ai_installed.png"));
+
+        var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
+        keys.Show();
+        keys.UpdateLayout();
+        SaveElement((FrameworkElement)keys.Content, Path.Combine(directory, "28_api_key_window.png"));
+        keys.Close();
 
         window.Close();
 
@@ -117,6 +167,7 @@ internal static class Snapshot
         menu.UpdateLayout();
         SaveElement((FrameworkElement)menu.Content, Path.Combine(directory, "15_tray_menu.png"));
         menu.CloseMenu();
+
     }
 
     /// Paints the end state of a panel button's hover transition (the triggers need a real cursor).

@@ -45,3 +45,22 @@ internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWind
     public static CursorSnapshot NotAvailable(string reason) => new(false, null, null, reason);
     public static CursorSnapshot Failed(string message) => new(false, null, null, message);
 }
+
+internal sealed record OpenCodeSnapshot(bool Hidden, long TokensIn, long TokensOut, long TokensReasoning,
+    long TokensCacheRead, long TokensCacheWrite, decimal? CostUsd, string? Message)
+{
+    public static OpenCodeSnapshot Absent() => new(true, 0, 0, 0, 0, 0, null, null);
+    public static OpenCodeSnapshot Failed(string message) => new(false, 0, 0, 0, 0, 0, null, message);
+}
+
+internal sealed record DeepSeekSnapshot(bool Hidden, Money? Balance, string? Message)
+{
+    public static DeepSeekSnapshot Absent() => new(true, null, null);
+    public static DeepSeekSnapshot Failed(string message) => new(false, null, message);
+}
+
+internal sealed record OpenRouterSnapshot(bool Hidden, decimal UsageUsd, decimal? LimitUsd, decimal? RemainingUsd, string? Message)
+{
+    public static OpenRouterSnapshot Absent() => new(true, 0, null, null, null);
+    public static OpenRouterSnapshot Failed(string message) => new(false, 0, null, null, message);
+}

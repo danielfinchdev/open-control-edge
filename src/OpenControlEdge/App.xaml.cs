@@ -38,6 +38,9 @@ public partial class App : Application
     private readonly ClaudeUsageService _claude = new();
     private readonly CodexUsageService _codex = new();
     private readonly CursorUsageService _cursor = new();
+    private readonly OpenCodeUsageService _openCode = new();
+    private readonly DeepSeekUsageService _deepSeek = new();
+    private readonly OpenRouterUsageService _openRouter = new();
     private Mutex? _mutex;
     private HardwareSensorService? _sensors;
     private EdgeWindow? _edge;
@@ -52,6 +55,9 @@ public partial class App : Application
     private ClaudeSnapshot? _lastClaude;
     private CodexSnapshot? _lastCodex;
     private CursorSnapshot? _lastCursor;
+    private OpenCodeSnapshot? _lastOpenCode;
+    private DeepSeekSnapshot? _lastDeepSeek;
+    private OpenRouterSnapshot? _lastOpenRouter;
     private CpuSnapshot? _lastCpu;
     private GpuSnapshot? _lastGpu;
     private string? _lastStatus;
@@ -90,6 +96,19 @@ public partial class App : Application
             return;
         }
 
+        int setKeyArg = Array.IndexOf(e.Args, "--set-key");
+        if (setKeyArg >= 0)
+        {
+            string? provider = setKeyArg + 1 < e.Args.Length ? e.Args[setKeyArg + 1].ToLowerInvariant() : null;
+            if (provider is "deepseek" or "openrouter")
+            {
+                var keyWindow = new ApiKeyWindow(provider);
+                keyWindow.ShowDialog();
+            }
+            Shutdown();
+            return;
+        }
+
         if (!AcquireSingleInstance())
         {
             Shutdown();
@@ -112,6 +131,12 @@ public partial class App : Application
         _edge.SetCodex(_lastCodex);
         _lastCursor = InitialCursor(settings);
         _edge.SetCursor(_lastCursor);
+        _lastOpenCode = InitialOpenCode(settings);
+        _edge.SetOpenCode(_lastOpenCode);
+        _lastDeepSeek = InitialDeepSeek(settings);
+        _edge.SetDeepSeek(_lastDeepSeek);
+        _lastOpenRouter = InitialOpenRouter(settings);
+        _edge.SetOpenRouter(_lastOpenRouter);
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings))
             _edge.SetClaude(ClaudeSnapshot.Absent());
         _edge.ExpandedChanged += expanded =>
@@ -184,6 +209,12 @@ public partial class App : Application
             _edge.SetCodex(_lastCodex);
             _lastCursor = await RefreshCursorAsync(settings);
             _edge.SetCursor(_lastCursor);
+            _lastOpenCode = await RefreshOpenCodeAsync(settings);
+            _edge.SetOpenCode(_lastOpenCode);
+            _lastDeepSeek = await RefreshDeepSeekAsync(settings);
+            _edge.SetDeepSeek(_lastDeepSeek);
+            _lastOpenRouter = await RefreshOpenRouterAsync(settings);
+            _edge.SetOpenRouter(_lastOpenRouter);
 
             _edge.ReassertTopmost();
             UpdateTooltip();
@@ -209,6 +240,27 @@ public partial class App : Application
         return _cursor.Initial();
     }
 
+    private OpenCodeSnapshot InitialOpenCode(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenCode, settings)) return OpenCodeSnapshot.Absent();
+        return AiDetector.IsInstalled(AiProviderId.OpenCode) ? OpenCodeSnapshot.Failed("Cargando…")
+            : OpenCodeSnapshot.Failed("Instala OpenCode para activar este anillo");
+    }
+
+    private DeepSeekSnapshot InitialDeepSeek(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Absent();
+        return AiDetector.IsInstalled(AiProviderId.DeepSeek) ? DeepSeekSnapshot.Failed("Cargando…")
+            : DeepSeekSnapshot.Failed("Añade la clave API desde Claves de API…");
+    }
+
+    private OpenRouterSnapshot InitialOpenRouter(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Absent();
+        return AiDetector.IsInstalled(AiProviderId.OpenRouter) ? OpenRouterSnapshot.Failed("Cargando…")
+            : OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…");
+    }
+
     private async Task<ClaudeSnapshot> RefreshClaudeAsync(Settings settings)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)) return ClaudeSnapshot.Absent();
@@ -231,6 +283,27 @@ public partial class App : Application
         if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Cursor, settings))
             return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
         return await _cursor.FetchAsync();
+    }
+
+    private async Task<OpenCodeSnapshot> RefreshOpenCodeAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenCode, settings)) return OpenCodeSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.OpenCode, settings)) return OpenCodeSnapshot.Failed("No se detecta OpenCode");
+        return await _openCode.FetchAsync();
+    }
+
+    private async Task<DeepSeekSnapshot> RefreshDeepSeekAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Failed("Añade la clave API desde Claves de API…");
+        return await _deepSeek.FetchAsync();
+    }
+
+    private async Task<OpenRouterSnapshot> RefreshOpenRouterAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…");
+        return await _openRouter.FetchAsync();
     }
 
     /// CPU and GPU, read together from the same LibreHardwareMonitor instance. Joins a read already in flight.
@@ -390,8 +463,13 @@ public partial class App : Application
             : $" · Cursor {(_lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
+        string openCode = _lastOpenCode is { Hidden: false, Message: null } oc
+            ? $" · OpenCode {((decimal)oc.TokensIn + oc.TokensOut + oc.TokensReasoning + oc.TokensCacheRead + oc.TokensCacheWrite):N0} tokens" : string.Empty;
+        string deepSeek = _lastDeepSeek is { Hidden: false, Balance: Money balance } ? $" · DeepSeek {Fmt.Amount(balance)}" : string.Empty;
+        string openRouter = _lastOpenRouter is { Hidden: false, Message: null } routerUsage
+            ? $" · OpenRouter {(routerUsage.LimitUsd is decimal limit && limit > 0 && routerUsage.RemainingUsd is not null ? Fmt.Percent((double)Math.Clamp(routerUsage.UsageUsd / limit * 100, 0, 100)) : Fmt.Amount(new Money(routerUsage.UsageUsd, "USD")))}" : string.Empty;
         string claudePart = claude.Length == 0 ? string.Empty : $"Claude {claude} · ";
-        _tray?.SetTooltip($"{claudePart}CPU {cpu}{codex}{cursor}{gpu}");
+        _tray?.SetTooltip($"{claudePart}CPU {cpu}{codex}{cursor}{openCode}{deepSeek}{openRouter}{gpu}");
         LogStatusChange();
     }
 
@@ -407,11 +485,14 @@ public partial class App : Application
         string cursor = _lastCursor is null ? "pendiente"
             : _lastCursor.Hidden ? "no instalado"
             : _lastCursor.Cycle is not null ? "ok" : _lastCursor.Message ?? "sin datos";
+        string openCode = _lastOpenCode is null ? "pendiente" : _lastOpenCode.Hidden ? "no instalado" : _lastOpenCode.Message is null ? "ok" : _lastOpenCode.Message;
+        string deepSeek = _lastDeepSeek is null ? "pendiente" : _lastDeepSeek.Hidden ? "sin clave" : _lastDeepSeek.Balance is not null ? "ok" : _lastDeepSeek.Message ?? "sin datos";
+        string openRouter = _lastOpenRouter is null ? "pendiente" : _lastOpenRouter.Hidden ? "sin clave" : _lastOpenRouter.Message is null ? "ok" : _lastOpenRouter.Message;
         string cpu = _lastCpu is null ? "pendiente" : _lastCpu.Temperature is not null ? "ok" : _lastCpu.Message ?? "sin datos";
         string gpu = _lastGpu is null ? "pendiente"
             : !_lastGpu.Detected ? "no detectada"
             : _lastGpu.Temperature is not null ? "ok" : _lastGpu.Message ?? "sin datos";
-        string status = $"Claude: {claude} | Codex: {codex} | Cursor: {cursor} | CPU temperatura: {cpu} | GPU temperatura: {gpu}";
+        string status = $"Claude: {claude} | Codex: {codex} | Cursor: {cursor} | OpenCode: {openCode} | DeepSeek: {deepSeek} | OpenRouter: {openRouter} | CPU temperatura: {cpu} | GPU temperatura: {gpu}";
         if (status == _lastStatus) return;
         _lastStatus = status;
         Log.Info("Status", status);
@@ -433,6 +514,7 @@ public partial class App : Application
 
         var menu = new TrayMenuWindow();
         menu.RefreshRequested += () => _ = RefreshEverythingAsync();
+        menu.ApiKeysRequested += ShowApiKeysWindow;
         menu.ExitRequested += Shutdown;
         menu.Closed += (_, _) =>
         {
@@ -440,6 +522,13 @@ public partial class App : Application
         };
         _menu = menu;
         menu.ShowAtCursor();
+    }
+
+    private void ShowApiKeysWindow()
+    {
+        var window = new ApiKeyWindow();
+        window.Closed += (_, _) => _ = RefreshUsageAsync();
+        window.ShowDialog();
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -8,12 +8,19 @@ internal enum AiProviderId
     Claude,
     Codex,
     Cursor,
+    OpenCode,
+    DeepSeek,
+    OpenRouter,
 }
 
 /// Cheap, offline checks for whether an AI client is present on this machine. Never reads credential files.
 internal static class AiDetector
 {
-    internal static IReadOnlyList<AiProviderId> All { get; } = new[] { AiProviderId.Claude, AiProviderId.Codex, AiProviderId.Cursor };
+    internal static IReadOnlyList<AiProviderId> All { get; } = new[]
+    {
+        AiProviderId.Claude, AiProviderId.Codex, AiProviderId.Cursor,
+        AiProviderId.OpenCode, AiProviderId.DeepSeek, AiProviderId.OpenRouter,
+    };
 
     internal const string ClaudeLoginMessage = "Inicia sesión en Claude Code";
     internal const string CodexLoginMessage = "Inicia sesión en ChatGPT o Codex";
@@ -24,6 +31,9 @@ internal static class AiDetector
         AiProviderId.Claude => IsClaudeInstalled(),
         AiProviderId.Codex => IsCodexInstalled(),
         AiProviderId.Cursor => IsCursorInstalled(),
+        AiProviderId.OpenCode => CommandOnPath("opencode") || OpenCodeDataDirs.Any(Directory.Exists),
+        AiProviderId.DeepSeek => ProviderKeyStore.IsConfigured("deepseek"),
+        AiProviderId.OpenRouter => ProviderKeyStore.IsConfigured("openrouter"),
         _ => false,
     };
 
@@ -83,6 +93,18 @@ internal static class AiDetector
 
     private static string CursorAgentDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "cursor-agent");
+
+    private static IEnumerable<string> OpenCodeDataDirs
+    {
+        get
+        {
+            string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string? xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            yield return Path.Combine(string.IsNullOrWhiteSpace(xdg) ? Path.Combine(user, ".local", "share") : xdg, "opencode");
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode");
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode");
+        }
+    }
 
     private static string PackagesDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages");
@@ -164,12 +186,18 @@ internal static class AiProviderSettings
     internal const string Claude = "claude";
     internal const string Codex = "codex";
     internal const string Cursor = "cursor";
+    internal const string OpenCode = "opencode";
+    internal const string DeepSeek = "deepseek";
+    internal const string OpenRouter = "openrouter";
 
     internal static string Key(AiProviderId provider) => provider switch
     {
         AiProviderId.Claude => Claude,
         AiProviderId.Codex => Codex,
         AiProviderId.Cursor => Cursor,
+        AiProviderId.OpenCode => OpenCode,
+        AiProviderId.DeepSeek => DeepSeek,
+        AiProviderId.OpenRouter => OpenRouter,
         _ => provider.ToString().ToLowerInvariant(),
     };
 }

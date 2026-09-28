@@ -35,6 +35,14 @@
                     </StackPanel>
                 </Button>
 
+                <Button x:Name="ApiKeysButton" Style="{StaticResource MenuButton}" Click="OnApiKeysClick"
+                        AutomationProperties.AutomationId="ApiKeysButton" AutomationProperties.Name="Claves de API">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Source="{x:Static ui:Icons.KeyImage}" Width="16" Height="16" VerticalAlignment="Center" />
+                        <TextBlock Text="Claves de API…" Margin="10,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
                 <Border Height="1" Background="#1F1F21" Margin="10,4" />
 
                 <Button x:Name="ExitButton" Style="{StaticResource MenuButton}" Click="OnExitClick"

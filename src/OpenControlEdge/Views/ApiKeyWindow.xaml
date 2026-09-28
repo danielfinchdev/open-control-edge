@@ -1,0 +1,37 @@
+<Window x:Class="OpenControlEdge.Views.ApiKeyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Claves de API" Width="390" SizeToContent="Height" WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize" Background="#111113" Foreground="White" FontFamily="Segoe UI"
+        ShowInTaskbar="False" Topmost="True">
+    <Window.Resources>
+        <Style x:Key="KeyAction" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#29292D"/>
+            <Setter Property="BorderBrush" Value="#414146"/><Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,7"/><Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="22">
+        <TextBlock Text="Claves de API" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="Se cifran con DPAPI para tu usuario de Windows. Nunca se guardan en settings ni en el registro."
+                   Foreground="#A1A1A6" TextWrapping="Wrap" Margin="0,8,0,17" />
+
+        <TextBlock Text="DeepSeek" FontWeight="SemiBold" />
+        <PasswordBox x:Name="DeepSeekKey" Margin="0,7,0,6" Padding="8" Background="#202024" Foreground="White" BorderBrush="#414146" />
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource KeyAction}" Content="Guardar" Click="OnSaveDeepSeek" />
+            <Button Style="{StaticResource KeyAction}" Content="Borrar" Click="OnDeleteDeepSeek" />
+            <TextBlock x:Name="DeepSeekStatus" Foreground="#A1A1A6" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <TextBlock Text="OpenRouter" FontWeight="SemiBold" Margin="0,18,0,0" />
+        <PasswordBox x:Name="OpenRouterKey" Margin="0,7,0,6" Padding="8" Background="#202024" Foreground="White" BorderBrush="#414146" />
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource KeyAction}" Content="Guardar" Click="OnSaveOpenRouter" />
+            <Button Style="{StaticResource KeyAction}" Content="Borrar" Click="OnDeleteOpenRouter" />
+            <TextBlock x:Name="OpenRouterStatus" Foreground="#A1A1A6" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <Button Content="Cerrar" HorizontalAlignment="Right" Margin="0,20,0,0" Padding="14,7" Click="OnClose" />
+    </StackPanel>
+</Window>

@@ -7,7 +7,7 @@ de cada IA y a qué temperatura está tu portátil.**
 > temperature at a glance. Interface and documentation are in Spanish.*
 
 Sin instalador, sin servicios en segundo plano, sin telemetría. Un único ejecutable que consume
-**0,2 segundos de CPU por minuto** y no envía tus datos a ningún sitio.
+**0,2 segundos de CPU por minuto**. Solo consulta los endpoints documentados abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
 
 ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
 
@@ -24,11 +24,14 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 | **Claude** | % de la sesión de 5 h, límite semanal y gasto acumulado en € |
 | **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) |
 | **Cursor** | % del ciclo mensual Pro y, si existe, bajo demanda |
+| **OpenCode** | Tokens de entrada / salida / razonamiento / caché y coste acumulado local |
+| **DeepSeek** | Saldo API restante en la moneda devuelta por el proveedor |
+| **OpenRouter** | % usado si la clave tiene límite; si no, gasto acumulado en USD |
 | **CPU** | Temperatura actual, máxima de la sesión y carga |
 | **GPU** | Temperatura, uso y memoria (NVIDIA) |
 
-Los anillos de cada IA **solo aparecen si ese cliente está instalado** en el PC (o si lo fuerzas en
-ajustes). Si está instalado pero aún no has iniciado sesión, el anillo se muestra con un mensaje claro.
+Los anillos de OpenCode aparecen si se detecta su CLI o sus datos locales; DeepSeek y OpenRouter aparecen al guardar una clave.
+Claude, Codex y Cursor se detectan por sus clientes o credenciales. Puedes forzar u ocultar cada anillo en ajustes.
 El anillo de GPU sigue ocultándose cuando no hay NVIDIA detectada. El panel se recentra con una animación
 al mostrar u ocultar anillos.
 
@@ -92,7 +95,10 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
   "providers": {
     "claude": "auto",
     "codex": "auto",
-    "cursor": "auto"
+    "cursor": "auto",
+    "opencode": "auto",
+    "deepseek": "auto",
+    "openrouter": "auto"
   }
 }
 ```
@@ -102,7 +108,7 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
 | `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
 
-Cada clave dentro de `providers` (`claude`, `codex`, `cursor`) admite:
+Cada clave dentro de `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) admite:
 
 | Valor | Qué hace |
 |---|---|
@@ -122,6 +128,9 @@ los edites tú; al cambiar el modo del panel se conservan las claves que ya tuvi
 | Claude | `api.anthropic.com/api/oauth/usage` | `%USERPROFILE%\.claude\.credentials.json` |
 | Codex | `chatgpt.com/backend-api/wham/usage` | `%USERPROFILE%\.codex\auth.json` |
 | Cursor | `cursor.com/api/usage-summary` | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
+| OpenCode | Base local SQLite `opencode*.db` | CLI o carpeta de datos local |
+| DeepSeek | `api.deepseek.com/user/balance` | Clave DPAPI CurrentUser |
+| OpenRouter | `openrouter.ai/api/v1/key` | Clave DPAPI CurrentUser |
 | CPU / GPU | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | — |
 
 Los endpoints de Claude, Codex y Cursor **no están documentados** por sus proveedores. Los parsers exigen la forma
@@ -150,7 +159,7 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   «Abre Claude Code para renovar». La renovación la hace un script aparte, como usuario normal.
 - No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
   respuesta ni cabeceras.
-- No envía nada a ningún sitio salvo a los tres endpoints de la tabla de arriba, por HTTPS.
+- Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README. OpenCode no usa red.
 - No tiene telemetría, ni analítica, ni actualizaciones automáticas, ni servicios residentes.
 
 **El ejecutable vive en `C:\Program Files`, a propósito**
@@ -227,10 +236,7 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **15 PNG** con todos los estados —los dos modos, las cinco tarjetas, los errores, los anillos
-ocultos, los botones en hover y el menú de bandeja— y sale. No lee credenciales, no toca los ajustes y
-no abre los sensores. Es la forma de revisar un cambio visual en segundos.
-
+Renderiza **28 PNG** con los dos modos, las ocho tarjetas, estados de error y sin datos, anillos ocultos, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores.
 ---
 
 ## Cómo está hecho
@@ -279,3 +285,57 @@ Sensores: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHa
 
 Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
 asociado con Anthropic, OpenAI ni xAI.
+
+## Proveedores añadidos y claves de API
+
+| IA | Fuente y métrica | Estado |
+|---|---|---|
+| OpenCode | Base local `opencode*.db`: tokens de entrada/salida/razonamiento/caché y coste | Implementado; no usa red |
+| DeepSeek | [`GET https://api.deepseek.com/user/balance`](https://api-docs.deepseek.com/api/get-user-balance/): saldo en CNY o USD | Implementado |
+| Perplexity | No encontré una API pública oficial de uso o saldo | No implementado |
+| GitHub Copilot | [API de facturación de GitHub](https://docs.github.com/en/rest/billing/usage): créditos consumidos; las peticiones premium solo aplican al modelo heredado | No implementado: no proporciona una cuota de peticiones universal para todas las cuentas |
+| OpenRouter | [`GET https://openrouter.ai/api/v1/key`](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key): uso y límite de la clave | Implementado |
+| Gemini CLI | `/stats`: estadísticas de sesión, no cuota persistente | No implementado |
+| Mistral | [Admin API de uso](https://docs.mistral.ai/admin/admin-api/usage-metrics): consumo/coste de organización | Requiere clave admin y alcance de organización |
+| xAI | [Management API](https://docs.x.ai/developers/rest-api-reference/management/billing): uso del equipo | Requiere permisos y equipo |
+| Windsurf | Endpoint de cuota observado por terceros, no documentado oficialmente | No implementado |
+
+### Cómo guardar o borrar claves
+
+En el menú de la bandeja, selecciona **Claves de API…**. El diálogo tiene un `PasswordBox` para DeepSeek y otro para OpenRouter, con botones **Guardar** y **Borrar**. También se abre desde consola con:
+
+```powershell
+OpenControlEdge.exe --set-key deepseek
+OpenControlEdge.exe --set-key openrouter
+```
+
+Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en `%LOCALAPPDATA%\OpenControlEdge\keys\deepseek.bin` y `openrouter.bin`. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
+
+### Datos locales de OpenCode
+
+El detector busca `opencode` en `PATH` o el directorio de datos de OpenCode. Se respetan `OPENCODE_DB` y `XDG_DATA_HOME`; también se inspeccionan las ubicaciones de datos habituales de Windows. El lector abre cada `opencode*.db` con SQLite en solo lectura y agrega solamente columnas de uso de la tabla `session`. No consulta la CLI para obtener los datos y no crea conexiones de red.
+
+La prueba del parser incluida en `--snapshot` usa este objeto **normalizado interno**; no representa una salida prometida de `opencode stats --json`:
+
+```json
+{
+  "totalTokens": {
+    "input": 12345,
+    "output": 6789,
+    "reasoning": 321,
+    "cache": { "read": 2100, "write": 55 }
+  },
+  "totalCost": 1.2345
+}
+```
+
+La tarjeta muestra los cinco contadores y el coste registrado. Si falta la tabla o cualquier campo esperado, indica error en lugar de calcular una cifra aproximada.
+
+### Destinos de red y seguridad
+
+Además de Claude, Codex y Cursor, el widget contacta estos destinos solo para actualizar las tarjetas:
+
+- `https://api.deepseek.com/user/balance` (DeepSeek; requiere la clave cifrada del usuario).
+- `https://openrouter.ai/api/v1/key` (OpenRouter; requiere la clave cifrada del usuario).
+
+OpenCode es local. Perplexity y Windsurf no se contactan. Las cabeceras y los cuerpos de respuesta nunca se registran; los servicios muestran errores propios y tienen timeout de 15 segundos.
