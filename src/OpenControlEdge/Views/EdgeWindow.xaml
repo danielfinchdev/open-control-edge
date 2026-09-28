@@ -209,7 +209,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Hidden unless there is a usable Codex login (see CodexUsageService). -->
+                    <!-- Hidden when Codex/ChatGPT is not installed (see AiDetector). -->
                     <Grid x:Name="CodexItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CodexRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
@@ -223,7 +223,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Hidden when Cursor has no IDE session. -->
+                    <!-- Hidden when Cursor is not installed (see AiDetector). -->
                     <Grid x:Name="CursorItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CursorRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"

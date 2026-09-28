@@ -7,9 +7,11 @@ internal sealed record Money(decimal Amount, string Currency);
 
 /// Session is null whenever the data could not be obtained; Message then explains why.
 /// Spent (spend.used) is optional: null when the response does not carry it.
-internal sealed record ClaudeSnapshot(UsageWindow? Session, UsageWindow? Weekly, Money? Spent, string? Message)
+/// Hidden: the provider is not installed (or forced off in settings), so the ring is omitted entirely.
+internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWindow? Weekly, Money? Spent, string? Message)
 {
-    public static ClaudeSnapshot Failed(string message) => new(null, null, null, message);
+    public static ClaudeSnapshot Absent() => new(true, null, null, null, null);
+    public static ClaudeSnapshot Failed(string message) => new(false, null, null, null, message);
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.
@@ -28,16 +30,18 @@ internal sealed record HardwareSnapshot(CpuSnapshot Cpu, GpuSnapshot Gpu);
 /// One Codex rate-limit window. Length is limit_window_seconds (e.g. 30 days).
 internal sealed record CodexWindow(double Percent, TimeSpan? Length, DateTimeOffset? ResetsAt);
 
-/// Hidden: no usable ChatGPT login (auth.json missing, no access token, token expired or HTTP 401), so the ring
-/// is not shown. Otherwise Primary is null whenever the data could not be obtained; Message then explains why.
+/// Hidden: the provider is not installed (or forced off in settings). Otherwise Primary is null when there is no
+/// usable session yet; Message then explains why (including «Inicia sesión en …»).
 internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWindow? Secondary, string? Message)
 {
-    public static CodexSnapshot NotAvailable(string reason) => new(true, null, null, reason);
+    public static CodexSnapshot Absent() => new(true, null, null, null);
+    public static CodexSnapshot NotAvailable(string reason) => new(false, null, null, reason);
     public static CodexSnapshot Failed(string message) => new(false, null, null, message);
 }
 
 internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWindow? OnDemand, string? Message)
 {
-    public static CursorSnapshot NotAvailable(string reason) => new(true, null, null, reason);
+    public static CursorSnapshot Absent() => new(true, null, null, null);
+    public static CursorSnapshot NotAvailable(string reason) => new(false, null, null, reason);
     public static CursorSnapshot Failed(string message) => new(false, null, null, message);
 }

@@ -18,8 +18,8 @@ internal sealed class CursorUsageService
     public CursorSnapshot Initial()
     {
         try { return CursorCredentialReader.Read(_databasePath) is null
-            ? CursorSnapshot.NotAvailable("Sin sesión de Cursor") : CursorSnapshot.Failed("Cargando…"); }
-        catch { return CursorSnapshot.NotAvailable("No se encuentra la sesión de Cursor"); }
+            ? CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage) : CursorSnapshot.Failed("Cargando…"); }
+        catch { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
     }
 
     public async Task<CursorSnapshot> FetchAsync()
@@ -27,14 +27,14 @@ internal sealed class CursorUsageService
         try
         {
             var credentials = CursorCredentialReader.Read(_databasePath);
-            if (credentials is null) return CursorSnapshot.NotAvailable("Sin sesión de Cursor");
+            if (credentials is null) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             string cookieValue = Uri.EscapeDataString(credentials.UserId + "::" + credentials.AccessToken);
             request.Headers.TryAddWithoutValidation("Cookie", "WorkosCursorSessionToken=" + cookieValue);
             request.Headers.TryAddWithoutValidation("Accept", "application/json");
             request.Headers.TryAddWithoutValidation("User-Agent", "OpenControlEdge/2.0");
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized) return CursorSnapshot.NotAvailable("Sesión de Cursor caducada");
+            if (response.StatusCode == HttpStatusCode.Unauthorized) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
             if (!response.IsSuccessStatusCode) return CursorSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try
@@ -48,9 +48,9 @@ internal sealed class CursorUsageService
         catch (HttpRequestException) { return CursorSnapshot.Failed("Sin conexión"); }
         catch (TaskCanceledException) { return CursorSnapshot.Failed("Tiempo de espera agotado"); }
         catch (System.Text.Json.JsonException) { return CursorSnapshot.Failed("Respuesta no válida"); }
-        catch (Microsoft.Data.Sqlite.SqliteException) { return CursorSnapshot.NotAvailable("No se encuentra la sesión de Cursor"); }
-        catch (UnauthorizedAccessException) { return CursorSnapshot.NotAvailable("No se puede leer la sesión de Cursor"); }
-        catch (IOException) { return CursorSnapshot.NotAvailable("No se puede leer la sesión de Cursor"); }
+        catch (Microsoft.Data.Sqlite.SqliteException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
+        catch (UnauthorizedAccessException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
+        catch (IOException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
         catch (Exception) { return CursorSnapshot.Failed("No se pudo leer el uso"); }
     }
 }

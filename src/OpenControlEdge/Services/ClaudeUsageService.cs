@@ -20,7 +20,7 @@ internal sealed class ClaudeUsageService
         {
             var credentials = CredentialReader.Read(CredentialReader.DefaultPath);
             if (credentials is null)
-                return ClaudeSnapshot.Failed("No se encuentran las credenciales de Claude Code");
+                return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
 
             // Token already expired (or no expiry to check): do not even send the request.
             if (credentials.ExpiresAt is not DateTimeOffset expiresAt || DateTimeOffset.UtcNow >= expiresAt)
@@ -48,7 +48,7 @@ internal sealed class ClaudeUsageService
                 Log.Warn("Claude", "200 response without session data");
                 return ClaudeSnapshot.Failed("Respuesta sin datos de sesión");
             }
-            return new ClaudeSnapshot(usage.Session, usage.Weekly, usage.Spent, null);
+            return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null);
         }
         catch (HttpRequestException ex)
         {

@@ -19,7 +19,7 @@ internal static class Snapshot
         Directory.CreateDirectory(directory);
         DateTimeOffset now = DateTimeOffset.Now;
 
-        var claude = new ClaudeSnapshot(new UsageWindow(32, now.AddMinutes(125)), new UsageWindow(11, now.AddDays(3).AddHours(5)),
+        var claude = new ClaudeSnapshot(false, new UsageWindow(32, now.AddMinutes(125)), new UsageWindow(11, now.AddDays(3).AddHours(5)),
             new Money(10.53m, "EUR"), null);
         var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null);
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)),
@@ -68,8 +68,8 @@ internal static class Snapshot
         window.SetCursor(CursorSnapshot.Failed("Error HTTP 503"));
         window.ShowCardNow(EdgeWindow.RingCursor);
         window.SaveSnapshot(Path.Combine(directory, "17_cursor_error.png"));
-        window.SetCursor(CursorSnapshot.NotAvailable("Sin sesión de Cursor"));
-        window.SaveSnapshot(Path.Combine(directory, "18_cursor_no_session_hidden.png"));
+        window.SetCursor(CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage));
+        window.SaveSnapshot(Path.Combine(directory, "18_cursor_no_session.png"));
         window.SetCursor(cursor);
 
         window.ShowCardNow(EdgeWindow.RingCpu);
@@ -87,9 +87,9 @@ internal static class Snapshot
         window.SetClaude(claude with { Session = new UsageWindow(86, now.AddMinutes(38)) });
         window.SetCpu(cpu);
         window.ShowCardNow(EdgeWindow.RingCpu);
-        window.SetCodex(CodexSnapshot.NotAvailable("auth.json not found"));
+        window.SetCodex(CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage));
         window.SetGpu(GpuSnapshot.NotDetected);
-        window.SaveSnapshot(Path.Combine(directory, "13_codex_and_gpu_hidden_card_follows.png"));
+        window.SaveSnapshot(Path.Combine(directory, "13_codex_no_session_and_gpu_hidden.png"));
 
         window.ApplyMode(PanelMode.Auto);
         window.SaveSnapshot(Path.Combine(directory, "14_back_to_auto.png"));
@@ -99,6 +99,16 @@ internal static class Snapshot
         window.SetClaudeRenewing();
         window.SetClaudeRenewFailed(App.RenewTaskMissingMessage);
         window.SaveSnapshot(Path.Combine(directory, "16_card_claude_renew_task_missing.png"));
+
+        window.SetClaude(claude);
+        window.SetCodex(codexMonthly);
+        window.SetCursor(CursorSnapshot.Absent());
+        window.SaveSnapshot(Path.Combine(directory, "19_only_claude_and_codex.png"));
+
+        window.SetClaude(ClaudeSnapshot.Absent());
+        window.SetCodex(CodexSnapshot.Absent());
+        window.SetCursor(CursorSnapshot.Absent());
+        window.SaveSnapshot(Path.Combine(directory, "20_no_ai_installed.png"));
 
         window.Close();
 

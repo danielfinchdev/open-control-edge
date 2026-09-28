@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Collections.Frozen;
 using System.IO;
 using System.Text.Json;
 
@@ -13,15 +13,16 @@ internal enum PanelMode
     Auto,
 }
 
-internal sealed record Settings(PanelMode PanelMode)
+internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, ProviderVisibility> Providers)
 {
-    public static Settings Defaults { get; } = new(PanelMode.Pinned);
+    public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
 
 /// Preferences in %LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json:
 ///
 ///   {
 ///     "panelMode": "pinned" | "auto",
+///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
@@ -65,7 +66,8 @@ internal static class SettingsStore
             if (root.ValueKind != JsonValueKind.Object) return Settings.Defaults;
 
             PanelMode mode = GetString(root, "panelMode") == "auto" ? PanelMode.Auto : PanelMode.Pinned;
-            return new Settings(mode);
+            FrozenDictionary<string, ProviderVisibility> providers = ParseProviders(root);
+            return new Settings(mode, providers);
         }
         catch (Exception ex)
         {
@@ -77,13 +79,27 @@ internal static class SettingsStore
     /// Saves only supported settings; legacy properties such as "grok" are ignored.
     public static void SavePanelMode(PanelMode mode)
     {
+        Settings current = Load();
+        Save(new Settings(mode, current.Providers));
+    }
+
+    private static void Save(Settings settings)
+    {
         try
         {
             using var buffer = new MemoryStream();
             using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
             {
                 writer.WriteStartObject();
-                writer.WriteString("panelMode", mode == PanelMode.Auto ? "auto" : "pinned");
+                writer.WriteString("panelMode", settings.PanelMode == PanelMode.Auto ? "auto" : "pinned");
+                if (settings.Providers.Count > 0)
+                {
+                    writer.WriteStartObject("providers");
+                    foreach (KeyValuePair<string, ProviderVisibility> entry in settings.Providers.OrderBy(p => p.Key, StringComparer.Ordinal))
+                        writer.WriteString(entry.Key, VisibilityToJson(entry.Value));
+                    writer.WriteEndObject();
+                }
+
                 writer.WriteEndObject();
             }
 
@@ -93,13 +109,44 @@ internal static class SettingsStore
             string temp = FilePath + ".tmp";
             File.WriteAllBytes(temp, buffer.ToArray());
             File.Move(temp, FilePath, overwrite: true);
-            Log.Info("Settings", $"panelMode = {mode}");
+            Log.Info("Settings", $"panelMode = {settings.PanelMode}");
         }
         catch (Exception ex)
         {
             Log.Warn("Settings", "could not save: " + ex.Message);
         }
     }
+
+    private static FrozenDictionary<string, ProviderVisibility> ParseProviders(JsonElement root)
+    {
+        if (!root.TryGetProperty("providers", out JsonElement providers) || providers.ValueKind != JsonValueKind.Object)
+            return FrozenDictionary<string, ProviderVisibility>.Empty;
+
+        var map = new Dictionary<string, ProviderVisibility>(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty property in providers.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.String) continue;
+            ProviderVisibility? visibility = ParseVisibility(property.Value.GetString());
+            if (visibility is ProviderVisibility parsed) map[property.Name] = parsed;
+        }
+
+        return map.Count == 0 ? FrozenDictionary<string, ProviderVisibility>.Empty : map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static ProviderVisibility? ParseVisibility(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "auto" => ProviderVisibility.Auto,
+        "show" => ProviderVisibility.Show,
+        "hide" => ProviderVisibility.Hide,
+        _ => null,
+    };
+
+    private static string VisibilityToJson(ProviderVisibility visibility) => visibility switch
+    {
+        ProviderVisibility.Show => "show",
+        ProviderVisibility.Hide => "hide",
+        _ => "auto",
+    };
 
     private static string? GetString(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

@@ -27,8 +27,10 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 | **CPU** | Temperatura actual, máxima de la sesión y carga |
 | **GPU** | Temperatura, uso y memoria (NVIDIA) |
 
-Los anillos de Codex, Cursor y GPU **aparecen y desaparecen solos** según haya o no datos que mostrar, y
-el panel se recentra con una animación.
+Los anillos de cada IA **solo aparecen si ese cliente está instalado** en el PC (o si lo fuerzas en
+ajustes). Si está instalado pero aún no has iniciado sesión, el anillo se muestra con un mensaje claro.
+El anillo de GPU sigue ocultándose cuando no hay NVIDIA detectada. El panel se recentra con una animación
+al mostrar u ocultar anillos.
 
 ### Dos modos
 
@@ -86,15 +88,30 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 
 ```json
 {
-  "panelMode": "auto"
+  "panelMode": "auto",
+  "providers": {
+    "claude": "auto",
+    "codex": "auto",
+    "cursor": "auto"
+  }
 }
 ```
 
 | Clave | Valores | Qué hace |
 |---|---|---|
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
+| `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
 
-El archivo solo guarda el modo del panel.
+Cada clave dentro de `providers` (`claude`, `codex`, `cursor`) admite:
+
+| Valor | Qué hace |
+|---|---|
+| `"auto"` | Muestra el anillo solo si el cliente está instalado (valor por defecto). |
+| `"show"` | Fuerza el anillo aunque no se detecte la instalación (sin llamar a la API si no hay cliente). |
+| `"hide"` | Oculta el anillo aunque el cliente esté instalado. |
+
+Si omites `providers` o una clave concreta, se usa `"auto"`. El widget no escribe `providers` hasta que
+los edites tú; al cambiar el modo del panel se conservan las claves que ya tuvieras.
 
 ---
 

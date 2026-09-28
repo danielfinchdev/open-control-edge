@@ -107,10 +107,13 @@ public partial class App : Application
 
         _sensors = new HardwareSensorService();
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
-        _lastCodex = _codex.Initial();
+        Settings settings = SettingsStore.Load();
+        _lastCodex = InitialCodex(settings);
         _edge.SetCodex(_lastCodex);
-        _lastCursor = _cursor.Initial();
+        _lastCursor = InitialCursor(settings);
         _edge.SetCursor(_lastCursor);
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings))
+            _edge.SetClaude(ClaudeSnapshot.Absent());
         _edge.ExpandedChanged += expanded =>
         {
             _panelExpanded = expanded;
@@ -173,15 +176,13 @@ public partial class App : Application
         try
         {
             Log.Trace("Usage", "refresh started");
-            Task<ClaudeSnapshot> claude = _claude.FetchAsync();
-            Task<CodexSnapshot> codex = _codex.FetchAsync();
-            Task<CursorSnapshot> cursor = _cursor.FetchAsync();
+            Settings settings = SettingsStore.Load();
 
-            _lastClaude = await claude;
+            _lastClaude = await RefreshClaudeAsync(settings);
             _edge.SetClaude(_lastClaude);
-            _lastCodex = await codex;
+            _lastCodex = await RefreshCodexAsync(settings);
             _edge.SetCodex(_lastCodex);
-            _lastCursor = await cursor;
+            _lastCursor = await RefreshCursorAsync(settings);
             _edge.SetCursor(_lastCursor);
 
             _edge.ReassertTopmost();
@@ -192,6 +193,44 @@ public partial class App : Application
         {
             Log.Error("Usage refresh", ex);
         }
+    }
+
+    private CodexSnapshot InitialCodex(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Codex, settings)) return CodexSnapshot.Absent();
+        if (!AiDetector.IsInstalled(AiProviderId.Codex)) return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
+        return _codex.Initial();
+    }
+
+    private CursorSnapshot InitialCursor(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Cursor, settings)) return CursorSnapshot.Absent();
+        if (!AiDetector.IsInstalled(AiProviderId.Cursor)) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
+        return _cursor.Initial();
+    }
+
+    private async Task<ClaudeSnapshot> RefreshClaudeAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)) return ClaudeSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Claude, settings))
+            return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
+        return await _claude.FetchAsync();
+    }
+
+    private async Task<CodexSnapshot> RefreshCodexAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Codex, settings)) return CodexSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Codex, settings))
+            return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
+        return await _codex.FetchAsync();
+    }
+
+    private async Task<CursorSnapshot> RefreshCursorAsync(Settings settings)
+    {
+        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Cursor, settings)) return CursorSnapshot.Absent();
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Cursor, settings))
+            return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
+        return await _cursor.FetchAsync();
     }
 
     /// CPU and GPU, read together from the same LibreHardwareMonitor instance. Joins a read already in flight.
@@ -342,7 +381,8 @@ public partial class App : Application
 
     private void UpdateTooltip()
     {
-        string claude = _lastClaude?.Session is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
+        string claude = _lastClaude is null || _lastClaude.Hidden ? string.Empty
+            : _lastClaude.Session is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
         string cpu = _lastCpu?.Temperature is double t ? Fmt.Celsius(t) : "--";
         string codex = _lastCodex is null || _lastCodex.Hidden ? string.Empty
             : $" · Codex {(_lastCodex.Primary is CodexWindow w ? Fmt.Percent(w.Percent) : "--")}";
@@ -350,19 +390,22 @@ public partial class App : Application
             : $" · Cursor {(_lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
-        _tray?.SetTooltip($"Claude {claude}{codex}{cursor} · CPU {cpu}{gpu}");
+        string claudePart = claude.Length == 0 ? string.Empty : $"Claude {claude} · ";
+        _tray?.SetTooltip($"{claudePart}CPU {cpu}{codex}{cursor}{gpu}");
         LogStatusChange();
     }
 
     /// One log line whenever a source changes between available and failing (not on every refresh).
     private void LogStatusChange()
     {
-        string claude = _lastClaude is null ? "pendiente" : _lastClaude.Session is not null ? "ok" : _lastClaude.Message ?? "sin datos";
+        string claude = _lastClaude is null ? "pendiente"
+            : _lastClaude.Hidden ? "no instalado"
+            : _lastClaude.Session is not null ? "ok" : _lastClaude.Message ?? "sin datos";
         string codex = _lastCodex is null ? "pendiente"
-            : _lastCodex.Hidden ? $"oculto ({_lastCodex.Message})"
+            : _lastCodex.Hidden ? "no instalado"
             : _lastCodex.Primary is not null ? "ok" : _lastCodex.Message ?? "sin datos";
         string cursor = _lastCursor is null ? "pendiente"
-            : _lastCursor.Hidden ? "sin sesión"
+            : _lastCursor.Hidden ? "no instalado"
             : _lastCursor.Cycle is not null ? "ok" : _lastCursor.Message ?? "sin datos";
         string cpu = _lastCpu is null ? "pendiente" : _lastCpu.Temperature is not null ? "ok" : _lastCpu.Message ?? "sin datos";
         string gpu = _lastGpu is null ? "pendiente"

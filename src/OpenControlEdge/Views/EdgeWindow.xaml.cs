@@ -225,6 +225,8 @@ public partial class EdgeWindow : Window
     internal void SetClaude(ClaudeSnapshot snapshot)
     {
         _claude = snapshot;
+        SetRingVisible(RingClaude, !snapshot.Hidden);
+        if (snapshot.Hidden) return;
 
         if (snapshot.Session is UsageWindow session)
         {

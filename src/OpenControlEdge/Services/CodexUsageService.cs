@@ -20,14 +20,14 @@ internal sealed class CodexUsageService
 
     /// No network: hidden when there is no usable login, otherwise a placeholder until the first fetch.
     public CodexSnapshot Initial() =>
-        UnusableReason(out _) is string reason ? CodexSnapshot.NotAvailable(reason) : CodexSnapshot.Failed("Cargando…");
+        UnusableReason(out _) is string ? CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage) : CodexSnapshot.Failed("Cargando…");
 
     public async Task<CodexSnapshot> FetchAsync()
     {
         try
         {
             // Missing file, no token or expired token: hide the ring without sending the request.
-            if (UnusableReason(out var credentials) is string reason) return CodexSnapshot.NotAvailable(reason);
+            if (UnusableReason(out var credentials) is not null) return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials!.AccessToken);
@@ -37,7 +37,7 @@ internal sealed class CodexUsageService
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
-                return CodexSnapshot.NotAvailable("HTTP 401");
+                return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
 
             if (!response.IsSuccessStatusCode)
             {
