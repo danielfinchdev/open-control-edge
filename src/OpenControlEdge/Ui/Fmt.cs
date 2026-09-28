@@ -65,25 +65,25 @@ internal static class Fmt
         };
     }
 
-    /// "Reinicia en 2 h 05 min" / "Reinicia en 38 min" within 24 h, "Reinicia el mié 16, 08:00" within a week,
-    /// otherwise "Reinicia el 13 oct, 01:02".
+    /// "Se reinicia en 2 h 05 min" / "Se reinicia en 38 min" within 24 h, "Se reinicia el mié 16, 08:00" within a
+    /// week, otherwise "Se reinicia el 13 oct, 01:02".
     public static string Reset(DateTimeOffset? resetsAt, DateTimeOffset now)
     {
         if (resetsAt is not DateTimeOffset at) return string.Empty;
 
         TimeSpan left = at - now;
-        if (left <= TimeSpan.Zero) return "Reinicia ahora";
+        if (left <= TimeSpan.Zero) return "Se reinicia ahora";
 
         if (left < TimeSpan.FromHours(24))
         {
             int totalMinutes = (int)Math.Ceiling(left.TotalMinutes);
             int hours = totalMinutes / 60;
             int minutes = totalMinutes % 60;
-            return hours > 0 ? $"Reinicia en {hours} h {minutes:00} min" : $"Reinicia en {minutes} min";
+            return hours > 0 ? $"Se reinicia en {hours} h {minutes:00} min" : $"Se reinicia en {minutes} min";
         }
 
         DateTimeOffset local = at.ToLocalTime();
         string day = local.ToString(left < TimeSpan.FromDays(7) ? "ddd d" : "d MMM", Spanish).Replace(".", string.Empty);
-        return $"Reinicia el {day}, {local.ToString("HH:mm", Spanish)}";
+        return $"Se reinicia el {day}, {local.ToString("HH:mm", Spanish)}";
     }
 }

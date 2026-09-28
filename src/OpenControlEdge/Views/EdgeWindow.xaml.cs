@@ -39,12 +39,12 @@ public partial class EdgeWindow : Window
     private const double StripWidth = 5;
     private const double StripHeight = 400;
     private const double CardBodyWidth = 255;
-    private const double BeakLength = 8.5;
-    private const double CardGap = 8.5;
-    private const double CardSideRoom = 34;      // room for the card shadow on the left
-    private const double CardVerticalRoom = 41;  // keep the card (and its shadow) inside the window
+    private const double BeakLength = 16;
+    private const double CardGap = 6;
+    private const double CardSideRoom = 12;
+    private const double CardVerticalRoom = 16;  // keep the card inside the window
     private const double WindowWidthDip = CardSideRoom + CardBodyWidth + BeakLength + CardGap + PanelWidth;
-    private const double WindowHeightDip = 900;
+    private const double WindowHeightDip = 960;  // eight rings plus the panel's top and bottom flares
 
     private const int PanelMs = 250;
     private const int RingHoverMs = 150;
@@ -111,6 +111,10 @@ public partial class EdgeWindow : Window
         _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem };
         _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing };
         _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard };
+        foreach (RingGauge ring in _rings) ring.RingBrush = Palette.Other;
+        ClaudeRing.RingBrush = Palette.Claude;
+        CodexRing.RingBrush = Palette.OpenAi;
+        CpuRing.RingBrush = GpuRing.RingBrush = Palette.Green;
 
         Width = WindowWidthDip;
         Height = WindowHeightDip;
@@ -229,7 +233,7 @@ public partial class EdgeWindow : Window
     /// Shown on the Claude card while the session is being renewed.
     internal void SetClaudeRenewing()
     {
-        ClaudeLabel.Text = "…";
+        ClearRing(ClaudeRing, ClaudeLabel, "…");
         ClaudeMetrics.Visibility = Visibility.Collapsed;
         ClaudeMessage.Text = "Renovando la sesión…";
         ClaudeMessage.Visibility = Visibility.Visible;
@@ -241,7 +245,7 @@ public partial class EdgeWindow : Window
     internal void SetClaudeRenewFailed(string message)
     {
         if (_claude is not null) SetClaude(_claude);
-        else ClaudeLabel.Text = "--";
+        else ClearRing(ClaudeRing, ClaudeLabel);
         ClaudeMessage.Text = message;
         ClaudeMessage.Visibility = Visibility.Visible;
         if (_cardVisible) PlaceCard(animate: true);
@@ -280,15 +284,9 @@ public partial class EdgeWindow : Window
         {
             // "Total" shows the weekly limit; "--" when the response carried none.
             if ((_usageView == UsageView.Total ? snapshot.Weekly : session) is UsageWindow ringWindow)
-            {
-                Animate(ClaudeRing, RingGauge.ValueProperty, Fraction(ringWindow.Percent), 600);
-                ClaudeLabel.Text = Fmt.Percent(ringWindow.Percent);
-            }
+                SetUsageRing(ClaudeRing, ClaudeLabel, Palette.Claude, ringWindow.Percent);
             else
-            {
-                Animate(ClaudeRing, RingGauge.ValueProperty, 0, 300);
-                ClaudeLabel.Text = "--";
-            }
+                ClearRing(ClaudeRing, ClaudeLabel);
 
             SetPercentBar(SessionBar, session.Percent);
             SessionValue.Text = $"{Fmt.Percent(session.Percent)} usado";
@@ -319,8 +317,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            Animate(ClaudeRing, RingGauge.ValueProperty, 0, 300);
-            ClaudeLabel.Text = "--";
+            ClearRing(ClaudeRing, ClaudeLabel);
             ClaudeMetrics.Visibility = Visibility.Collapsed;
             ClaudeMessage.Text = snapshot.Message ?? "Sin datos";
             ClaudeMessage.Visibility = Visibility.Visible;
@@ -340,9 +337,7 @@ public partial class EdgeWindow : Window
         if (snapshot.Primary is CodexWindow primary)
         {
             CodexWindow ringWindow = CodexRingWindow(primary, snapshot.Secondary);
-            CodexRing.RingBrush = Palette.ForPercent(ringWindow.Percent);
-            Animate(CodexRing, RingGauge.ValueProperty, Fraction(ringWindow.Percent), 600);
-            CodexLabel.Text = Fmt.Percent(ringWindow.Percent);
+            SetUsageRing(CodexRing, CodexLabel, Palette.OpenAi, ringWindow.Percent);
 
             CodexPrimaryLabel.Text = Fmt.WindowLabel(primary.Length);
             SetPercentBar(CodexPrimaryBar, primary.Percent);
@@ -365,8 +360,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            Animate(CodexRing, RingGauge.ValueProperty, 0, 300);
-            CodexLabel.Text = "--";
+            ClearRing(CodexRing, CodexLabel);
             CodexMetrics.Visibility = Visibility.Collapsed;
             CodexMessage.Text = snapshot.Message ?? "Sin datos";
             CodexMessage.Visibility = Visibility.Visible;
@@ -386,9 +380,7 @@ public partial class EdgeWindow : Window
         // Cursor only has the monthly billing cycle, so both tabs show it.
         if (snapshot.Cycle is UsageWindow cycle)
         {
-            CursorRing.RingBrush = Palette.ForPercent(cycle.Percent);
-            Animate(CursorRing, RingGauge.ValueProperty, Fraction(cycle.Percent), 600);
-            CursorLabel.Text = Fmt.Percent(cycle.Percent);
+            SetUsageRing(CursorRing, CursorLabel, Palette.Other, cycle.Percent);
             SetPercentBar(CursorCycleBar, cycle.Percent);
             CursorCycleValue.Text = $"{Fmt.Percent(cycle.Percent)} usado";
             if (snapshot.OnDemand is UsageWindow onDemand)
@@ -403,8 +395,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            Animate(CursorRing, RingGauge.ValueProperty, 0, 300);
-            CursorLabel.Text = "--";
+            ClearRing(CursorRing, CursorLabel);
             CursorMetrics.Visibility = Visibility.Collapsed;
             CursorMessage.Text = snapshot.Message ?? "Sin datos";
             CursorMessage.Visibility = Visibility.Visible;
@@ -493,9 +484,7 @@ public partial class EdgeWindow : Window
             if (snapshot.LimitUsd is decimal limit && limit > 0 && snapshot.RemainingUsd is decimal remaining)
             {
                 double percent = (double)Math.Clamp(snapshot.UsageUsd / limit * 100, 0, 100);
-                OpenRouterLabel.Text = Fmt.Percent(percent);
-                OpenRouterRing.RingBrush = Palette.ForPercent(percent);
-                Animate(OpenRouterRing, RingGauge.ValueProperty, Fraction(percent), 600);
+                SetUsageRing(OpenRouterRing, OpenRouterLabel, Palette.Other, percent);
                 OpenRouterMetricLabel.Text = "Uso del límite";
                 OpenRouterUsage.Text = $"{Fmt.Amount(new Money(snapshot.UsageUsd, "USD"))} de {Fmt.Amount(new Money(limit, "USD"))}";
                 OpenRouterRemainingLabel.Visibility = Visibility.Visible;
@@ -504,8 +493,7 @@ public partial class EdgeWindow : Window
             }
             else
             {
-                OpenRouterLabel.Text = CompactMoney(new Money(snapshot.UsageUsd, "USD"));
-                Animate(OpenRouterRing, RingGauge.ValueProperty, 0, 300);
+                ClearRing(OpenRouterRing, OpenRouterLabel, CompactMoney(new Money(snapshot.UsageUsd, "USD")));
                 OpenRouterMetricLabel.Text = "Gasto acumulado";
                 OpenRouterUsage.Text = Fmt.Amount(new Money(snapshot.UsageUsd, "USD"));
                 OpenRouterRemainingLabel.Visibility = Visibility.Collapsed;
@@ -516,8 +504,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            OpenRouterLabel.Text = "--";
-            Animate(OpenRouterRing, RingGauge.ValueProperty, 0, 300);
+            ClearRing(OpenRouterRing, OpenRouterLabel);
             OpenRouterMetrics.Visibility = Visibility.Collapsed;
             OpenRouterMessage.Text = snapshot.Message;
             OpenRouterMessage.Visibility = Visibility.Visible;
@@ -538,16 +525,13 @@ public partial class EdgeWindow : Window
     {
         if (snapshot.Temperature is double temperature)
         {
-            CpuRing.RingBrush = Palette.ForTemperature(temperature);
-            Animate(CpuRing, RingGauge.ValueProperty, Fraction(temperature), 600);
-            CpuLabel.Text = Fmt.Celsius(temperature);
+            SetTemperatureRing(CpuRing, CpuLabel, temperature);
             SetTemperatureBar(TempBar, temperature);
             TempValue.Text = Fmt.Celsius(temperature);
         }
         else
         {
-            Animate(CpuRing, RingGauge.ValueProperty, 0, 300);
-            CpuLabel.Text = "--";
+            ClearRing(CpuRing, CpuLabel);
             ClearBar(TempBar);
             TempValue.Text = "--";
         }
@@ -589,16 +573,13 @@ public partial class EdgeWindow : Window
 
         if (snapshot.Temperature is double temperature)
         {
-            GpuRing.RingBrush = Palette.ForTemperature(temperature);
-            Animate(GpuRing, RingGauge.ValueProperty, Fraction(temperature), 600);
-            GpuLabel.Text = Fmt.Celsius(temperature);
+            SetTemperatureRing(GpuRing, GpuLabel, temperature);
             SetTemperatureBar(GpuTempBar, temperature);
             GpuTempValue.Text = Fmt.Celsius(temperature);
         }
         else
         {
-            Animate(GpuRing, RingGauge.ValueProperty, 0, 300);
-            GpuLabel.Text = "--";
+            ClearRing(GpuRing, GpuLabel);
             ClearBar(GpuTempBar);
             GpuTempValue.Text = "--";
         }
@@ -676,6 +657,32 @@ public partial class EdgeWindow : Window
         CodexSecondaryReset.Text = _codex?.Secondary is CodexWindow secondary ? Fmt.Reset(secondary.ResetsAt, now) : string.Empty;
         CursorHeaderReset.Text = _cursor?.Cycle is UsageWindow cursorCycle ? Fmt.Reset(cursorCycle.ResetsAt, now) : string.Empty;
         CpuSince.Text = $"desde las {_sessionStart:HH:mm}";
+    }
+
+    /// Usage ring: the provider's colour; above Palette.AlertPercent both the arc and the percentage turn red.
+    private void SetUsageRing(RingGauge ring, TextBlock label, SolidColorBrush brand, double percent)
+    {
+        ring.RingBrush = Palette.ForRing(brand, percent);
+        Animate(ring, RingGauge.ValueProperty, Fraction(percent), 600);
+        label.Text = Fmt.Percent(percent);
+        label.Foreground = Palette.IsAlert(percent) ? Palette.Red : Brushes.White;
+    }
+
+    /// Temperature ring: green / yellow / red by band, and the reading turns red with the arc.
+    private void SetTemperatureRing(RingGauge ring, TextBlock label, double celsius)
+    {
+        SolidColorBrush brush = Palette.ForTemperature(celsius);
+        ring.RingBrush = brush;
+        Animate(ring, RingGauge.ValueProperty, Fraction(celsius), 600);
+        label.Text = Fmt.Celsius(celsius);
+        label.Foreground = brush == Palette.Red ? Palette.Red : Brushes.White;
+    }
+
+    private void ClearRing(RingGauge ring, TextBlock label, string text = "--")
+    {
+        Animate(ring, RingGauge.ValueProperty, 0, 300);
+        label.Text = text;
+        label.Foreground = Brushes.White;
     }
 
     private void SetPercentBar(LinearBar bar, double percent)
@@ -1031,7 +1038,7 @@ public partial class EdgeWindow : Window
         ShowCard(index);
     }
 
-    /// Renders the window content at 2× over a gradient backdrop (dark top, light bottom).
+    /// Renders the window content at 2× over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
     internal void SaveSnapshot(string path)
     {
         UpdateLayout();
@@ -1042,7 +1049,13 @@ public partial class EdgeWindow : Window
         var backdrop = new DrawingVisual();
         using (DrawingContext dc = backdrop.RenderOpen())
         {
-            var gradient = new LinearGradientBrush(Color.FromRgb(0x1B, 0x24, 0x3A), Color.FromRgb(0xE9, 0xD8, 0xE4), 90);
+            var gradient = new LinearGradientBrush(new GradientStopCollection
+            {
+                new(Color.FromRgb(0x7C, 0xC8, 0xD8), 0),
+                new(Color.FromRgb(0x2F, 0x86, 0xA8), 0.45),
+                new(Color.FromRgb(0x1D, 0x4E, 0x72), 0.75),
+                new(Color.FromRgb(0xC9, 0x6A, 0x3B), 1),
+            }, 90);
             dc.DrawRectangle(gradient, null, new Rect(0, 0, WindowWidthDip, WindowHeightDip));
         }
         bitmap.Render(backdrop);

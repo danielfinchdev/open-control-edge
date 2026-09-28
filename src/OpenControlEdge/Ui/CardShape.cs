@@ -3,7 +3,7 @@ using System.Windows.Media;
 
 namespace OpenControlEdge.Ui;
 
-/// Detail-card background: a rounded rectangle with a triangular beak on its right edge.
+/// Detail-card background: a rounded rectangle with a triangular beak (concave sides) on its right edge.
 /// The body occupies ActualWidth - BeakLength; the beak tip touches the right edge of the element.
 public sealed class CardShape : FrameworkElement
 {
@@ -79,10 +79,11 @@ public sealed class CardShape : FrameworkElement
             ctx.ArcTo(new Point(w, r), corner, 0, false, SweepDirection.Clockwise, false, false);
             if (hasBeak)
             {
+                // Slightly concave sides that meet in a softly rounded tip.
                 ctx.LineTo(new Point(w, cy - half), false, false);
-                ctx.LineTo(new Point(w + beak - 1.6, cy - 1.4), false, false);
-                ctx.QuadraticBezierTo(new Point(w + beak, cy), new Point(w + beak - 1.6, cy + 1.4), false, false);
-                ctx.LineTo(new Point(w, cy + half), false, false);
+                ctx.QuadraticBezierTo(new Point(w + beak * 0.35, cy - half * 0.5), new Point(w + beak - 1.4, cy - 1.0), false, false);
+                ctx.QuadraticBezierTo(new Point(w + beak, cy), new Point(w + beak - 1.4, cy + 1.0), false, false);
+                ctx.QuadraticBezierTo(new Point(w + beak * 0.35, cy + half * 0.5), new Point(w, cy + half), false, false);
             }
             ctx.LineTo(new Point(w, h - r), false, false);
             ctx.ArcTo(new Point(w - r, h), corner, 0, false, SweepDirection.Clockwise, false, false);

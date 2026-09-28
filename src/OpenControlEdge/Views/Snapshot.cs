@@ -171,6 +171,29 @@ internal static class Snapshot
         window.SetOpenRouter(OpenRouterSnapshot.Absent());
         window.SaveSnapshot(Path.Combine(directory, "20_no_ai_installed.png"));
 
+        // The scene of the reference photos: Claude 73 % (weekly 7 %), ChatGPT/Codex 21 %, Cursor 52 %.
+        DateTimeOffset thursdayNoon = now.Date.AddDays(((int)DayOfWeek.Thursday - (int)now.DayOfWeek + 6) % 7 + 1).AddHours(12);
+        window.SetClaude(new ClaudeSnapshot(false, new UsageWindow(73, now.AddMinutes(51)), new UsageWindow(7, thursdayNoon), null, null));
+        window.SetCodex(new CodexSnapshot(false, new CodexWindow(21, TimeSpan.FromHours(5), now.AddHours(2)),
+            new CodexWindow(9, TimeSpan.FromDays(7), now.AddDays(5)), null) { Plan = "plus" });
+        window.SetCursor(new CursorSnapshot(false, new UsageWindow(52, now.AddDays(12)), null, null) { Plan = "pro" });
+        window.SetCpu(cpu);
+        window.SetGpu(gpu);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "32_reference_scene_claude_card.png"));
+
+        // Above 85 % the usage rings drop their brand colour: arc and percentage turn red; so do CPU/GPU above 85 °C.
+        window.SetClaude(new ClaudeSnapshot(false, new UsageWindow(92, now.AddMinutes(17)), new UsageWindow(64, thursdayNoon), null, null));
+        window.SetCodex(new CodexSnapshot(false, new CodexWindow(88, TimeSpan.FromHours(5), now.AddHours(1)),
+            new CodexWindow(40, TimeSpan.FromDays(7), now.AddDays(5)), null));
+        window.SetCursor(new CursorSnapshot(false, new UsageWindow(85, now.AddDays(12)), null, null));
+        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", 91, 94, 88, null));
+        window.SetGpu(new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", 78, 97, 3900, 4096, null));
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "33_alert_over_85_claude_card.png"));
+        window.ShowCardNow(EdgeWindow.RingCpu);
+        window.SaveSnapshot(Path.Combine(directory, "34_alert_card_cpu.png"));
+
         var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
         keys.Show();
         keys.UpdateLayout();
