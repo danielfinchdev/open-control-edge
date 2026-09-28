@@ -9,7 +9,7 @@ namespace OpenControlEdge.Services;
 /// Identity fields are deliberately never read.
 internal static class CursorUsageParser
 {
-    public static (UsageWindow? Cycle, UsageWindow? OnDemand) Parse(string json)
+    public static (UsageWindow? Cycle, UsageWindow? OnDemand, string? Membership) Parse(string json)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -21,7 +21,7 @@ internal static class CursorUsageParser
             || !root.TryGetProperty("individualUsage", out var individual) || individual.ValueKind != JsonValueKind.Object
             || !individual.TryGetProperty("plan", out var plan) || plan.ValueKind != JsonValueKind.Object
             || !plan.TryGetProperty("totalPercentUsed", out var percentValue) || !percentValue.TryGetDouble(out double percent)
-            || !double.IsFinite(percent)) return (null, null);
+            || !double.IsFinite(percent)) return (null, null, null);
 
         UsageWindow? onDemand = null;
         if (individual.TryGetProperty("onDemand", out var demand) && demand.ValueKind == JsonValueKind.Object
@@ -29,7 +29,7 @@ internal static class CursorUsageParser
             && GetNumber(demand, "used") is double used && GetNumber(demand, "limit") is double limit && limit > 0)
             onDemand = new UsageWindow(Math.Clamp(used * 100 / limit, 0, 100), end);
 
-        return (new UsageWindow(Math.Clamp(percent, 0, 100), end), onDemand);
+        return (new UsageWindow(Math.Clamp(percent, 0, 100), end), onDemand, membership.GetString());
     }
 
     private static double? GetNumber(JsonElement obj, string key) =>

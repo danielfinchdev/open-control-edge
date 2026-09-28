@@ -127,6 +127,7 @@ public partial class App : Application
         _sensors = new HardwareSensorService();
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
         Settings settings = SettingsStore.Load();
+        _edge.ApplyUsageView(settings.UsageView);
         _lastCodex = InitialCodex(settings);
         _edge.SetCodex(_lastCodex);
         _lastCursor = InitialCursor(settings);
@@ -147,6 +148,7 @@ public partial class App : Application
             UpdateCadence();
         };
         _edge.ModeChangeRequested += SetPanelMode;
+        _edge.UsageViewChanged += SettingsStore.SaveUsageView;
         _edge.RefreshRequested += () => _ = RefreshEverythingAsync();
         _edge.CloseRequested += Shutdown;
         _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync();

@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.IO;
 using System.Text.Json;
 
@@ -5,12 +6,16 @@ namespace OpenControlEdge.Services;
 
 /// Reads the Codex CLI login (%USERPROFILE%\.codex\auth.json).
 ///
-/// Only tokens.access_token is decoded. Every other value — refresh_token, id_token and account_id included — is
+/// Only tokens.access_token is decoded. Every other value — refresh_token and account_id included — is
 /// skipped by the reader without ever being turned into a string. The file is opened read-only with full sharing
 /// and is never written. The expiry comes from the access token itself (a JWT); only its "exp" claim is read.
+/// The plan comes from tokens.id_token, decoded straight from the file bytes (never as a string); only its
+/// "https://api.openai.com/auth".chatgpt_plan_type claim is read ("go" verified 2026-09-29).
 internal static class CodexCredentialReader
 {
-    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt);
+    private const string AuthClaim = "https://api.openai.com/auth";
+
+    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? PlanType);
 
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json");
@@ -45,6 +50,7 @@ internal static class CodexCredentialReader
         if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return null;
 
         string? accessToken = null;
+        string? planType = null;
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
             if (!reader.ValueTextEquals("tokens"))
@@ -68,6 +74,11 @@ internal static class CodexCredentialReader
                     reader.Read();
                     if (reader.TokenType == JsonTokenType.String) accessToken = reader.GetString();
                 }
+                else if (reader.ValueTextEquals("id_token"))
+                {
+                    reader.Read();
+                    if (reader.TokenType == JsonTokenType.String && !reader.ValueIsEscaped) planType = JwtPlanType(reader.ValueSpan);
+                }
                 else
                 {
                     reader.Read();
@@ -76,7 +87,66 @@ internal static class CodexCredentialReader
             }
         }
 
-        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, JwtExpiry(accessToken));
+        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, JwtExpiry(accessToken), planType);
+    }
+
+    /// The chatgpt_plan_type claim of a JWT given as raw UTF-8 bytes; null when absent or not a JWT.
+    /// Only that one claim is ever turned into a string; the decoded payload is cleared afterwards.
+    internal static string? JwtPlanType(ReadOnlySpan<byte> token)
+    {
+        int first = token.IndexOf((byte)'.');
+        if (first < 0) return null;
+        ReadOnlySpan<byte> segment = token[(first + 1)..];
+        int second = segment.IndexOf((byte)'.');
+        if (second <= 0) return null;
+        segment = segment[..second];
+
+        // base64url → base64 with padding, into a buffer we own and can clear.
+        byte[] base64 = new byte[(segment.Length + 3) / 4 * 4];
+        byte[] payload = new byte[base64.Length / 4 * 3];
+        try
+        {
+            for (int i = 0; i < base64.Length; i++)
+                base64[i] = i >= segment.Length ? (byte)'=' : segment[i] switch { (byte)'-' => (byte)'+', (byte)'_' => (byte)'/', byte b => b };
+            if (Base64.DecodeFromUtf8(base64, payload, out _, out int written) != System.Buffers.OperationStatus.Done) return null;
+
+            var reader = new Utf8JsonReader(payload.AsSpan(0, written));
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return null;
+
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (!reader.ValueTextEquals(AuthClaim))
+                {
+                    reader.Read();
+                    reader.Skip();
+                    continue;
+                }
+
+                reader.Read();
+                if (reader.TokenType != JsonTokenType.StartObject) return null;
+                while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+                {
+                    if (reader.ValueTextEquals("chatgpt_plan_type"))
+                    {
+                        reader.Read();
+                        return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                    }
+                    reader.Read();
+                    reader.Skip();
+                }
+                return null;
+            }
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        finally
+        {
+            Array.Clear(base64);
+            Array.Clear(payload);
+        }
     }
 
     /// The "exp" claim (unix seconds) of a JWT payload; null when the token is not a JWT or carries no exp.

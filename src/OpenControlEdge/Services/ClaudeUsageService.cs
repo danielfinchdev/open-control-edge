@@ -10,6 +10,7 @@ namespace OpenControlEdge.Services;
 internal sealed class ClaudeUsageService
 {
     public const string RenewMessage = "Abre Claude Code para renovar";
+    public const string FreeAccountMessage = "Cuenta gratuita: sin límites de uso medibles";
 
     private const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
@@ -22,9 +23,12 @@ internal sealed class ClaudeUsageService
             if (credentials is null)
                 return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
 
+            string? plan = credentials.SubscriptionType;
+            bool free = string.Equals(plan, "free", StringComparison.OrdinalIgnoreCase);
+
             // Token already expired (or no expiry to check): do not even send the request.
             if (credentials.ExpiresAt is not DateTimeOffset expiresAt || DateTimeOffset.UtcNow >= expiresAt)
-                return ClaudeSnapshot.Failed(RenewMessage);
+                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan };
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
@@ -33,12 +37,16 @@ internal sealed class ClaudeUsageService
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
-                return ClaudeSnapshot.Failed(RenewMessage);
+                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan };
 
+            // A free account has no session or weekly limits to measure. Whether the endpoint answers it with an
+            // error or with empty limits has not been observed, so both lead to the same explanation.
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Claude", $"HTTP {(int)response.StatusCode}");
-                return ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
+                return free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
+                    ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan }
+                    : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = plan };
             }
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -46,9 +54,9 @@ internal sealed class ClaudeUsageService
             if (usage.Session is null)
             {
                 Log.Warn("Claude", "200 response without session data");
-                return ClaudeSnapshot.Failed("Respuesta sin datos de sesión");
+                return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de sesión") with { Plan = plan };
             }
-            return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null);
+            return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan };
         }
         catch (HttpRequestException ex)
         {

@@ -6,6 +6,9 @@
 
         <!-- Edge widget sizes are the original design scaled to 85 %. -->
 
+        <!-- Geist (SIL OFL 1.1, Assets/Fonts/OFL.txt), embedded; Segoe UI only covers glyphs Geist lacks. -->
+        <FontFamily x:Key="UiFont">pack://application:,,,/Assets/Fonts/#Geist, Segoe UI</FontFamily>
+
         <Style x:Key="SecondaryText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="#8E8E93" />
@@ -23,6 +26,22 @@
         <Style x:Key="ValueText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- Plan badge next to a card title ("Free", "Pro", "Max"…); collapsed while the plan is unknown. -->
+        <Style x:Key="PlanBadge" TargetType="Border">
+            <Setter Property="Background" Value="#242426" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="6,1,6,2" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+
+        <Style x:Key="PlanBadgeText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#C7C7CC" />
         </Style>
 
         <Style x:Key="RingLabel" TargetType="TextBlock">
@@ -96,6 +115,36 @@
                                     </BeginStoryboard>
                                 </MultiTrigger.ExitActions>
                             </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- "Sesión" / "Total" tabs: grey text at rest, white on hover; the checked one is white and underlined. -->
+        <Style x:Key="PanelTab" TargetType="RadioButton">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Background="Transparent">
+                            <TextBlock x:Name="Label" HorizontalAlignment="Center" Foreground="#8E8E93"
+                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Border x:Name="Underline" Height="2" CornerRadius="1" Margin="0,4,0,0" Background="White" Opacity="0" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Label" Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Label" Property="Foreground" Value="White" />
+                                <Setter TargetName="Underline" Property="Opacity" Value="1" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>

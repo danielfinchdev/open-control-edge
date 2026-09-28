@@ -11,7 +11,7 @@
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         UseLayoutRounding="True"
-        FontFamily="Segoe UI"
+        FontFamily="{StaticResource UiFont}"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Grayscale">
 

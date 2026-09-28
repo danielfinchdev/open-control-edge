@@ -35,13 +35,17 @@ internal sealed class CursorUsageService
             request.Headers.TryAddWithoutValidation("User-Agent", "OpenControlEdge/2.0");
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.Unauthorized) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
-            if (!response.IsSuccessStatusCode) return CursorSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
+            if (!response.IsSuccessStatusCode)
+                return CursorSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = credentials.MembershipType };
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try
             {
                 string json = Encoding.UTF8.GetString(body);
-                var (cycle, onDemand) = CursorUsageParser.Parse(json);
-                return cycle is null ? CursorSnapshot.Failed("Respuesta sin datos") : new CursorSnapshot(false, cycle, onDemand, null);
+                var (cycle, onDemand, membership) = CursorUsageParser.Parse(json);
+                string? plan = string.IsNullOrWhiteSpace(membership) ? credentials.MembershipType : membership;
+                return cycle is null
+                    ? CursorSnapshot.Failed("Respuesta sin datos") with { Plan = credentials.MembershipType }
+                    : new CursorSnapshot(false, cycle, onDemand, null) { Plan = plan };
             }
             finally { CryptographicOperations.ZeroMemory(body); }
         }

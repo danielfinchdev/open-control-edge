@@ -12,6 +12,9 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
 {
     public static ClaudeSnapshot Absent() => new(true, null, null, null, null);
     public static ClaudeSnapshot Failed(string message) => new(false, null, null, null, message);
+
+    /// Raw plan id from the credentials ("free", "pro", "max"…); null when unknown. Shown on the card header.
+    public string? Plan { get; init; }
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.
@@ -37,6 +40,9 @@ internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWin
     public static CodexSnapshot Absent() => new(true, null, null, null);
     public static CodexSnapshot NotAvailable(string reason) => new(false, null, null, reason);
     public static CodexSnapshot Failed(string message) => new(false, null, null, message);
+
+    /// Raw plan id from the id_token ("free", "go", "plus", "pro"…); null when unknown.
+    public string? Plan { get; init; }
 }
 
 internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWindow? OnDemand, string? Message)
@@ -44,6 +50,9 @@ internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWind
     public static CursorSnapshot Absent() => new(true, null, null, null);
     public static CursorSnapshot NotAvailable(string reason) => new(false, null, null, reason);
     public static CursorSnapshot Failed(string message) => new(false, null, null, message);
+
+    /// Raw membership type from the API or state.vscdb ("free", "pro", "ultra"…); null when unknown.
+    public string? Plan { get; init; }
 }
 
 internal sealed record OpenCodeSnapshot(bool Hidden, long TokensIn, long TokensOut, long TokensReasoning,

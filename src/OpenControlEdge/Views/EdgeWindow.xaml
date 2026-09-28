@@ -12,7 +12,7 @@
         ResizeMode="NoResize"
         Focusable="False"
         UseLayoutRounding="True"
-        FontFamily="Segoe UI"
+        FontFamily="{StaticResource UiFont}"
         Foreground="White"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Grayscale">
@@ -40,17 +40,20 @@
 
                     <!-- Claude -->
                     <StackPanel x:Name="ClaudeCard">
-                        <DockPanel>
-                            <TextBlock x:Name="ClaudeHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
-                                       VerticalAlignment="Center" Margin="10,0,0,0" />
-                            <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.ClaudeSparkImage}" Width="17" Height="17" VerticalAlignment="Center" />
-                                <TextBlock Text="Claude" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
-                            </StackPanel>
-                        </DockPanel>
+                        <!-- Header: icon, title and plan badge. Resets sit on each metric row, leaving room for the badge. -->
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.ClaudeSparkImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Claude" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            <Border x:Name="ClaudePlan" Style="{StaticResource PlanBadge}">
+                                <TextBlock x:Name="ClaudePlanText" Style="{StaticResource PlanBadgeText}" />
+                            </Border>
+                        </StackPanel>
 
                         <StackPanel x:Name="ClaudeMetrics" Margin="0,15,0,0">
-                            <TextBlock Text="Sesión actual" Style="{StaticResource SecondaryText}" />
+                            <DockPanel>
+                                <TextBlock x:Name="ClaudeHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                <TextBlock Text="Sesión actual" Style="{StaticResource SecondaryText}" />
+                            </DockPanel>
                             <ui:LinearBar x:Name="SessionBar" Height="3.5" Margin="0,7,0,0" />
                             <TextBlock x:Name="SessionValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
 
@@ -74,17 +77,19 @@
 
                     <!-- Codex: one row per window the API returns, labelled by its length. -->
                     <StackPanel x:Name="CodexCard" Visibility="Collapsed">
-                        <DockPanel>
-                            <TextBlock x:Name="CodexHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
-                                       VerticalAlignment="Center" Margin="10,0,0,0" />
-                            <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.CodexImage}" Width="17" Height="17" VerticalAlignment="Center" />
-                                <TextBlock Text="Codex" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
-                            </StackPanel>
-                        </DockPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.CodexImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Codex" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            <Border x:Name="CodexPlan" Style="{StaticResource PlanBadge}">
+                                <TextBlock x:Name="CodexPlanText" Style="{StaticResource PlanBadgeText}" />
+                            </Border>
+                        </StackPanel>
 
                         <StackPanel x:Name="CodexMetrics" Margin="0,15,0,0">
-                            <TextBlock x:Name="CodexPrimaryLabel" Style="{StaticResource SecondaryText}" />
+                            <DockPanel>
+                                <TextBlock x:Name="CodexHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                <TextBlock x:Name="CodexPrimaryLabel" Style="{StaticResource SecondaryText}" />
+                            </DockPanel>
                             <ui:LinearBar x:Name="CodexPrimaryBar" Height="3.5" Margin="0,7,0,0" />
                             <TextBlock x:Name="CodexPrimaryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
 
@@ -104,15 +109,18 @@
 
                     <!-- Cursor monthly plan usage. -->
                     <StackPanel x:Name="CursorCard" Visibility="Collapsed">
-                        <DockPanel>
-                            <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="10,0,0,0" />
-                            <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.CursorImage}" Width="17" Height="17" VerticalAlignment="Center" />
-                                <TextBlock Text="Cursor" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
-                            </StackPanel>
-                        </DockPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{x:Static ui:Icons.CursorImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Cursor" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                            <Border x:Name="CursorPlan" Style="{StaticResource PlanBadge}">
+                                <TextBlock x:Name="CursorPlanText" Style="{StaticResource PlanBadgeText}" />
+                            </Border>
+                        </StackPanel>
                         <StackPanel x:Name="CursorMetrics" Margin="0,15,0,0">
-                            <TextBlock Text="Ciclo mensual" Style="{StaticResource SecondaryText}" />
+                            <DockPanel>
+                                <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                <TextBlock Text="Ciclo mensual" Style="{StaticResource SecondaryText}" />
+                            </DockPanel>
                             <ui:LinearBar x:Name="CursorCycleBar" Height="3.5" Margin="0,7,0,0" />
                             <TextBlock x:Name="CursorCycleValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
                             <StackPanel x:Name="CursorOnDemandRow" Visibility="Collapsed">
@@ -238,9 +246,18 @@
             </Border.RenderTransform>
 
             <Grid x:Name="PanelRoot">
-                <StackPanel x:Name="PanelStack" Margin="0,22,0,12">
+                <StackPanel x:Name="PanelStack" Margin="0,34,0,12">
+                    <!-- Which window the AI rings show: short ("Sesión") or long ("Total"). Remembered in settings;
+                         hidden while no Claude, Codex or Cursor ring is shown. -->
+                    <StackPanel x:Name="UsageTabs" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <RadioButton x:Name="SessionTab" Style="{StaticResource PanelTab}" Content="Sesión" GroupName="UsageView"
+                                     AutomationProperties.AutomationId="SessionTab" Checked="OnUsageViewChecked" />
+                        <RadioButton x:Name="TotalTab" Style="{StaticResource PanelTab}" Content="Total" GroupName="UsageView"
+                                     AutomationProperties.AutomationId="TotalTab" Margin="10,0,0,0" Checked="OnUsageViewChecked" />
+                    </StackPanel>
+
                     <!-- Un clic renueva la sesión de Claude y abre Claude Code (ver App.RenewClaudeSession). -->
-                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
+                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand" Margin="0,14,0,0"
                           ToolTip="Renovar la sesión de Claude y abrir Claude Code"
                           MouseLeftButtonUp="OnClaudeClick">
                         <StackPanel>
@@ -256,7 +273,7 @@
                     </Grid>
 
                     <!-- Hidden when Codex/ChatGPT is not installed (see AiDetector). -->
-                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CodexRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
                                           RingBrush="#30D158" TrackBrush="#2A2A2A"
@@ -270,7 +287,7 @@
                     </Grid>
 
                     <!-- Hidden when Cursor is not installed (see AiDetector). -->
-                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CursorRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
                                           RingBrush="#30D158" TrackBrush="#2A2A2A"
@@ -280,7 +297,7 @@
                             <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="OpenCodeRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.OpenCode}" RenderTransformOrigin="0.5,0.5">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -288,7 +305,7 @@
                             <TextBlock x:Name="OpenCodeLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="DeepSeekRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.DeepSeek}" RenderTransformOrigin="0.5,0.5">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -296,7 +313,7 @@
                             <TextBlock x:Name="DeepSeekLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="OpenRouterRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20" RingBrush="#30D158" TrackBrush="#2A2A2A" Icon="{x:Static ui:Icons.OpenRouter}" RenderTransformOrigin="0.5,0.5">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -304,7 +321,7 @@
                             <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,24,0,0">
+                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,18,0,0">
                         <StackPanel>
                             <ui:RingGauge x:Name="CpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
                                           RingBrush="#30D158" TrackBrush="#2A2A2A"
@@ -318,7 +335,7 @@
                     </Grid>
 
                     <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
-                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,18,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="GpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
                                           RingBrush="#30D158" TrackBrush="#2A2A2A"

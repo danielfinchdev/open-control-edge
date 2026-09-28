@@ -77,6 +77,8 @@ public partial class EdgeWindow : Window
     private ClaudeSnapshot? _claude;
     private CodexSnapshot? _codex;
     private CursorSnapshot? _cursor;
+    private UsageView _usageView = UsageView.Session;
+    private bool _syncingTabs;
 
     internal bool AnimationsEnabled { get; set; } = true;
 
@@ -90,6 +92,9 @@ public partial class EdgeWindow : Window
 
     /// "Ocultar" (pinned → auto) or "Fijar" (auto → pinned) was pressed. The owner persists it and calls ApplyMode.
     internal event Action<PanelMode>? ModeChangeRequested;
+
+    /// The "Sesión" / "Total" tab was switched; the rings already show it. The owner persists the choice.
+    internal event Action<UsageView>? UsageViewChanged;
 
     /// The panel's close button was pressed: quit the application.
     internal event Action? CloseRequested;
@@ -116,6 +121,7 @@ public partial class EdgeWindow : Window
         Canvas.SetTop(Strip, (WindowHeightDip - StripHeight) / 2);
 
         SyncModeButton();
+        SyncUsageTabs();
         Canvas.SetLeft(EdgePanel, WindowWidthDip - PanelWidth);
         CenterPanel(animate: false);
 
@@ -163,6 +169,42 @@ public partial class EdgeWindow : Window
         PanelMode target = _mode == PanelMode.Pinned ? PanelMode.Auto : PanelMode.Pinned;
         Log.Trace("Edge", $"mode button clicked -> {target}");
         ModeChangeRequested?.Invoke(target);
+    }
+
+    /// Sets the tab without raising UsageViewChanged (used at start-up with the saved choice).
+    internal void ApplyUsageView(UsageView view)
+    {
+        if (_usageView == view) return;
+        _usageView = view;
+        SyncUsageTabs();
+        RefreshUsageRings();
+    }
+
+    private void SyncUsageTabs()
+    {
+        _syncingTabs = true;
+        SessionTab.IsChecked = _usageView == UsageView.Session;
+        TotalTab.IsChecked = _usageView == UsageView.Total;
+        _syncingTabs = false;
+    }
+
+    private void OnUsageViewChecked(object sender, RoutedEventArgs e)
+    {
+        if (_syncingTabs) return;
+        UsageView view = sender == TotalTab ? UsageView.Total : UsageView.Session;
+        if (_usageView == view) return;
+        Log.Trace("Edge", $"usage view -> {view}");
+        _usageView = view;
+        RefreshUsageRings();
+        UsageViewChanged?.Invoke(view);
+    }
+
+    /// Re-applies the last snapshots so the AI rings switch to the window of the selected tab.
+    private void RefreshUsageRings()
+    {
+        if (_claude is not null) SetClaude(_claude);
+        if (_codex is not null) SetCodex(_codex);
+        if (_cursor is not null) SetCursor(_cursor);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -232,11 +274,21 @@ public partial class EdgeWindow : Window
         _claude = snapshot;
         SetRingVisible(RingClaude, !snapshot.Hidden);
         if (snapshot.Hidden) return;
+        SetPlan(ClaudePlan, ClaudePlanText, snapshot.Plan);
 
         if (snapshot.Session is UsageWindow session)
         {
-            Animate(ClaudeRing, RingGauge.ValueProperty, Fraction(session.Percent), 600);
-            ClaudeLabel.Text = Fmt.Percent(session.Percent);
+            // "Total" shows the weekly limit; "--" when the response carried none.
+            if ((_usageView == UsageView.Total ? snapshot.Weekly : session) is UsageWindow ringWindow)
+            {
+                Animate(ClaudeRing, RingGauge.ValueProperty, Fraction(ringWindow.Percent), 600);
+                ClaudeLabel.Text = Fmt.Percent(ringWindow.Percent);
+            }
+            else
+            {
+                Animate(ClaudeRing, RingGauge.ValueProperty, 0, 300);
+                ClaudeLabel.Text = "--";
+            }
 
             SetPercentBar(SessionBar, session.Percent);
             SessionValue.Text = $"{Fmt.Percent(session.Percent)} usado";
@@ -283,12 +335,14 @@ public partial class EdgeWindow : Window
         _codex = snapshot;
         SetRingVisible(RingCodex, !snapshot.Hidden);
         if (snapshot.Hidden) return;
+        SetPlan(CodexPlan, CodexPlanText, snapshot.Plan);
 
         if (snapshot.Primary is CodexWindow primary)
         {
-            CodexRing.RingBrush = Palette.ForPercent(primary.Percent);
-            Animate(CodexRing, RingGauge.ValueProperty, Fraction(primary.Percent), 600);
-            CodexLabel.Text = Fmt.Percent(primary.Percent);
+            CodexWindow ringWindow = CodexRingWindow(primary, snapshot.Secondary);
+            CodexRing.RingBrush = Palette.ForPercent(ringWindow.Percent);
+            Animate(CodexRing, RingGauge.ValueProperty, Fraction(ringWindow.Percent), 600);
+            CodexLabel.Text = Fmt.Percent(ringWindow.Percent);
 
             CodexPrimaryLabel.Text = Fmt.WindowLabel(primary.Length);
             SetPercentBar(CodexPrimaryBar, primary.Percent);
@@ -327,7 +381,9 @@ public partial class EdgeWindow : Window
         _cursor = snapshot;
         SetRingVisible(RingCursor, !snapshot.Hidden);
         if (snapshot.Hidden) return;
+        SetPlan(CursorPlan, CursorPlanText, snapshot.Plan);
 
+        // Cursor only has the monthly billing cycle, so both tabs show it.
         if (snapshot.Cycle is UsageWindow cycle)
         {
             CursorRing.RingBrush = Palette.ForPercent(cycle.Percent);
@@ -356,6 +412,24 @@ public partial class EdgeWindow : Window
 
         RefreshTimeTexts();
         if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// "Sesión" → the shorter window, "Total" → the longer one. With a single window (e.g. the monthly one of the
+    /// Go plan) both tabs show it.
+    private CodexWindow CodexRingWindow(CodexWindow primary, CodexWindow? secondary)
+    {
+        if (secondary is null) return primary;
+        bool primaryShorter = (primary.Length ?? TimeSpan.Zero) <= (secondary.Length ?? TimeSpan.MaxValue);
+        CodexWindow shorter = primaryShorter ? primary : secondary;
+        CodexWindow longer = primaryShorter ? secondary : primary;
+        return _usageView == UsageView.Total ? longer : shorter;
+    }
+
+    private static void SetPlan(Border badge, TextBlock text, string? plan)
+    {
+        string? label = Fmt.Plan(plan);
+        text.Text = label ?? string.Empty;
+        badge.Visibility = label is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     internal void SetOpenCode(OpenCodeSnapshot snapshot)
@@ -575,6 +649,10 @@ public partial class EdgeWindow : Window
         Log.Trace("Edge", $"ring {index} {(visible ? "shown" : "hidden")}");
 
         item.Visibility = target;
+        bool anyUsageRing = _ringItems[RingClaude].Visibility == Visibility.Visible
+                            || _ringItems[RingCodex].Visibility == Visibility.Visible
+                            || _ringItems[RingCursor].Visibility == Visibility.Visible;
+        UsageTabs.Visibility = anyUsageRing ? Visibility.Visible : Visibility.Collapsed;
         if (!visible)
         {
             if (_hoveredRing == index)

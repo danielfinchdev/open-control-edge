@@ -24,6 +24,30 @@ internal static class Fmt
         return money.Currency == "EUR" ? $"{number} €" : $"{number} {money.Currency}";
     }
 
+    /// Plan badge text from a provider's raw plan id: "free" → "Free", "pro_plus" → "Pro+", "free_trial" → "Prueba".
+    /// Unknown ids are shown capitalised rather than hidden; null or blank means no badge.
+    public static string? Plan(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        string key = id.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "free" => "Free",
+            "free_trial" or "trial" => "Prueba",
+            "go" => "Go",
+            "plus" => "Plus",
+            "pro" => "Pro",
+            "pro_plus" or "pro+" => "Pro+",
+            "max" => "Max",
+            "ultra" => "Ultra",
+            "team" => "Team",
+            "business" => "Business",
+            "enterprise" => "Enterprise",
+            "edu" => "Edu",
+            _ => char.ToUpperInvariant(key[0]) + key[1..].Replace('_', ' '),
+        };
+    }
+
     /// Codex window names by length: 5 h "Sesión", 7 days "Semanal", 30 days "Mensual".
     public static string WindowLabel(TimeSpan? length)
     {

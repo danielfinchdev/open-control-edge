@@ -20,10 +20,10 @@ internal static class Snapshot
         DateTimeOffset now = DateTimeOffset.Now;
 
         var claude = new ClaudeSnapshot(false, new UsageWindow(32, now.AddMinutes(125)), new UsageWindow(11, now.AddDays(3).AddHours(5)),
-            new Money(10.53m, "EUR"), null);
-        var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null);
+            new Money(10.53m, "EUR"), null) { Plan = "max" };
+        var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null) { Plan = "go" };
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)),
-            new UsageWindow(18, now.AddDays(12)), null);
+            new UsageWindow(18, now.AddDays(12)), null) { Plan = "pro" };
         const string openCodeFixture = """{"totalTokens":{"input":12345,"output":6789,"reasoning":321,"cache":{"read":2100,"write":55}},"totalCost":1.2345,"totalSessions":7}""";
         var (fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost) = OpenCodeUsageParser.Parse(openCodeFixture);
         if (fixtureInput != 12345 || fixtureOutput != 6789 || fixtureReasoning != 321 || fixtureCacheRead != 2100
@@ -137,6 +137,23 @@ internal static class Snapshot
         window.SetClaudeRenewing();
         window.SetClaudeRenewFailed(App.RenewTaskMissingMessage);
         window.SaveSnapshot(Path.Combine(directory, "16_card_claude_renew_task_missing.png"));
+
+        // "Total" tab: Claude weekly (11 %), Codex its longer window (weekly 70 % instead of the 5 h 40 %), Cursor monthly.
+        var codexTwoWindows = new CodexSnapshot(false, new CodexWindow(40, TimeSpan.FromHours(5), now.AddHours(3)),
+            new CodexWindow(70, TimeSpan.FromDays(7), now.AddDays(4)), null) { Plan = "plus" };
+        window.SetClaude(claude);
+        window.SetCodex(codexTwoWindows);
+        window.SetCursor(cursor);
+        window.SetGpu(gpu);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "29_tab_session_codex_two_windows.png"));
+        window.ApplyUsageView(UsageView.Total);
+        window.SaveSnapshot(Path.Combine(directory, "30_tab_total_codex_two_windows.png"));
+        window.ApplyUsageView(UsageView.Session);
+
+        window.SetClaude(ClaudeSnapshot.Failed(ClaudeUsageService.FreeAccountMessage) with { Plan = "free" });
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "31_card_claude_free.png"));
 
         window.SetClaude(claude);
         window.SetCodex(codexMonthly);

@@ -42,6 +42,22 @@ al mostrar u ocultar anillos.
 
 Se cambia con el botón del propio panel («Ocultar» / «Fijar») y la elección se recuerda.
 
+### Pestañas «Sesión» / «Total»
+
+Arriba del panel, dos pestañas eligen qué mide cada anillo de IA (la elección se recuerda):
+
+- **Sesión** — la ventana corta: Claude 5 h, Codex su ventana más corta.
+- **Total** — la ventana larga: Claude y Codex semanal (o la más larga), Cursor el ciclo mensual de facturación.
+
+Cursor solo tiene el ciclo mensual, así que muestra lo mismo en las dos; Codex con una sola ventana (plan Go:
+mensual), también. La tarjeta sigue enseñando todas las ventanas.
+
+### Plan de cada cuenta
+
+La cabecera de las tarjetas de Claude, Codex y Cursor lleva una etiqueta con el plan (Free, Go, Plus, Pro, Max,
+Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanales que medir: la tarjeta lo dice
+(«Cuenta gratuita: sin límites de uso medibles») en vez de un error.
+
 ### Detalles
 
 - **Un clic en el anillo de Claude renueva la sesión** y abre Claude Code, para que el anillo no se
@@ -92,6 +108,7 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 ```json
 {
   "panelMode": "auto",
+  "usageView": "session",
   "providers": {
     "claude": "auto",
     "codex": "auto",
@@ -106,6 +123,7 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 | Clave | Valores | Qué hace |
 |---|---|---|
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
+| `usageView` | `"session"` \| `"total"` | Pestaña de los anillos de IA. La escriben las propias pestañas. |
 | `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
 
 Cada clave dentro de `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) admite:
@@ -144,12 +162,14 @@ Este programa lee archivos de credenciales. Merece que se explique exactamente q
 
 **Qué lee, y solo eso**
 
-- De `.credentials.json`: únicamente `claudeAiOauth.accessToken` y `expiresAt`.
-- De `auth.json`: únicamente `tokens.access_token`.
+- De `.credentials.json`: únicamente `claudeAiOauth.accessToken`, `expiresAt` y `subscriptionType` (el plan).
+- De `auth.json`: únicamente `tokens.access_token` y, del `id_token`, solo el claim
+  `https://api.openai.com/auth` → `chatgpt_plan_type` (el plan). El `id_token` se decodifica desde los bytes del
+  archivo sin convertirlo en cadena; el resto de sus claims (correo, identificadores…) se saltan.
 - De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; la base se abre en solo lectura.
 - Cursor envía la sesión en la cookie de la petición HTTPS a `cursor.com`; nunca la guarda ni la registra.
 
-Todo lo demás —**incluidos los tokens de refresco, el `id_token` y el `account_id`**— se salta a nivel
+Todo lo demás —**incluidos los tokens de refresco, el resto del `id_token` y el `account_id`**— se salta a nivel
 de lector JSON, sin llegar nunca a convertirse en una cadena de texto en memoria. Los archivos se abren
 en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clear` al terminar de leer.
 
@@ -236,7 +256,25 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **28 PNG** con los dos modos, las ocho tarjetas, estados de error y sin datos, anillos ocultos, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores.
+Renderiza **31 PNG** con los dos modos, las dos pestañas, las ocho tarjetas, estados de error y sin datos, una cuenta gratuita de Claude, anillos ocultos, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores.
+
+---
+
+## Contribuir
+
+Después de clonar, instala el hook que quita las firmas de IA (`Co-authored-by: Claude/Cursor/Codex`,
+«Generated with…») de los mensajes de commit:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\instalar-hooks.ps1
+```
+
+Los mensajes de commit van en español, cortos y en imperativo. Escríbelos a mano o genéralos desde el botón
+del IDE (Cursor / VS Code → **Control de código fuente** → **Generar mensaje de commit**, el icono de destellos
+junto al cuadro del mensaje) y revísalos antes de confirmar. `.claude/settings.json` desactiva además la
+atribución automática de Claude Code en commits y PR. Las reglas para las IAs que trabajan en el repositorio
+están en [AGENTS.md](AGENTS.md).
+
 ---
 
 ## Cómo está hecho
@@ -282,6 +320,9 @@ Algunas decisiones que quizá no son obvias:
 ## Créditos
 
 Sensores: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL-2.0).
+
+Tipografía: [Geist Sans](https://github.com/vercel/geist-font) de Vercel, incrustada en el ejecutable
+(SIL Open Font License 1.1, ver [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
 
 Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
 asociado con Anthropic, OpenAI ni xAI.

@@ -42,7 +42,7 @@ internal sealed class CodexUsageService
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Codex", $"HTTP {(int)response.StatusCode}");
-                return CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
+                return CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = credentials.PlanType };
             }
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -50,9 +50,9 @@ internal sealed class CodexUsageService
             if (primary is null)
             {
                 Log.Warn("Codex", "200 response without rate_limit.primary_window");
-                return CodexSnapshot.Failed("Respuesta sin datos de uso");
+                return CodexSnapshot.Failed("Respuesta sin datos de uso") with { Plan = credentials.PlanType };
             }
-            return new CodexSnapshot(false, primary, secondary, null);
+            return new CodexSnapshot(false, primary, secondary, null) { Plan = credentials.PlanType };
         }
         catch (HttpRequestException ex)
         {

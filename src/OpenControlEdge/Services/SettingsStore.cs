@@ -13,7 +13,17 @@ internal enum PanelMode
     Auto,
 }
 
-internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, ProviderVisibility> Providers)
+internal enum UsageView
+{
+    /// Rings show the short window: Claude 5 h, Codex its shortest window (default).
+    Session,
+
+    /// Rings show the long window: Claude and Codex weekly (or longest), Cursor its monthly billing cycle.
+    Total,
+}
+
+internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, ProviderVisibility> Providers,
+    UsageView UsageView = UsageView.Session)
 {
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
@@ -22,6 +32,7 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 ///
 ///   {
 ///     "panelMode": "pinned" | "auto",
+///     "usageView": "session" | "total",
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
@@ -67,7 +78,8 @@ internal static class SettingsStore
 
             PanelMode mode = GetString(root, "panelMode") == "auto" ? PanelMode.Auto : PanelMode.Pinned;
             FrozenDictionary<string, ProviderVisibility> providers = ParseProviders(root);
-            return new Settings(mode, providers);
+            UsageView view = GetString(root, "usageView") == "total" ? UsageView.Total : UsageView.Session;
+            return new Settings(mode, providers, view);
         }
         catch (Exception ex)
         {
@@ -80,7 +92,14 @@ internal static class SettingsStore
     public static void SavePanelMode(PanelMode mode)
     {
         Settings current = Load();
-        Save(new Settings(mode, current.Providers));
+        Save(current with { PanelMode = mode });
+    }
+
+    /// The "Sesión" / "Total" tab choice; everything else is kept as loaded.
+    public static void SaveUsageView(UsageView view)
+    {
+        Settings current = Load();
+        Save(current with { UsageView = view });
     }
 
     private static void Save(Settings settings)
@@ -92,6 +111,7 @@ internal static class SettingsStore
             {
                 writer.WriteStartObject();
                 writer.WriteString("panelMode", settings.PanelMode == PanelMode.Auto ? "auto" : "pinned");
+                writer.WriteString("usageView", settings.UsageView == UsageView.Total ? "total" : "session");
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -109,7 +129,7 @@ internal static class SettingsStore
             string temp = FilePath + ".tmp";
             File.WriteAllBytes(temp, buffer.ToArray());
             File.Move(temp, FilePath, overwrite: true);
-            Log.Info("Settings", $"panelMode = {settings.PanelMode}");
+            Log.Info("Settings", $"panelMode = {settings.PanelMode}, usageView = {settings.UsageView}");
         }
         catch (Exception ex)
         {

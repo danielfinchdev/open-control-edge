@@ -30,6 +30,12 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
 
+  <!-- Geist Sans (SIL OFL 1.1, see Assets/Fonts/OFL.txt): only the two weights the interface uses. -->
+  <ItemGroup>
+    <Resource Include="Assets\Fonts\Geist-Regular.ttf" />
+    <Resource Include="Assets\Fonts\Geist-SemiBold.ttf" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
