@@ -87,6 +87,12 @@ internal static class Snapshot
         window.ApplyMode(PanelMode.Auto);
         window.SaveSnapshot(Path.Combine(directory, "14_back_to_auto.png"));
 
+        window.ApplyMode(PanelMode.Pinned);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SetClaudeRenewing();
+        window.SetClaudeRenewFailed(App.RenewTaskMissingMessage);
+        window.SaveSnapshot(Path.Combine(directory, "16_card_claude_renew_task_missing.png"));
+
         window.Close();
 
         var menu = new TrayMenuWindow { ShowActivated = false, Left = -32000, Top = -32000 };

@@ -189,6 +189,17 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
+    /// The renewal could not start: puts the last reading back and says why on the card, instead of leaving
+    /// "Renovando la sesión…" behind. The next usage refresh replaces the message.
+    internal void SetClaudeRenewFailed(string message)
+    {
+        if (_claude is not null) SetClaude(_claude);
+        else ClaudeLabel.Text = "--";
+        ClaudeMessage.Text = message;
+        ClaudeMessage.Visibility = Visibility.Visible;
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
     /// While a full refresh runs the button reads "Actualizando" and is disabled.
     internal void SetRefreshing(bool refreshing)
     {

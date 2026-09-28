@@ -16,6 +16,10 @@ public partial class App : Application
     /// reads and opens Claude Code. It runs as the plain user, never with this process's rights.
     private const string RenewTaskName = "Claude - Mantener sesion";
 
+    /// Shown on the Claude card when the ring is clicked and that task is not installed.
+    internal const string RenewTaskMissingMessage =
+        $"No se puede renovar: falta la tarea «{RenewTaskName}». Se instala con claude-sesion.ps1 -Instalar.";
+
     /// The Claude Code desktop app, opened through Explorer so it does not inherit the administrator token.
     private const string ClaudeAppId = @"shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude";
     // Two cadences for each source: the fast one only while the pinned panel is actually on screen, the slow
@@ -241,8 +245,9 @@ public partial class App : Application
 
     /// Clicking the Claude ring. The widget never touches the credentials file itself: it asks the scheduled
     /// task to do it, which runs as the plain user, refreshes the token and opens Claude Code. When that task
-    /// is not installed, Claude Code is opened on its own — which does not renew anything, but at least puts
-    /// the user where they can. The usage is read again once the refresh has had time to finish.
+    /// is not installed (or will not start), the card says so and Claude Code is opened on its own — which does
+    /// not renew anything, but at least puts the user where they can. Otherwise the usage is read again once
+    /// the refresh has had time to finish.
     private async Task RenewClaudeSessionAsync()
     {
         if (_renewing || _edge is null) return;
@@ -252,19 +257,28 @@ public partial class App : Application
             _edge.SetClaudeRenewing();
             Log.Info("Claude", "renovación de sesión pedida desde el anillo");
 
-            if (!await Task.Run(RunRenewTask))
+            RenewResult result = await Task.Run(RunRenewTask);
+            if (result != RenewResult.Started)
             {
-                Log.Warn("Claude", $"la tarea «{RenewTaskName}» no está instalada; se abre Claude Code");
-                Start("explorer.exe", ClaudeAppId);
+                Log.Warn("Claude", result == RenewResult.Missing
+                    ? $"la tarea «{RenewTaskName}» no está instalada; se abre Claude Code sin renovar"
+                    : $"la tarea «{RenewTaskName}» no se ha podido lanzar; se abre Claude Code sin renovar");
+                _edge.SetClaudeRenewFailed(result == RenewResult.Missing
+                    ? RenewTaskMissingMessage
+                    : $"No se puede renovar: la tarea «{RenewTaskName}» no ha arrancado");
+                Start("explorer.exe", ClaudeAppId)?.Dispose();
+                return;
             }
 
-            // The CLI needs a few seconds to refresh the token and rewrite the credentials file.
-            await Task.Delay(TimeSpan.FromSeconds(15));
+            // The CLI needs a while to refresh the token and rewrite the credentials file: 13–17 s per
+            // tools\claude-sesion.log, so 15 s often read the old, still expired file.
+            await Task.Delay(TimeSpan.FromSeconds(25));
             await RefreshUsageAsync();
         }
         catch (Exception ex)
         {
             Log.Error("Claude renew", ex);
+            _edge.SetClaudeRenewFailed("No se pudo renovar la sesión");
         }
         finally
         {
@@ -272,19 +286,28 @@ public partial class App : Application
         }
     }
 
-    /// True when schtasks reported the task as started.
-    private static bool RunRenewTask()
+    private enum RenewResult { Started, Missing, Failed }
+
+    /// Asks schtasks whether the renewal task exists, then starts it. Runs on a worker thread.
+    private static RenewResult RunRenewTask()
     {
         try
         {
-            using Process? process = Start("schtasks.exe", $"/run /tn \"{RenewTaskName}\"");
-            return process is not null && process.WaitForExit(10_000) && process.ExitCode == 0;
+            if (!RunSchtasks($"/query /tn \"{RenewTaskName}\"")) return RenewResult.Missing;
+            return RunSchtasks($"/run /tn \"{RenewTaskName}\"") ? RenewResult.Started : RenewResult.Failed;
         }
         catch (Exception ex)
         {
             Log.Warn("Claude", "schtasks: " + ex.Message);
-            return false;
+            return RenewResult.Failed;
         }
+    }
+
+    /// True when schtasks finished within 10 s with exit code 0.
+    private static bool RunSchtasks(string arguments)
+    {
+        using Process? process = Start("schtasks.exe", arguments);
+        return process is not null && process.WaitForExit(10_000) && process.ExitCode == 0;
     }
 
     private static Process? Start(string fileName, string arguments) =>

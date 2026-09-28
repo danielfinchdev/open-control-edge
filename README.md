@@ -187,7 +187,8 @@ powershell -ExecutionPolicy Bypass -File tools\claude-sesion.ps1 -Forzar
 - La llamada es la mínima posible: `claude -p --tools "" --no-session-persistence --model haiku ok`.
 - Deja constancia en `tools\claude-sesion.log`. **Nunca escribe ningún token**, solo fechas.
 
-El clic en el anillo de Claude lanza esta misma tarea.
+El clic en el anillo de Claude lanza esta misma tarea. Si no está instalada, la tarjeta lo dice y solo se
+abre Claude Code (que no renueva el token).
 
 ---
 
