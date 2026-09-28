@@ -1,6 +1,6 @@
-# Generates src\EdgeWidget\Assets\app.ico: black rounded square with an orange progress arc.
+# Generates src\OpenControlEdge\Assets\app.ico: black rounded square with an orange progress arc.
 # Sizes <= 64 are stored as classic 32-bit DIBs (widest API compatibility), 256 as PNG.
-param([string]$Out = (Join-Path $PSScriptRoot '..\src\EdgeWidget\Assets\app.ico'))
+param([string]$Out = (Join-Path $PSScriptRoot '..\src\OpenControlEdge\Assets\app.ico'))
 
 Add-Type -AssemblyName System.Drawing
 $sizes = @(16, 20, 24, 32, 40, 48, 64, 256)

@@ -1,7 +1,7 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Instala EdgeWidget en Archivos de programa y deja la tarea de inicio apuntando ahi.
+    Instala Open Control Edge en Archivos de programa y deja la tarea de inicio apuntando ahi.
 .DESCRIPTION
     Por que en "Archivos de programa": la tarea programada arranca el widget como administrador
     sin pedir UAC. Si el .exe vive en una carpeta donde tu usuario puede escribir, cualquier
@@ -9,11 +9,11 @@
     siguiente inicio de sesion. En Archivos de programa solo un administrador puede escribir.
 
     Pasos: para el widget -> copia el .exe -> reapunta la tarea -> migra los ajustes a
-    %LOCALAPPDATA%\EdgeWidget -> lo vuelve a arrancar.
+    %LOCALAPPDATA%\OpenControlEdge -> lo vuelve a arrancar.
 
-    No borra nada. Los ajustes y el registro anteriores se conservan.
+    Conserva la carpeta antigua C:\Program Files\EdgeWidget y los ajustes originales.
 .PARAMETER Origen
-    .exe a instalar. Por defecto, dist\EdgeWidget.exe del propio proyecto.
+    .exe a instalar. Por defecto, dist\OpenControlEdge.exe del propio proyecto.
 .PARAMETER Desinstalar
     Quita la tarea programada y deja de arrancar el widget (no borra el .exe ni los ajustes).
 .PARAMETER Si
@@ -21,17 +21,17 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Origen = (Join-Path (Split-Path $PSScriptRoot -Parent) 'dist\EdgeWidget.exe'),
+    [string]$Origen = (Join-Path (Split-Path $PSScriptRoot -Parent) 'dist\OpenControlEdge.exe'),
     [switch]$Desinstalar,
     [switch]$Si,
     [switch]$Pausa
 )
 
 $ErrorActionPreference = 'Stop'
-$nombreTarea = 'EdgeWidget'
-$destinoDir  = Join-Path $env:ProgramFiles 'EdgeWidget'
-$destinoExe  = Join-Path $destinoDir 'EdgeWidget.exe'
-$datosDir    = Join-Path $env:LOCALAPPDATA 'EdgeWidget'
+$nombreTarea = 'OpenControlEdge'
+$destinoDir  = Join-Path $env:ProgramFiles 'OpenControlEdge'
+$destinoExe  = Join-Path $destinoDir 'OpenControlEdge.exe'
+$datosDir    = Join-Path $env:LOCALAPPDATA 'OpenControlEdge'
 
 function Escribe([string]$t, [string]$c = 'Gray') { Write-Host $t -ForegroundColor $c }
 function Fin { if ($Pausa) { [void](Read-Host "`nPulsa Enter para cerrar") } }
@@ -64,7 +64,7 @@ if ($Desinstalar) {
     } else {
         Escribe 'No habia tarea que quitar.'
     }
-    Get-Process EdgeWidget -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process OpenControlEdge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Escribe 'Listo.' 'Green'
     Fin
     return
@@ -75,7 +75,7 @@ if (-not (Test-Path $Origen)) { Escribe "No encuentro el .exe de origen: $Origen
 $ver = (Get-Item $Origen).VersionInfo.FileVersion
 
 Escribe ''
-Escribe '  Instalar EdgeWidget' 'Cyan'
+Escribe '  Instalar Open Control Edge' 'Cyan'
 Escribe '  -------------------'
 Escribe "  Origen : $Origen  (version $ver)"
 Escribe "  Destino: $destinoExe"
@@ -92,13 +92,24 @@ Escribe '1/5  Parando el widget...'
 if (Get-ScheduledTask -TaskName $nombreTarea -ErrorAction SilentlyContinue) {
     try { Stop-ScheduledTask -TaskName $nombreTarea -ErrorAction Stop } catch { }
 }
+Get-Process OpenControlEdge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$tareaAntigua = Get-ScheduledTask -TaskName 'EdgeWidget' -ErrorAction SilentlyContinue
+if ($tareaAntigua) {
+    try { Stop-ScheduledTask -TaskName 'EdgeWidget' -ErrorAction SilentlyContinue } catch { }
+    try { Disable-ScheduledTask -TaskName 'EdgeWidget' -ErrorAction SilentlyContinue | Out-Null } catch { }
+    Unregister-ScheduledTask -TaskName 'EdgeWidget' -Confirm:$false
+    Escribe "     tarea antigua 'EdgeWidget' desactivada y eliminada." 'Green'
+}
 Get-Process EdgeWidget -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 $vueltas = 0
-while ((Get-Process EdgeWidget -ErrorAction SilentlyContinue) -and $vueltas -lt 20) {
+while ((Get-Process OpenControlEdge -ErrorAction SilentlyContinue) -and $vueltas -lt 20) {
     Start-Sleep -Milliseconds 250
     $vueltas++
 }
 Escribe '     parado.' 'Green'
+if (Test-Path (Join-Path $env:ProgramFiles 'EdgeWidget')) {
+    Escribe "     AVISO: se conserva la carpeta antigua $(Join-Path $env:ProgramFiles 'EdgeWidget')." 'Yellow'
+}
 
 # ---------------------------------------------------------------- copiar
 Escribe '2/5  Copiando el ejecutable...'
@@ -122,13 +133,14 @@ if ($escribenUsuarios) {
 # ---------------------------------------------------------------- ajustes
 Escribe '3/5  Migrando los ajustes...'
 if (-not (Test-Path $datosDir)) { New-Item -ItemType Directory -Path $datosDir -Force | Out-Null }
-$ajustesNuevo = Join-Path $datosDir 'EdgeWidget.settings.json'
+$ajustesNuevo = Join-Path $datosDir 'OpenControlEdge.settings.json'
 # Junto al .exe de origen, y tambien en dist\ del proyecto: al instalar desde una carpeta de
 # compilacion recien creada, los ajustes de verdad estan en dist.
 $candidatos = @(
-    (Join-Path (Split-Path $Origen -Parent) 'EdgeWidget.settings.json'),
-    (Join-Path (Split-Path $PSScriptRoot -Parent) 'dist\EdgeWidget.settings.json'),
-    (Join-Path $destinoDir 'EdgeWidget.settings.json')
+    (Join-Path (Join-Path $env:LOCALAPPDATA 'EdgeWidget') 'EdgeWidget.settings.json'),
+    (Join-Path (Split-Path $Origen -Parent) 'OpenControlEdge.settings.json'),
+    (Join-Path (Split-Path $PSScriptRoot -Parent) 'dist\OpenControlEdge.settings.json'),
+    (Join-Path $destinoDir 'OpenControlEdge.settings.json')
 )
 $ajustesViejo = $candidatos | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($ajustesViejo -and -not (Test-Path $ajustesNuevo)) {
@@ -167,7 +179,7 @@ Escribe "     '$nombreTarea' -> $destinoExe" 'Green'
 Escribe '5/5  Arrancando el widget...'
 Start-ScheduledTask -TaskName $nombreTarea
 Start-Sleep -Seconds 4
-$p = Get-Process EdgeWidget -ErrorAction SilentlyContinue
+$p = Get-Process OpenControlEdge -ErrorAction SilentlyContinue
 if ($p) {
     Escribe "     en marcha (PID $($p.Id), $([math]::Round($p.WorkingSet64/1MB,1)) MB)." 'Green'
 } else {

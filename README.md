@@ -1,4 +1,4 @@
-# EdgeWidget
+# Open Control Edge (antes EdgeWidget)
 
 **Un widget de escritorio para Windows 11 que muestra, pegado al borde de la pantalla, cuánto te queda
 de cada IA y a qué temperatura está tu portátil.**
@@ -53,17 +53,17 @@ Se cambia con el botón del propio panel («Ocultar» / «Fijar») y la elecció
 
 Requisitos: **Windows 11** (o 10 22H2) y permisos de administrador.
 
-1. Descarga `EdgeWidget.exe` de la [última versión](../../releases/latest), o compílalo (ver abajo).
+1. Descarga `OpenControlEdge.exe` de la [última versión](../../releases/latest), o compílalo (ver abajo).
    Los ejecutables de Releases los publica [GitHub Actions](../../actions) a partir de este código.
    Cuando el flujo de Release publique attestations, se pueden verificar con
-   `gh attestation verify EdgeWidget.exe -R danielfinchdev/EdgeWidget`.
+   `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
 2. Ejecuta el instalador desde PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
 ```
 
-Copia el ejecutable a `C:\Program Files\EdgeWidget`, crea una tarea programada que lo arranca al
+Copia el ejecutable a `C:\Program Files\OpenControlEdge`, crea una tarea programada que lo arranca al
 iniciar sesión como administrador, y lo lanza. **No borra nada.**
 
 Para quitar el arranque automático:
@@ -82,7 +82,7 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 
 ## Configuración
 
-`%LOCALAPPDATA%\EdgeWidget\EdgeWidget.settings.json`
+`%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json`
 
 ```json
 {
@@ -196,9 +196,9 @@ El clic en el anillo de Claude lanza esta misma tarea.
 Requisitos: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```powershell
-git clone https://github.com/danielfinchdev/EdgeWidget.git
-cd EdgeWidget
-dotnet publish src\EdgeWidget\EdgeWidget.csproj -c Release -r win-x64 -o dist
+git clone https://github.com/danielfinchdev/open-control-edge.git
+cd open-control-edge
+dotnet publish src\OpenControlEdge\OpenControlEdge.csproj -c Release -r win-x64 -o dist
 powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
 ```
 
@@ -206,7 +206,7 @@ powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
 exige administrador. **Debug** arranca sin elevar, para iterar la interfaz sin UAC.
 
 Cada etiqueta `v*` (por ejemplo `v1.2.0`) lanza el mismo `dotnet publish` en
-[Actions](../../actions) y adjunta `EdgeWidget.exe` a la [Release](../../releases):
+[Actions](../../actions) y adjunta `OpenControlEdge.exe` a la [Release](../../releases):
 
 ```powershell
 git tag v1.2.0
@@ -216,7 +216,7 @@ git push origin v1.2.0
 ### Revisar la interfaz sin ejecutar el widget
 
 ```powershell
-.\src\EdgeWidget\bin\Debug\net8.0-windows\win-x64\EdgeWidget.exe --snapshot C:\temp\capturas
+.\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
 Renderiza **15 PNG** con todos los estados —los dos modos, las cinco tarjetas, los errores, los anillos
@@ -231,7 +231,7 @@ no abre los sensores. Es la forma de revisar un cambio visual en segundos.
 ventana, unos cuantos controles dibujados a mano y llamadas directas a la API de Windows.
 
 ```
-src/EdgeWidget/
+src/OpenControlEdge/
 ├─ Services/     Lectura de credenciales, APIs de uso, sensores, ajustes, registro
 ├─ Ui/           Anillo, barra, iconos, paleta, formatos
 ├─ Views/        Ventana del borde, menú de bandeja, renderizador de capturas
@@ -269,5 +269,5 @@ Algunas decisiones que quizá no son obvias:
 
 Sensores: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL-2.0).
 
-Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. EdgeWidget no está
+Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
 asociado con Anthropic, OpenAI ni xAI.

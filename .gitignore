@@ -11,6 +11,7 @@ backup/
 
 # Ajustes locales (se generan solos en %LOCALAPPDATA%)
 EdgeWidget.settings.json
+OpenControlEdge.settings.json
 
 # Notas sobre este equipo concreto: no son parte del programa
 NOTAS-DEL-EQUIPO.md

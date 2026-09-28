@@ -22,22 +22,22 @@ jobs:
 
       # Same publish as README / build.yml. Release csproj keeps DebugType=none.
       - name: Publish
-        run: dotnet publish src/EdgeWidget/EdgeWidget.csproj -c Release -r win-x64 -o dist
+        run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
-      - name: Attest EdgeWidget.exe
+      - name: Attest OpenControlEdge.exe
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: dist/EdgeWidget.exe
+          subject-path: dist/OpenControlEdge.exe
 
-      - name: Attach EdgeWidget.exe to GitHub Release
+      - name: Attach OpenControlEdge.exe to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $title = "EdgeWidget $($tag.Substring(1))"
+          $title = "Open Control Edge $($tag.Substring(1))"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag dist/EdgeWidget.exe --clobber
+            gh release upload $tag dist/OpenControlEdge.exe --clobber
           } else {
-            gh release create $tag dist/EdgeWidget.exe --title $title --generate-notes
+            gh release create $tag dist/OpenControlEdge.exe --title $title --generate-notes
           }

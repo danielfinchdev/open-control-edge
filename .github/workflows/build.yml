@@ -23,11 +23,11 @@ jobs:
 
       # SelfContained, PublishSingleFile and DebugType=none come from the Release csproj.
       - name: Publish
-        run: dotnet publish src/EdgeWidget/EdgeWidget.csproj -c Release -r win-x64 -o dist
+        run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
-      - name: Upload EdgeWidget.exe
+      - name: Upload OpenControlEdge.exe
         uses: actions/upload-artifact@v4
         with:
-          name: EdgeWidget.exe
-          path: dist/EdgeWidget.exe
+          name: OpenControlEdge.exe
+          path: dist/OpenControlEdge.exe
           if-no-files-found: error
