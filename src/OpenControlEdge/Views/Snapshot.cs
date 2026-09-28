@@ -22,14 +22,14 @@ internal static class Snapshot
         var claude = new ClaudeSnapshot(new UsageWindow(32, now.AddMinutes(125)), new UsageWindow(11, now.AddDays(3).AddHours(5)),
             new Money(10.53m, "EUR"), null);
         var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null);
-        var grok = new GrokSnapshot(false, new GrokWindow(64, "Semanal", now.AddDays(2).AddHours(3)),
-            new GrokWindow(18, "Bajo demanda", null), null);
+        var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)),
+            new UsageWindow(18, now.AddDays(12)), null);
         var cpu = new CpuSnapshot("Intel Core i7-8750H", 64, 78, 23, null);
         var gpu = new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", 41, 12, 783, 4096, null);
 
         var window = new EdgeWindow(DateTime.Now.AddMinutes(-42), PanelMode.Auto) { PreviewMode = true, AnimationsEnabled = false };
         window.SetCodex(codexMonthly);
-        window.SetGrok(grok);
+        window.SetCursor(cursor);
         window.SetGpu(gpu);
         window.Show();
         window.SetClaude(claude);
@@ -62,8 +62,15 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingCodex);
         window.SaveSnapshot(Path.Combine(directory, "08_card_codex_monthly.png"));
 
-        window.ShowCardNow(EdgeWindow.RingGrok);
-        window.SaveSnapshot(Path.Combine(directory, "09_card_grok.png"));
+        window.ShowCardNow(EdgeWindow.RingCursor);
+        window.SaveSnapshot(Path.Combine(directory, "09_card_cursor.png"));
+
+        window.SetCursor(CursorSnapshot.Failed("Error HTTP 503"));
+        window.ShowCardNow(EdgeWindow.RingCursor);
+        window.SaveSnapshot(Path.Combine(directory, "17_cursor_error.png"));
+        window.SetCursor(CursorSnapshot.NotAvailable("Sin sesión de Cursor"));
+        window.SaveSnapshot(Path.Combine(directory, "18_cursor_no_session_hidden.png"));
+        window.SetCursor(cursor);
 
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(directory, "10_card_cpu.png"));

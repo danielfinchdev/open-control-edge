@@ -28,21 +28,16 @@ internal sealed record HardwareSnapshot(CpuSnapshot Cpu, GpuSnapshot Gpu);
 /// One Codex rate-limit window. Length is limit_window_seconds (e.g. 30 days).
 internal sealed record CodexWindow(double Percent, TimeSpan? Length, DateTimeOffset? ResetsAt);
 
-/// One Grok Bot window. Label is what the card calls it ("Semanal", "Bajo demanda").
-internal sealed record GrokWindow(double Percent, string Label, DateTimeOffset? ResetsAt);
-
-/// Grok Bot usage. A personal plan has no usage API to read — the consumption is billed to a Cursor
-/// account whose admin API is Teams-only — so these figures come from the "grok" block of
-/// OpenControlEdge.settings.json, typed in by hand. Hidden while that block is missing.
-internal sealed record GrokSnapshot(bool Hidden, GrokWindow? Weekly, GrokWindow? OnDemand, string? Message)
-{
-    public static GrokSnapshot NotConfigured { get; } = new(true, null, null, null);
-}
-
 /// Hidden: no usable ChatGPT login (auth.json missing, no access token, token expired or HTTP 401), so the ring
 /// is not shown. Otherwise Primary is null whenever the data could not be obtained; Message then explains why.
 internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWindow? Secondary, string? Message)
 {
     public static CodexSnapshot NotAvailable(string reason) => new(true, null, null, reason);
     public static CodexSnapshot Failed(string message) => new(false, null, null, message);
+}
+
+internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWindow? OnDemand, string? Message)
+{
+    public static CursorSnapshot NotAvailable(string reason) => new(true, null, null, reason);
+    public static CursorSnapshot Failed(string message) => new(false, null, null, message);
 }

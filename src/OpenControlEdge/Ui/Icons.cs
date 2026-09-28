@@ -8,7 +8,7 @@ public static class Icons
 {
     public static DrawingGroup ClaudeSpark { get; } = CreateSpark();
     public static DrawingGroup Codex { get; } = CreateCodex();
-    public static DrawingGroup Grok { get; } = CreateGrok();
+    public static DrawingGroup Cursor { get; } = CreateCursor();
     public static DrawingGroup Cpu { get; } = CreateCpu();
     public static DrawingGroup Gpu { get; } = CreateGpu();
     public static DrawingGroup Refresh { get; } = CreateRefresh();
@@ -16,7 +16,7 @@ public static class Icons
 
     public static DrawingImage ClaudeSparkImage { get; } = ToImage(ClaudeSpark);
     public static DrawingImage CodexImage { get; } = ToImage(Codex);
-    public static DrawingImage GrokImage { get; } = ToImage(Grok);
+    public static DrawingImage CursorImage { get; } = ToImage(Cursor);
     public static DrawingImage CpuImage { get; } = ToImage(Cpu);
     public static DrawingImage GpuImage { get; } = ToImage(Gpu);
     public static DrawingImage RefreshImage { get; } = ToImage(Refresh);
@@ -69,26 +69,31 @@ public static class Icons
         return group;
     }
 
-    /// Grok Bot: a bot head with an antenna (a neutral glyph, not the xAI logo).
-    private static DrawingGroup CreateGrok()
+    /// Cursor: a monochrome isometric cube mark.
+    private static DrawingGroup CreateCursor()
     {
         var group = NewGroup();
-        var pen = RoundPen(1.8);
-
-        group.Children.Add(new GeometryDrawing(null, pen, new RectangleGeometry(new Rect(4.6, 7.4, 14.8, 11.6), 3.4, 3.4)));
-        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(9.4, 12.4), 1.35, 1.35)));
-        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(14.6, 12.4), 1.35, 1.35)));
-        group.Children.Add(new GeometryDrawing(null, pen, new EllipseGeometry(new Point(12, 3.6), 1.3, 1.3)));
-
-        var details = new StreamGeometry();
-        using (var ctx = details.Open())
+        var outline = new StreamGeometry();
+        using (var ctx = outline.Open())
         {
-            Line(ctx, new Point(12, 4.9), new Point(12, 7.4));    // antenna stalk
-            Line(ctx, new Point(9.6, 16), new Point(14.4, 16));   // mouth
-            Line(ctx, new Point(2.6, 11.4), new Point(2.6, 14));  // side vents
-            Line(ctx, new Point(21.4, 11.4), new Point(21.4, 14));
+            ctx.BeginFigure(new Point(12, 2.8), false, true);
+            ctx.LineTo(new Point(20.1, 7.4), true, true);
+            ctx.LineTo(new Point(20.1, 16.6), true, true);
+            ctx.LineTo(new Point(12, 21.2), true, true);
+            ctx.LineTo(new Point(3.9, 16.6), true, true);
+            ctx.LineTo(new Point(3.9, 7.4), true, true);
+            ctx.LineTo(new Point(12, 2.8), true, true);
         }
-        group.Children.Add(new GeometryDrawing(null, pen, details));
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), outline));
+        var facets = new StreamGeometry();
+        using (var ctx = facets.Open())
+        {
+            Line(ctx, new Point(12, 2.8), new Point(12, 12));
+            Line(ctx, new Point(3.9, 7.4), new Point(12, 12));
+            Line(ctx, new Point(20.1, 7.4), new Point(12, 12));
+            Line(ctx, new Point(12, 12), new Point(12, 21.2));
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.5), facets));
 
         group.Freeze();
         return group;

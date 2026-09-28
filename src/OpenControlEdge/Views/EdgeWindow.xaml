@@ -102,31 +102,26 @@
                                    Margin="0,15,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
-                    <!-- Grok Bot: cifras escritas a mano en OpenControlEdge.settings.json (no hay API de uso). -->
-                    <StackPanel x:Name="GrokCard" Visibility="Collapsed">
+                    <!-- Cursor monthly plan usage. -->
+                    <StackPanel x:Name="CursorCard" Visibility="Collapsed">
                         <DockPanel>
-                            <TextBlock x:Name="GrokHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
-                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="10,0,0,0" />
                             <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.GrokImage}" Width="17" Height="17" VerticalAlignment="Center" />
-                                <TextBlock Text="Grok Bot" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
+                                <Image Source="{x:Static ui:Icons.CursorImage}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock Text="Cursor" Style="{StaticResource CardTitle}" Margin="8.5,0,0,0" />
                             </StackPanel>
                         </DockPanel>
-
-                        <StackPanel x:Name="GrokMetrics" Margin="0,15,0,0">
-                            <TextBlock Text="Semanal" Style="{StaticResource SecondaryText}" />
-                            <ui:LinearBar x:Name="GrokWeeklyBar" Height="3.5" Margin="0,7,0,0" />
-                            <TextBlock x:Name="GrokWeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
-
-                            <StackPanel x:Name="GrokOnDemandRow" Visibility="Collapsed">
+                        <StackPanel x:Name="CursorMetrics" Margin="0,15,0,0">
+                            <TextBlock Text="Ciclo mensual" Style="{StaticResource SecondaryText}" />
+                            <ui:LinearBar x:Name="CursorCycleBar" Height="3.5" Margin="0,7,0,0" />
+                            <TextBlock x:Name="CursorCycleValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                            <StackPanel x:Name="CursorOnDemandRow" Visibility="Collapsed">
                                 <TextBlock Text="Bajo demanda" Style="{StaticResource SecondaryText}" Margin="0,15,0,0" />
-                                <ui:LinearBar x:Name="GrokOnDemandBar" Height="3.5" Margin="0,7,0,0" />
-                                <TextBlock x:Name="GrokOnDemandValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
+                                <ui:LinearBar x:Name="CursorOnDemandBar" Height="3.5" Margin="0,7,0,0" />
+                                <TextBlock x:Name="CursorOnDemandValue" Text="--" Style="{StaticResource ValueText}" Margin="0,6,0,0" />
                             </StackPanel>
                         </StackPanel>
-
-                        <TextBlock x:Name="GrokMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
-                                   Margin="0,15,0,0" Visibility="Collapsed" />
+                        <TextBlock x:Name="CursorMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,15,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
                     <!-- CPU -->
@@ -228,20 +223,17 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Oculto mientras no haya bloque "grok" en los ajustes. -->
-                    <Grid x:Name="GrokItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
+                    <!-- Hidden when Cursor has no IDE session. -->
+                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,24,0,0" Visibility="Collapsed">
                         <StackPanel>
-                            <ui:RingGauge x:Name="GrokRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
+                            <ui:RingGauge x:Name="CursorRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"
                                           RingBrush="#30D158" TrackBrush="#2A2A2A"
-                                          Icon="{x:Static ui:Icons.Grok}" RenderTransformOrigin="0.5,0.5">
-                                <ui:RingGauge.RenderTransform>
-                                    <ScaleTransform />
-                                </ui:RingGauge.RenderTransform>
+                                          Icon="{x:Static ui:Icons.Cursor}" RenderTransformOrigin="0.5,0.5">
+                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
                             </ui:RingGauge>
-                            <TextBlock x:Name="GrokLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-
                     <Grid x:Name="CpuItem" Background="Transparent" Margin="0,24,0,0">
                         <StackPanel>
                             <ui:RingGauge x:Name="CpuRing" Width="54" Height="54" StrokeThickness="3.5" IconSize="20"

@@ -3,7 +3,7 @@
 **Un widget de escritorio para Windows 11 que muestra, pegado al borde de la pantalla, cuánto te queda
 de cada IA y a qué temperatura está tu portátil.**
 
-> *A Windows 11 edge widget showing your remaining Claude / Codex / Grok quota and your CPU & GPU
+> *A Windows 11 edge widget showing your remaining Claude / Codex / Cursor quota and your CPU & GPU
 > temperature at a glance. Interface and documentation are in Spanish.*
 
 Sin instalador, sin servicios en segundo plano, sin telemetría. Un único ejecutable que consume
@@ -23,11 +23,11 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 |---|---|
 | **Claude** | % de la sesión de 5 h, límite semanal y gasto acumulado en € |
 | **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) |
-| **Grok Bot** | % semanal y, opcionalmente, bajo demanda |
+| **Cursor** | % del ciclo mensual Pro y, si existe, bajo demanda |
 | **CPU** | Temperatura actual, máxima de la sesión y carga |
 | **GPU** | Temperatura, uso y memoria (NVIDIA) |
 
-Los anillos de Codex, Grok y GPU **aparecen y desaparecen solos** según haya o no datos que mostrar, y
+Los anillos de Codex, Cursor y GPU **aparecen y desaparecen solos** según haya o no datos que mostrar, y
 el panel se recentra con una animación.
 
 ### Dos modos
@@ -86,23 +86,15 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 
 ```json
 {
-  "panelMode": "auto",
-  "grok": {
-    "weeklyPercent": 42,
-    "weeklyResetsAt": "2026-09-22T09:00:00+02:00",
-    "onDemandPercent": 12
-  }
+  "panelMode": "auto"
 }
 ```
 
 | Clave | Valores | Qué hace |
 |---|---|---|
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
-| `grok.weeklyPercent` | 0–100 | **Obligatorio** para que aparezca el anillo de Grok. |
-| `grok.weeklyResetsAt` | fecha ISO 8601 | Opcional. Pinta el «Reinicia el…» de la cabecera. |
-| `grok.onDemandPercent` | 0–100 | Opcional. Añade una segunda barra a la tarjeta. |
 
-El archivo se relee en cada actualización: puedes editarlo y pulsar «Actualizar» sin reiniciar nada.
+El archivo solo guarda el modo del panel.
 
 ---
 
@@ -112,15 +104,11 @@ El archivo se relee en cada actualización: puedes editarlo y pulsar «Actualiza
 |---|---|---|
 | Claude | `api.anthropic.com/api/oauth/usage` | `%USERPROFILE%\.claude\.credentials.json` |
 | Codex | `chatgpt.com/backend-api/wham/usage` | `%USERPROFILE%\.codex\auth.json` |
-| Grok Bot | El archivo de ajustes | — |
+| Cursor | `cursor.com/api/usage-summary` | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
 | CPU / GPU | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | — |
 
-Los dos endpoints de uso **no están documentados** por sus proveedores. Los parsers exigen la forma
+Los endpoints de Claude, Codex y Cursor **no están documentados** por sus proveedores. Los parsers exigen la forma
 exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventarse un número.
-
-Grok Bot no tiene anillo automático porque un plan personal **no expone ningún endpoint de uso**, y su
-consumo va contra una cuenta de Cursor cuya API de administración es solo para planes Teams. De ahí que
-el porcentaje se escriba a mano.
 
 ---
 
@@ -132,6 +120,8 @@ Este programa lee archivos de credenciales. Merece que se explique exactamente q
 
 - De `.credentials.json`: únicamente `claudeAiOauth.accessToken` y `expiresAt`.
 - De `auth.json`: únicamente `tokens.access_token`.
+- De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; la base se abre en solo lectura.
+- Cursor envía la sesión en la cookie de la petición HTTPS a `cursor.com`; nunca la guarda ni la registra.
 
 Todo lo demás —**incluidos los tokens de refresco, el `id_token` y el `account_id`**— se salta a nivel
 de lector JSON, sin llegar nunca a convertirse en una cadena de texto en memoria. Los archivos se abren
@@ -143,7 +133,7 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   «Abre Claude Code para renovar». La renovación la hace un script aparte, como usuario normal.
 - No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
   respuesta ni cabeceras.
-- No envía nada a ningún sitio salvo a los dos endpoints de la tabla de arriba, por HTTPS.
+- No envía nada a ningún sitio salvo a los tres endpoints de la tabla de arriba, por HTTPS.
 - No tiene telemetría, ni analítica, ni actualizaciones automáticas, ni servicios residentes.
 
 **El ejecutable vive en `C:\Program Files`, a propósito**

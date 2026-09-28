@@ -26,7 +26,7 @@ public partial class EdgeWindow : Window
 {
     internal const int RingClaude = 0;
     internal const int RingCodex = 1;
-    internal const int RingGrok = 2;
+    internal const int RingCursor = 2;
     internal const int RingCpu = 3;
     internal const int RingGpu = 4;
 
@@ -72,7 +72,7 @@ public partial class EdgeWindow : Window
     private bool _hasWindowRect;
     private ClaudeSnapshot? _claude;
     private CodexSnapshot? _codex;
-    private GrokSnapshot? _grok;
+    private CursorSnapshot? _cursor;
 
     internal bool AnimationsEnabled { get; set; } = true;
 
@@ -99,9 +99,9 @@ public partial class EdgeWindow : Window
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, GrokItem, CpuItem, GpuItem };
-        _rings = new[] { ClaudeRing, CodexRing, GrokRing, CpuRing, GpuRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, GrokCard, CpuCard, GpuCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, CpuItem, GpuItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, CpuRing, GpuRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, CpuCard, GpuCard };
 
         Width = WindowWidthDip;
         Height = WindowHeightDip;
@@ -315,42 +315,36 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
-    internal void SetGrok(GrokSnapshot snapshot)
+    internal void SetCursor(CursorSnapshot snapshot)
     {
-        _grok = snapshot;
-        SetRingVisible(RingGrok, !snapshot.Hidden);
+        _cursor = snapshot;
+        SetRingVisible(RingCursor, !snapshot.Hidden);
         if (snapshot.Hidden) return;
 
-        if (snapshot.Weekly is GrokWindow weekly)
+        if (snapshot.Cycle is UsageWindow cycle)
         {
-            GrokRing.RingBrush = Palette.ForPercent(weekly.Percent);
-            Animate(GrokRing, RingGauge.ValueProperty, Fraction(weekly.Percent), 600);
-            GrokLabel.Text = Fmt.Percent(weekly.Percent);
-
-            SetPercentBar(GrokWeeklyBar, weekly.Percent);
-            GrokWeeklyValue.Text = $"{Fmt.Percent(weekly.Percent)} usado";
-
-            if (snapshot.OnDemand is GrokWindow onDemand)
+            CursorRing.RingBrush = Palette.ForPercent(cycle.Percent);
+            Animate(CursorRing, RingGauge.ValueProperty, Fraction(cycle.Percent), 600);
+            CursorLabel.Text = Fmt.Percent(cycle.Percent);
+            SetPercentBar(CursorCycleBar, cycle.Percent);
+            CursorCycleValue.Text = $"{Fmt.Percent(cycle.Percent)} usado";
+            if (snapshot.OnDemand is UsageWindow onDemand)
             {
-                SetPercentBar(GrokOnDemandBar, onDemand.Percent);
-                GrokOnDemandValue.Text = $"{Fmt.Percent(onDemand.Percent)} usado";
-                GrokOnDemandRow.Visibility = Visibility.Visible;
+                SetPercentBar(CursorOnDemandBar, onDemand.Percent);
+                CursorOnDemandValue.Text = $"{Fmt.Percent(onDemand.Percent)} usado";
+                CursorOnDemandRow.Visibility = Visibility.Visible;
             }
-            else
-            {
-                GrokOnDemandRow.Visibility = Visibility.Collapsed;
-            }
-
-            GrokMetrics.Visibility = Visibility.Visible;
-            GrokMessage.Visibility = Visibility.Collapsed;
+            else CursorOnDemandRow.Visibility = Visibility.Collapsed;
+            CursorMetrics.Visibility = Visibility.Visible;
+            CursorMessage.Visibility = Visibility.Collapsed;
         }
         else
         {
-            Animate(GrokRing, RingGauge.ValueProperty, 0, 300);
-            GrokLabel.Text = "--";
-            GrokMetrics.Visibility = Visibility.Collapsed;
-            GrokMessage.Text = snapshot.Message ?? "Sin datos";
-            GrokMessage.Visibility = Visibility.Visible;
+            Animate(CursorRing, RingGauge.ValueProperty, 0, 300);
+            CursorLabel.Text = "--";
+            CursorMetrics.Visibility = Visibility.Collapsed;
+            CursorMessage.Text = snapshot.Message ?? "Sin datos";
+            CursorMessage.Visibility = Visibility.Visible;
         }
 
         RefreshTimeTexts();
@@ -493,7 +487,7 @@ public partial class EdgeWindow : Window
         WeeklyReset.Text = _claude?.Weekly is UsageWindow weekly ? Fmt.Reset(weekly.ResetsAt, now) : string.Empty;
         CodexHeaderReset.Text = _codex?.Primary is CodexWindow primary ? Fmt.Reset(primary.ResetsAt, now) : string.Empty;
         CodexSecondaryReset.Text = _codex?.Secondary is CodexWindow secondary ? Fmt.Reset(secondary.ResetsAt, now) : string.Empty;
-        GrokHeaderReset.Text = _grok?.Weekly is GrokWindow grokWeekly ? Fmt.Reset(grokWeekly.ResetsAt, now) : string.Empty;
+        CursorHeaderReset.Text = _cursor?.Cycle is UsageWindow cursorCycle ? Fmt.Reset(cursorCycle.ResetsAt, now) : string.Empty;
         CpuSince.Text = $"desde las {_sessionStart:HH:mm}";
     }
 

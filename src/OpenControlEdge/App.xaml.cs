@@ -37,7 +37,7 @@ public partial class App : Application
 
     private readonly ClaudeUsageService _claude = new();
     private readonly CodexUsageService _codex = new();
-    private readonly GrokUsageService _grok = new();
+    private readonly CursorUsageService _cursor = new();
     private Mutex? _mutex;
     private HardwareSensorService? _sensors;
     private EdgeWindow? _edge;
@@ -51,7 +51,7 @@ public partial class App : Application
     private Task? _sensorRefresh;
     private ClaudeSnapshot? _lastClaude;
     private CodexSnapshot? _lastCodex;
-    private GrokSnapshot? _lastGrok;
+    private CursorSnapshot? _lastCursor;
     private CpuSnapshot? _lastCpu;
     private GpuSnapshot? _lastGpu;
     private string? _lastStatus;
@@ -69,6 +69,8 @@ public partial class App : Application
             Log.Error("Dispatcher", args.Exception);
             args.Handled = true;
         };
+
+
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             if (args.ExceptionObject is Exception ex) Log.Error("AppDomain", ex);
@@ -107,8 +109,8 @@ public partial class App : Application
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
         _lastCodex = _codex.Initial();
         _edge.SetCodex(_lastCodex);
-        _lastGrok = _grok.Read();
-        _edge.SetGrok(_lastGrok);
+        _lastCursor = _cursor.Initial();
+        _edge.SetCursor(_lastCursor);
         _edge.ExpandedChanged += expanded =>
         {
             _panelExpanded = expanded;
@@ -158,7 +160,7 @@ public partial class App : Application
         }
     }
 
-    /// Claude and Codex (every 2 minutes). Joins a refresh already in flight instead of starting a second one.
+    /// Claude, Codex and Cursor (every 2 minutes). Joins an in-flight refresh.
     private Task RefreshUsageAsync()
     {
         if (_usageRefresh is null || _usageRefresh.IsCompleted) _usageRefresh = RunUsageRefreshAsync();
@@ -173,15 +175,14 @@ public partial class App : Application
             Log.Trace("Usage", "refresh started");
             Task<ClaudeSnapshot> claude = _claude.FetchAsync();
             Task<CodexSnapshot> codex = _codex.FetchAsync();
+            Task<CursorSnapshot> cursor = _cursor.FetchAsync();
 
             _lastClaude = await claude;
             _edge.SetClaude(_lastClaude);
             _lastCodex = await codex;
             _edge.SetCodex(_lastCodex);
-
-            // Grok Bot is a file read, not a request: re-read it here so hand-edited figures show up.
-            _lastGrok = _grok.Read();
-            _edge.SetGrok(_lastGrok);
+            _lastCursor = await cursor;
+            _edge.SetCursor(_lastCursor);
 
             _edge.ReassertTopmost();
             UpdateTooltip();
@@ -345,9 +346,11 @@ public partial class App : Application
         string cpu = _lastCpu?.Temperature is double t ? Fmt.Celsius(t) : "--";
         string codex = _lastCodex is null || _lastCodex.Hidden ? string.Empty
             : $" · Codex {(_lastCodex.Primary is CodexWindow w ? Fmt.Percent(w.Percent) : "--")}";
+        string cursor = _lastCursor is null || _lastCursor.Hidden ? string.Empty
+            : $" · Cursor {(_lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
-        _tray?.SetTooltip($"Claude {claude}{codex} · CPU {cpu}{gpu}");
+        _tray?.SetTooltip($"Claude {claude}{codex}{cursor} · CPU {cpu}{gpu}");
         LogStatusChange();
     }
 
@@ -358,14 +361,14 @@ public partial class App : Application
         string codex = _lastCodex is null ? "pendiente"
             : _lastCodex.Hidden ? $"oculto ({_lastCodex.Message})"
             : _lastCodex.Primary is not null ? "ok" : _lastCodex.Message ?? "sin datos";
-        string grok = _lastGrok is null ? "pendiente"
-            : _lastGrok.Hidden ? "sin configurar"
-            : _lastGrok.Weekly is not null ? "ok" : _lastGrok.Message ?? "sin datos";
+        string cursor = _lastCursor is null ? "pendiente"
+            : _lastCursor.Hidden ? "sin sesión"
+            : _lastCursor.Cycle is not null ? "ok" : _lastCursor.Message ?? "sin datos";
         string cpu = _lastCpu is null ? "pendiente" : _lastCpu.Temperature is not null ? "ok" : _lastCpu.Message ?? "sin datos";
         string gpu = _lastGpu is null ? "pendiente"
             : !_lastGpu.Detected ? "no detectada"
             : _lastGpu.Temperature is not null ? "ok" : _lastGpu.Message ?? "sin datos";
-        string status = $"Claude: {claude} | Codex: {codex} | Grok: {grok} | CPU temperatura: {cpu} | GPU temperatura: {gpu}";
+        string status = $"Claude: {claude} | Codex: {codex} | Cursor: {cursor} | CPU temperatura: {cpu} | GPU temperatura: {gpu}";
         if (status == _lastStatus) return;
         _lastStatus = status;
         Log.Info("Status", status);

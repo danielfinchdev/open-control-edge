@@ -13,20 +13,16 @@ internal enum PanelMode
     Auto,
 }
 
-/// The "grok" block, typed in by hand. Grok Bot has no usage API on a personal plan, so these are the
-/// only numbers the widget can show; WeeklyPercent is what the ring draws.
-internal sealed record GrokSettings(double WeeklyPercent, DateTimeOffset? WeeklyResetsAt, double? OnDemandPercent);
-
-internal sealed record Settings(PanelMode PanelMode, GrokSettings? Grok)
+internal sealed record Settings(PanelMode PanelMode)
 {
-    public static Settings Defaults { get; } = new(PanelMode.Pinned, null);
+    public static Settings Defaults { get; } = new(PanelMode.Pinned);
 }
 
 /// Preferences in %LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json:
 ///
 ///   {
 ///     "panelMode": "pinned" | "auto",
-///     "grok": { "weeklyPercent": 42, "weeklyResetsAt": "2026-09-22T09:00:00+02:00", "onDemandPercent": 12 }
+///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
 /// Per user and always writable, so the executable itself can live in a folder only administrators can write
@@ -69,7 +65,7 @@ internal static class SettingsStore
             if (root.ValueKind != JsonValueKind.Object) return Settings.Defaults;
 
             PanelMode mode = GetString(root, "panelMode") == "auto" ? PanelMode.Auto : PanelMode.Pinned;
-            return new Settings(mode, ReadGrok(root));
+            return new Settings(mode);
         }
         catch (Exception ex)
         {
@@ -78,41 +74,16 @@ internal static class SettingsStore
         }
     }
 
-    /// Null when the block is missing or carries no usable weekly percentage: the ring then stays hidden.
-    private static GrokSettings? ReadGrok(JsonElement root)
-    {
-        if (!root.TryGetProperty("grok", out var grok) || grok.ValueKind != JsonValueKind.Object) return null;
-        if (GetNumber(grok, "weeklyPercent") is not double weekly) return null;
-
-        return new GrokSettings(
-            Math.Clamp(weekly, 0, 100),
-            GetDate(grok, "weeklyResetsAt"),
-            GetNumber(grok, "onDemandPercent") is double onDemand ? Math.Clamp(onDemand, 0, 100) : null);
-    }
-
-    /// Rewrites the file with the new mode, carrying the "grok" block over untouched so a hand-typed
-    /// percentage is never lost by toggling "Ocultar" / "Fijar".
+    /// Saves only supported settings; legacy properties such as "grok" are ignored.
     public static void SavePanelMode(PanelMode mode)
     {
         try
         {
-            GrokSettings? grok = Load().Grok;
-
             using var buffer = new MemoryStream();
             using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
             {
                 writer.WriteStartObject();
                 writer.WriteString("panelMode", mode == PanelMode.Auto ? "auto" : "pinned");
-                if (grok is not null)
-                {
-                    writer.WriteStartObject("grok");
-                    writer.WriteNumber("weeklyPercent", grok.WeeklyPercent);
-                    if (grok.WeeklyResetsAt is DateTimeOffset resetsAt)
-                        writer.WriteString("weeklyResetsAt", resetsAt.ToString("o", CultureInfo.InvariantCulture));
-                    if (grok.OnDemandPercent is double onDemand)
-                        writer.WriteNumber("onDemandPercent", onDemand);
-                    writer.WriteEndObject();
-                }
                 writer.WriteEndObject();
             }
 
@@ -133,14 +104,4 @@ internal static class SettingsStore
     private static string? GetString(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-    private static double? GetNumber(JsonElement obj, string key) =>
-        obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out double d)
-            ? d
-            : null;
-
-    private static DateTimeOffset? GetDate(JsonElement obj, string key) =>
-        GetString(obj, key) is string text
-        && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
-            ? date
-            : null;
 }
