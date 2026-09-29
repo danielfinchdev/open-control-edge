@@ -6,8 +6,7 @@ namespace OpenControlEdge.Services;
 /// Stores one DPAPI CurrentUser protected blob per network-backed provider.
 internal static class ProviderKeyStore
 {
-    private static string KeyDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenControlEdge", "keys");
+    private static string KeyDirectory => Path.Combine(DataFolder.Path, "keys");
 
     internal static string PathFor(string provider) => Path.Combine(KeyDirectory, provider + ".bin");
 
@@ -21,11 +20,7 @@ internal static class ProviderKeyStore
         {
             if (plaintext.Length == 0 || plaintext.Length > 16 * 1024) return false;
             protectedBytes = ProtectedData.Protect(plaintext, null, DataProtectionScope.CurrentUser);
-            Directory.CreateDirectory(KeyDirectory);
-            string destination = PathFor(provider);
-            File.WriteAllBytes(temporary, protectedBytes);
-            File.Move(temporary, destination, true);
-            return true;
+            return DataFolder.WriteAtomic(Path.Combine("keys", provider + ".bin"), protectedBytes);
         }
         catch { return false; }
         finally

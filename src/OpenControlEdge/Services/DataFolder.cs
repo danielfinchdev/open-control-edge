@@ -7,7 +7,7 @@ using static OpenControlEdge.Interop.SecurityNative;
 
 namespace OpenControlEdge.Services;
 
-/// %LOCALAPPDATA%\OpenControlEdge and the rules for writing into it from an elevated process.
+/// Per-user data directory and the rules for writing into it from an elevated process.
 ///
 /// The installer (Installer.HardenDataFolder, ported from tools\instalar.ps1) leaves it owned by Administrators, with a
 /// protected DACL — SYSTEM and Administrators full control, Users read and execute — and a High mandatory label, after
@@ -25,8 +25,18 @@ internal static class DataFolder
 
     private static bool _warnedUnsafe;
 
-    public static string Path { get; } = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenControlEdge");
+    public static string Path { get; } = ResolvePath();
+
+    private static string ResolvePath()
+    {
+        string root = UnelevatedLauncher.IsElevated
+            ? Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+            : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string sid = WindowsIdentity.GetCurrent().User?.Value ?? "unknown";
+        return UnelevatedLauncher.IsElevated
+            ? System.IO.Path.Combine(root, "OpenControlEdge", sid)
+            : System.IO.Path.Combine(root, "OpenControlEdge");
+    }
 
     /// Not elevated: every write happens with the user's own rights, so any folder will do. Elevated: only a real
     /// folder (no link) that non-administrators cannot write to.
@@ -57,9 +67,13 @@ internal static class DataFolder
         try
         {
             if (!UnelevatedLauncher.IsElevated) Directory.CreateDirectory(Path);
+            if (System.IO.Path.IsPathRooted(name) || name.Split(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar).Any(part => part is ".." or "."))
+                return false;
             string final = System.IO.Path.Combine(Path, name);
-            string temp = final + ".tmp";
-            File.WriteAllBytes(temp, bytes);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(final)!);
+            string temp = final + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                output.Write(bytes);
             File.Move(temp, final, overwrite: true);
             return true;
         }

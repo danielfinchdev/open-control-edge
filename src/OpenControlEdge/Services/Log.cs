@@ -8,23 +8,12 @@ internal static class Log
 {
     private const long MaxBytes = 512 * 1024;
     private static readonly object Gate = new();
-    private static readonly string Directory_ = ResolveDirectory();
+    private static readonly string Directory_ = DataFolder.Path;
     private static readonly string FilePath = Path.Combine(Directory_, "widget.log");
     private static bool _reported;
     private static bool _suppressed;
 
     internal static void Suppress() => _suppressed = true;
-
-    /// %LOCALAPPDATA%\OpenControlEdge. GetFolderPath answers with an empty string when it cannot resolve the
-    /// folder, which would turn the log path into a relative one and scatter it over whatever the working
-    /// directory happens to be — so the environment variable, and then the temp folder, stand in for it.
-    private static string ResolveDirectory()
-    {
-        string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrEmpty(root)) root = Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? string.Empty;
-        if (string.IsNullOrEmpty(root) || !Path.IsPathRooted(root)) root = Path.GetTempPath();
-        return Path.Combine(root, "OpenControlEdge");
-    }
 
     public static void Info(string area, string message) => Write("INFO", area, message);
     public static void Warn(string area, string message) => Write("WARN", area, message);
@@ -41,6 +30,11 @@ internal static class Log
         {
             lock (Gate)
             {
+                if (!DataFolder.IsSafeForWrites())
+                {
+                    ReportOnce(new UnauthorizedAccessException("Data folder is not protected."));
+                    return;
+                }
                 Directory.CreateDirectory(Directory_);
                 var info = new FileInfo(FilePath);
                 if (info.Exists && info.Length > MaxBytes) File.Move(FilePath, FilePath + ".old", overwrite: true);

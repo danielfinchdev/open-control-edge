@@ -93,11 +93,7 @@ internal static class SettingsStore
     private static bool _unreadable;
     private static bool _warnedUnreadable;
 
-    public static string FilePath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenControlEdge", FileName);
-
-    private static string PreviousFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EdgeWidget", "EdgeWidget.settings.json");
+    public static string FilePath => Path.Combine(DataFolder.Path, FileName);
 
     /// Where versions before 1.1 kept it: next to the executable. Read as a fallback, never written.
     private static string LegacyFilePath => Path.Combine(
@@ -110,13 +106,6 @@ internal static class SettingsStore
         {
             bool settingsPresent = FilePresence(FilePath);
             if (_unreadable) return Settings.Defaults;
-            if (!settingsPresent && FilePresence(PreviousFilePath))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                File.Copy(PreviousFilePath, FilePath);
-                settingsPresent = true;
-            }
-
             string path = settingsPresent ? FilePath : LegacyFilePath;
             bool legacyPresent = settingsPresent || FilePresence(path);
             if (_unreadable) return Settings.Defaults;
@@ -242,12 +231,7 @@ internal static class SettingsStore
                 writer.WriteEndObject();
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-
-            // Write to a temp file and swap, so a crash mid-write never leaves a truncated file.
-            string temp = FilePath + ".tmp";
-            File.WriteAllBytes(temp, buffer.ToArray());
-            File.Move(temp, FilePath, overwrite: true);
+            if (!DataFolder.WriteAtomic(FileName, buffer.ToArray())) return;
             Log.Info("Settings", $"panelMode = {settings.PanelMode}, usageView = {settings.UsageView}");
         }
         catch (Exception ex)
