@@ -1,26 +1,53 @@
 # Open Control Edge (antes EdgeWidget)
 
-## Requisitos
-
-- Windows 11 (o Windows 10 22H2); .NET 8 SDK para compilar. Release incluye el runtime.
-- **PawnIO es VITAL para leer la temperatura de la CPU.** LibreHardwareMonitor necesita este controlador firmado
-  para acceder a los sensores de bajo nivel de la CPU. Sin PawnIO, los anillos CPU/GPU lo indican y no muestran
-  temperatura.
-
-Instálalo desde [pawnio.eu](https://pawnio.eu) o con `winget install --id namazso.PawnIO -e` (paquete verificado
-con `winget show --id namazso.PawnIO -e`). Después, reinicia la aplicación y comprueba que aparece la temperatura
-en el anillo CPU; el instalador también comprueba si PawnIO está instalado y ofrece instalarlo.
-
 **Un widget de escritorio para Windows 11 que muestra, pegado al borde de la pantalla, cuánto te queda
 de cada IA y a qué temperatura está tu portátil.**
 
 > *A Windows 11 edge widget showing your remaining Claude / Codex / Cursor quota and your CPU & GPU
 > temperature at a glance. Interface and documentation are in Spanish.*
 
+![versión](https://img.shields.io/badge/versión-2.0.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
+
+<p align="center">
+  <img src="docs/screenshots/tarjeta-claude.png" alt="Tarjeta de uso de Claude junto al panel" height="520">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/panel-real.png" alt="El panel funcionando en un escritorio real" height="520">
+</p>
+
 Con instalador PowerShell, sin servicios en segundo plano ni telemetría. Solo consulta los endpoints documentados
 abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
 
-![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
+---
+
+## Requisitos
+
+> [!IMPORTANT]
+> **Instala PawnIO antes que nada: es VITAL para leer la temperatura.** LibreHardwareMonitor, la librería que usa el
+> widget para los sensores, necesita el controlador firmado **PawnIO** para acceder a los registros de bajo nivel
+> de la CPU (MSR). Sin él, los anillos de CPU/GPU muestran «Instala PawnIO para ver la temperatura».
+
+| Requisito | Para qué | Cómo |
+|---|---|---|
+| **PawnIO** (vital) | Leer la temperatura y la carga de la CPU | `winget install --id namazso.PawnIO -e` o el instalador oficial de [pawnio.eu](https://pawnio.eu) |
+| Windows 11 (o Windows 10 22H2) | Sistema | — |
+| Permisos de administrador | Leer los sensores (el widget arranca elevado mediante una tarea programada) | Lo configura `instalar.ps1` con un solo UAC |
+| .NET 8 SDK | Solo para compilar | La versión Release ya incluye el runtime |
+
+**Comprobar que PawnIO está instalado:** `winget list --id namazso.PawnIO` debe listarlo. Después, reinicia el widget:
+el anillo de CPU debe mostrar grados en vez del aviso. `tools\instalar.ps1` también lo comprueba y ofrece instalarlo.
+
+## Capturas
+
+| Panel real (datos reales) | Pestaña «Sesión» | Pestaña «Total» |
+|---|---|---|
+| <img src="docs/screenshots/panel-real.png" height="360"> | <img src="docs/screenshots/pestana-sesion.png" height="360"> | <img src="docs/screenshots/pestana-total.png" height="360"> |
+
+| Cursor | DeepSeek | Claves de API | Sin PawnIO |
+|---|---|---|---|
+| <img src="docs/screenshots/tarjeta-cursor.png" height="300"> | <img src="docs/screenshots/tarjeta-deepseek.png" height="300"> | <img src="docs/screenshots/claves-api.png" height="300"> | <img src="docs/screenshots/cpu-sin-pawnio.png" height="300"> |
+
+La captura «Panel real» es del widget ejecutándose con cuentas reales (compilación Debug, sin administrador: por eso
+la CPU sale sin dato). El resto las genera `--snapshot` con datos de ejemplo.
 
 ---
 
