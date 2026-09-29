@@ -1,13 +1,24 @@
 # Open Control Edge (antes EdgeWidget)
 
+## Requisitos
+
+- Windows 11 (o Windows 10 22H2); .NET 8 SDK para compilar. Release incluye el runtime.
+- **PawnIO es VITAL para leer la temperatura de la CPU.** LibreHardwareMonitor necesita este controlador firmado
+  para acceder a los sensores de bajo nivel de la CPU. Sin PawnIO, los anillos CPU/GPU lo indican y no muestran
+  temperatura.
+
+Instálalo desde [pawnio.eu](https://pawnio.eu) o con `winget install --id namazso.PawnIO -e` (paquete verificado
+con `winget show --id namazso.PawnIO -e`). Después, reinicia la aplicación y comprueba que aparece la temperatura
+en el anillo CPU; el instalador también comprueba si PawnIO está instalado y ofrece instalarlo.
+
 **Un widget de escritorio para Windows 11 que muestra, pegado al borde de la pantalla, cuánto te queda
 de cada IA y a qué temperatura está tu portátil.**
 
 > *A Windows 11 edge widget showing your remaining Claude / Codex / Cursor quota and your CPU & GPU
 > temperature at a glance. Interface and documentation are in Spanish.*
 
-Sin instalador, sin servicios en segundo plano, sin telemetría. Un único ejecutable que consume
-**0,2 segundos de CPU por minuto**. Solo consulta los endpoints documentados abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
+Con instalador PowerShell, sin servicios en segundo plano ni telemetría. Solo consulta los endpoints documentados
+abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
 
 ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
 
@@ -60,9 +71,9 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
 
 ### Detalles
 
-- **Un clic en el anillo de Claude renueva la sesión** y abre Claude Code, para que el anillo no se
-  quede en `--` cuando el token caduca.
-- **Icono en la bandeja** con menú propio (Actualizar / Salir) e información al pasar el ratón.
+- **Un clic en el anillo de Claude solicita renovar la sesión** mediante la tarea de usuario y abre Claude Code,
+  para que el anillo no se quede en `--` cuando el token caduca.
+- **Icono en la bandeja** con menú propio (Actualizar / Claves de API… / Salir) e información al pasar el ratón.
 - **Aviso de temperatura**: cada pico por encima de 90 °C queda anotado en el registro, incluso cuando
   el panel está recogido. Útil si tu portátil se calienta y no sabes cuándo.
 - **Instancia única**, se recoloca solo al cambiar de monitor o de escala, y sobrevive a un reinicio
@@ -72,25 +83,25 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
 
 ## Instalación
 
-Requisitos: **Windows 11** (o 10 22H2) y permisos de administrador.
+Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente con el usuario de la sesión interactiva.
 
-1. Descarga `OpenControlEdge.exe` de la [última versión](../../releases/latest), o compílalo (ver abajo).
-   Los ejecutables de Releases los publica [GitHub Actions](../../actions) a partir de este código.
+1. Descarga el ZIP de la aplicación de la [última versión](../../releases/latest), o compílala (ver abajo).
+   Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
    Cuando el flujo de Release publique attestations, se pueden verificar con
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
-2. Ejecuta el instalador desde PowerShell:
+2. Extrae el ZIP y ejecuta el instalador incluido desde PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
+powershell -ExecutionPolicy Bypass -File .\instalar.ps1
 ```
 
-Copia el ejecutable a `C:\Program Files\OpenControlEdge`, crea una tarea programada que lo arranca al
-iniciar sesión como administrador, y lo lanza. **No borra nada.**
+Copia los archivos publicados a `C:\Program Files\OpenControlEdge`, crea una tarea programada que lo arranca al
+iniciar sesión como administrador, y lo lanza. Conserva los ajustes del usuario.
 
 Para quitar el arranque automático:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools\instalar.ps1 -Desinstalar
+powershell -ExecutionPolicy Bypass -File .\instalar.ps1 -Desinstalar
 ```
 
 ### ¿Por qué necesita administrador?
@@ -104,6 +115,8 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 ## Configuración
 
 `%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json`
+
+El registro está en `%LOCALAPPDATA%\OpenControlEdge\widget.log`; los blobs DPAPI de las claves están en la subcarpeta `keys\`.
 
 ```json
 {
@@ -146,13 +159,68 @@ los edites tú; al cambiar el modo del panel se conservan las claves que ya tuvi
 | Claude | `api.anthropic.com/api/oauth/usage` | `%USERPROFILE%\.claude\.credentials.json` |
 | Codex | `chatgpt.com/backend-api/wham/usage` | `%USERPROFILE%\.codex\auth.json` |
 | Cursor | `cursor.com/api/usage-summary` | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
-| OpenCode | Base local SQLite `opencode*.db` | CLI o carpeta de datos local |
+| OpenCode | Base local SQLite `opencode.db` | CLI o base de datos local |
 | DeepSeek | `api.deepseek.com/user/balance` | Clave DPAPI CurrentUser |
 | OpenRouter | `openrouter.ai/api/v1/key` | Clave DPAPI CurrentUser |
 | CPU / GPU | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | — |
 
 Los endpoints de Claude, Codex y Cursor **no están documentados** por sus proveedores. Los parsers exigen la forma
 exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventarse un número.
+
+---
+
+## Proveedores añadidos y claves de API
+
+| IA | Fuente y métrica | Estado |
+|---|---|---|
+| OpenCode | Base local `opencode.db`: tokens de entrada/salida/razonamiento/caché y coste | Implementado; no usa red |
+| DeepSeek | [`GET https://api.deepseek.com/user/balance`](https://api-docs.deepseek.com/api/get-user-balance/): saldo en CNY o USD | Implementado |
+| Perplexity | No encontré una API pública oficial de uso o saldo | No implementado |
+| GitHub Copilot | [API de facturación de GitHub](https://docs.github.com/en/rest/billing/usage): créditos consumidos; las peticiones premium solo aplican al modelo heredado | No implementado: no proporciona una cuota de peticiones universal para todas las cuentas |
+| OpenRouter | [`GET https://openrouter.ai/api/v1/key`](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key): uso y límite de la clave | Implementado |
+| Gemini CLI | `/stats`: estadísticas de sesión, no cuota persistente | No implementado |
+| Mistral | [Admin API de uso](https://docs.mistral.ai/admin/admin-api/usage-metrics): consumo/coste de organización | Requiere clave admin y alcance de organización |
+| Windsurf | Endpoint de cuota observado por terceros, no documentado oficialmente | No implementado |
+
+### Cómo guardar o borrar claves
+
+En el menú de la bandeja, selecciona **Claves de API…**. El diálogo tiene un `PasswordBox` para DeepSeek y otro para OpenRouter, con botones **Guardar** y **Borrar**. También se abre desde consola con:
+
+```powershell
+OpenControlEdge.exe --set-key deepseek
+OpenControlEdge.exe --set-key openrouter
+```
+
+Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en `%LOCALAPPDATA%\OpenControlEdge\keys\deepseek.bin` y `openrouter.bin`. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
+
+### Datos locales de OpenCode
+
+El detector busca `opencode` en `PATH` o `opencode.db` en el directorio de datos. Se respetan `OPENCODE_DB` y `XDG_DATA_HOME`; también se inspeccionan las ubicaciones de datos habituales de Windows. El lector abre solo la base activa `opencode.db` con SQLite en solo lectura y agrega solamente columnas de uso de la tabla `session`. No consulta la CLI para obtener los datos y no crea conexiones de red.
+
+La prueba del parser incluida en `--snapshot` usa este objeto **normalizado interno**; no representa una salida prometida de `opencode stats --json`:
+
+```json
+{
+  "totalTokens": {
+    "input": 12345,
+    "output": 6789,
+    "reasoning": 321,
+    "cache": { "read": 2100, "write": 55 }
+  },
+  "totalCost": 1.2345
+}
+```
+
+La tarjeta muestra los cinco contadores y el coste registrado. Si falta la tabla o cualquier campo esperado, indica error en lugar de calcular una cifra aproximada.
+
+### Destinos de red y seguridad
+
+Además de Claude, Codex y Cursor, el widget contacta estos destinos solo para actualizar las tarjetas:
+
+- `https://api.deepseek.com/user/balance` (DeepSeek; requiere la clave cifrada del usuario).
+- `https://openrouter.ai/api/v1/key` (OpenRouter; requiere la clave cifrada del usuario).
+
+OpenCode es local. Perplexity y Windsurf no se contactan. Las cabeceras y los cuerpos de respuesta nunca se registran; los servicios muestran errores propios y tienen timeout de 15 segundos.
 
 ---
 
@@ -166,17 +234,17 @@ Este programa lee archivos de credenciales. Merece que se explique exactamente q
 - De `auth.json`: únicamente `tokens.access_token` y, del `id_token`, solo el claim
   `https://api.openai.com/auth` → `chatgpt_plan_type` (el plan). El `id_token` se decodifica desde los bytes del
   archivo sin convertirlo en cadena; el resto de sus claims (correo, identificadores…) se saltan.
-- De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; la base se abre en solo lectura.
+- De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; el token se materializa
+  como cadena porque se envía en la cookie HTTPS; el claim `sub` se lee directamente con `Utf8JsonReader`. La base se abre en solo lectura.
 - Cursor envía la sesión en la cookie de la petición HTTPS a `cursor.com`; nunca la guarda ni la registra.
 
 Todo lo demás —**incluidos los tokens de refresco, el resto del `id_token` y el `account_id`**— se salta a nivel
-de lector JSON, sin llegar nunca a convertirse en una cadena de texto en memoria. Los archivos se abren
+de lector JSON, sin llegar nunca a convertirse en una cadena de texto en memoria (el token de Cursor es la excepción indicada arriba). Los archivos se abren
 en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clear` al terminar de leer.
 
 **Qué no hace**
 
-- No renueva tokens. Si el token de acceso está caducado, ni siquiera envía la petición: muestra
-  «Abre Claude Code para renovar». La renovación la hace un script aparte, como usuario normal.
+- No renueva tokens. Si el token de acceso está caducado, ni siquiera envía la petición: muestra que abras Claude Code o Codex para renovarlo. La renovación de Claude la hace un script aparte, como usuario normal.
 - No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
   respuesta ni cabeceras.
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README. OpenCode no usa red.
@@ -239,11 +307,10 @@ dotnet publish src\OpenControlEdge\OpenControlEdge.csproj -c Release -r win-x64 
 powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
 ```
 
-**Release** genera un único archivo autocontenido de ~65 MB (no hace falta tener .NET instalado) y
-exige administrador. **Debug** arranca sin elevar, para iterar la interfaz sin UAC.
+**Release** genera una carpeta autocontenida (no hace falta tener .NET instalado) que el flujo entrega como ZIP;
+el instalador la copia completa y exige administrador. **Debug** arranca sin elevar, para iterar la interfaz sin UAC.
 
-Cada etiqueta `v*` (por ejemplo `v1.2.0`) lanza el mismo `dotnet publish` en
-[Actions](../../actions) y adjunta `OpenControlEdge.exe` a la [Release](../../releases):
+Cada etiqueta `v*` lanza el mismo `dotnet publish` en [Actions](../../actions) y adjunta el ZIP de la aplicación a la [Release](../../releases):
 
 ```powershell
 git tag v1.2.0
@@ -256,7 +323,7 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **31 PNG** con los dos modos, las dos pestañas, las ocho tarjetas, estados de error y sin datos, una cuenta gratuita de Claude, anillos ocultos, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores.
+Renderiza **36 PNG** con los dos modos, las pestañas, las ocho tarjetas, estados de error y sin datos, una cuenta gratuita de Claude, anillos ocultos, el requisito de PawnIO, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores ni escribe en el registro.
 
 ---
 
@@ -296,10 +363,8 @@ Algunas decisiones que quizá no son obvias:
   anillo a otro con animaciones de render en vez de mover ventanas del sistema.
 - **El hover se detecta sondeando la posición del cursor**, no con eventos: cuando el panel está
   recogido la ventana es transparente a los clics (`WS_EX_TRANSPARENT`) y no recibe ratón en absoluto.
-- **Ese sondeo va en dos velocidades.** La ventana guarda su rectángulo en píxeles y cada vuelta empieza
-  por una comparación de cuatro enteros: si el cursor está fuera (lo normal), 150 ms y cero trabajo de
-  WPF; si está encima, 30 ms. Es la diferencia entre gastar un 2 % de un núcleo todo el día y gastar un
-  0,35 %.
+- **Ese sondeo va en dos velocidades.** Cada vuelta empieza con una comprobación barata; el sondeo rápido
+  solo se activa sobre las zonas interactivas del panel, franja o tarjeta. No hay una medición de CPU de v2 publicada todavía.
 - **Las cadencias dependen de si el panel está a la vista**: sensores cada 20 s / 60 s, uso cada 2 / 6
   minutos. Los sensores nunca se paran del todo, para que «Máxima de la sesión» sea una cifra real y no
   solo los momentos en que estabas mirando.
@@ -325,58 +390,4 @@ Tipografía: [Geist Sans](https://github.com/vercel/geist-font) de Vercel, incru
 (SIL Open Font License 1.1, ver [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
 
 Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
-asociado con Anthropic, OpenAI ni xAI.
-
-## Proveedores añadidos y claves de API
-
-| IA | Fuente y métrica | Estado |
-|---|---|---|
-| OpenCode | Base local `opencode*.db`: tokens de entrada/salida/razonamiento/caché y coste | Implementado; no usa red |
-| DeepSeek | [`GET https://api.deepseek.com/user/balance`](https://api-docs.deepseek.com/api/get-user-balance/): saldo en CNY o USD | Implementado |
-| Perplexity | No encontré una API pública oficial de uso o saldo | No implementado |
-| GitHub Copilot | [API de facturación de GitHub](https://docs.github.com/en/rest/billing/usage): créditos consumidos; las peticiones premium solo aplican al modelo heredado | No implementado: no proporciona una cuota de peticiones universal para todas las cuentas |
-| OpenRouter | [`GET https://openrouter.ai/api/v1/key`](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key): uso y límite de la clave | Implementado |
-| Gemini CLI | `/stats`: estadísticas de sesión, no cuota persistente | No implementado |
-| Mistral | [Admin API de uso](https://docs.mistral.ai/admin/admin-api/usage-metrics): consumo/coste de organización | Requiere clave admin y alcance de organización |
-| xAI | [Management API](https://docs.x.ai/developers/rest-api-reference/management/billing): uso del equipo | Requiere permisos y equipo |
-| Windsurf | Endpoint de cuota observado por terceros, no documentado oficialmente | No implementado |
-
-### Cómo guardar o borrar claves
-
-En el menú de la bandeja, selecciona **Claves de API…**. El diálogo tiene un `PasswordBox` para DeepSeek y otro para OpenRouter, con botones **Guardar** y **Borrar**. También se abre desde consola con:
-
-```powershell
-OpenControlEdge.exe --set-key deepseek
-OpenControlEdge.exe --set-key openrouter
-```
-
-Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en `%LOCALAPPDATA%\OpenControlEdge\keys\deepseek.bin` y `openrouter.bin`. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
-
-### Datos locales de OpenCode
-
-El detector busca `opencode` en `PATH` o el directorio de datos de OpenCode. Se respetan `OPENCODE_DB` y `XDG_DATA_HOME`; también se inspeccionan las ubicaciones de datos habituales de Windows. El lector abre cada `opencode*.db` con SQLite en solo lectura y agrega solamente columnas de uso de la tabla `session`. No consulta la CLI para obtener los datos y no crea conexiones de red.
-
-La prueba del parser incluida en `--snapshot` usa este objeto **normalizado interno**; no representa una salida prometida de `opencode stats --json`:
-
-```json
-{
-  "totalTokens": {
-    "input": 12345,
-    "output": 6789,
-    "reasoning": 321,
-    "cache": { "read": 2100, "write": 55 }
-  },
-  "totalCost": 1.2345
-}
-```
-
-La tarjeta muestra los cinco contadores y el coste registrado. Si falta la tabla o cualquier campo esperado, indica error en lugar de calcular una cifra aproximada.
-
-### Destinos de red y seguridad
-
-Además de Claude, Codex y Cursor, el widget contacta estos destinos solo para actualizar las tarjetas:
-
-- `https://api.deepseek.com/user/balance` (DeepSeek; requiere la clave cifrada del usuario).
-- `https://openrouter.ai/api/v1/key` (OpenRouter; requiere la clave cifrada del usuario).
-
-OpenCode es local. Perplexity y Windsurf no se contactan. Las cabeceras y los cuerpos de respuesta nunca se registran; los servicios muestran errores propios y tienen timeout de 15 segundos.
+asociado con Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter ni OpenCode.
