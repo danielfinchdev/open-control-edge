@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using OpenControlEdge.Services;
@@ -349,7 +350,65 @@ internal static class Snapshot
         lightMenu.CloseMenu();
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
         Loc.Apply(UiLanguage.Spanish);
+        SaveLogos(directory);
         SettingsWindow.SaveSnapshots(directory);
+    }
+
+    private static readonly (string Name, Drawing Icon)[] BrandLogos =
+    [
+        ("Claude", Icons.ClaudeSpark), ("Codex", Icons.Codex), ("Cursor", Icons.Cursor),
+        ("OpenCode", Icons.OpenCode), ("DeepSeek", Icons.DeepSeek), ("OpenRouter", Icons.OpenRouter),
+    ];
+
+    /// The six provider logos in the panel ring, at card size (18) and at settings size (20), dark over light;
+    /// then the dark rings alone at 3× to check the edges.
+    private static void SaveLogos(string directory)
+    {
+        var sheet = new StackPanel();
+        foreach (AppTheme theme in new[] { AppTheme.Dark, AppTheme.Light })
+        {
+            ThemeManager.Apply(theme, RingColorTheme.Classic);
+            sheet.Children.Add(LogoRow(withSmall: true));
+        }
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
+        SaveLoose(sheet, Path.Combine(directory, "62_logos_dark_light.png"), 2);
+        SaveLoose(LogoRow(withSmall: false), Path.Combine(directory, "63_logos_rings_x3.png"), 3);
+    }
+
+    private static Border LogoRow(bool withSmall)
+    {
+        var text = new SolidColorBrush(ThemeManager.ColorOf(ThemeManager.Text));
+        var rings = new StackPanel { Orientation = Orientation.Horizontal };
+        var small = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
+        foreach ((string name, Drawing icon) in BrandLogos)
+        {
+            var column = new StackPanel { Width = 74 };
+            column.Children.Add(new RingGauge
+            {
+                Width = 54, Height = 54, StrokeThickness = 5.5, IconSize = 22, Value = 0.62, Icon = icon, RingBrush = Palette.Claude,
+                TrackBrush = new SolidColorBrush(ThemeManager.ColorOf(ThemeManager.RingTrack)), IconBrush = text,
+            });
+            column.Children.Add(new TextBlock { Text = name, FontSize = 11, Foreground = text, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) });
+            rings.Children.Add(column);
+            var pair = new StackPanel { Width = 74, Orientation = Orientation.Horizontal };
+            pair.Children.Add(new IconView { Icon = icon, Width = 18, Height = 18, Foreground = text, Margin = new Thickness(15, 0, 8, 0) });
+            pair.Children.Add(new IconView { Icon = icon, Width = 20, Height = 20, Foreground = text });
+            small.Children.Add(pair);
+        }
+        var row = new StackPanel(); row.Children.Add(rings);
+        if (withSmall) row.Children.Add(small);
+        var sheet = new Border { Background = new SolidColorBrush(ThemeManager.ColorOf(ThemeManager.Background)), Padding = new Thickness(18), Child = row };
+        TextElement.SetFontFamily(sheet, (FontFamily)Application.Current.FindResource("UiFont"));
+        return sheet;
+    }
+
+    /// Renders an element that is not in any window.
+    private static void SaveLoose(FrameworkElement element, string path, double scale)
+    {
+        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+        element.UpdateLayout();
+        SaveElement(element, path, scale);
     }
 
     /// Work area of a 1080p screen at 100 % minus the taskbar: scale 1.
@@ -385,9 +444,8 @@ internal static class Snapshot
         else chrome.SetResourceReference(Shape.FillProperty, ThemeManager.Button);
     }
 
-    internal static void SaveElement(FrameworkElement element, string path)
+    internal static void SaveElement(FrameworkElement element, string path, double scale = 2)
     {
-        const double scale = 2;
         double width = element.ActualWidth + element.Margin.Left + element.Margin.Right;
         double height = element.ActualHeight + element.Margin.Top + element.Margin.Bottom;
         var bitmap = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
