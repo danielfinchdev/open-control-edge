@@ -559,6 +559,9 @@ public partial class App : Application
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)) return ClaudeSnapshot.Absent();
         if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Claude, settings))
             return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
+        if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt
+            && _lastClaude is { Hidden: false, Session: not null })
+            return _lastClaude;
         ClaudeSnapshot current = await _claude.FetchAsync();
         if (current.Message is string error && error.StartsWith("Error HTTP ", StringComparison.Ordinal)
             && int.TryParse(error.AsSpan("Error HTTP ".Length), out int status)

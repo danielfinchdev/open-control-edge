@@ -435,7 +435,21 @@ internal sealed class SettingsWindow : Window
                     string name = id switch { AiProviderId.Claude => "claude", AiProviderId.Codex => "codex", _ => "cursor-agent" };
                     string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                     string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    string[] candidates = { IOPath.Combine(profile, ".local", "bin", name + ".exe"), IOPath.Combine(appData, "npm", name + ".cmd"), IOPath.Combine(appData, "npm", name + ".exe") };
+                    var candidates = new List<string>
+                    {
+                        IOPath.Combine(profile, ".local", "bin", name + ".exe"),
+                        IOPath.Combine(profile, ".cursor", "bin", name + ".exe"),
+                        IOPath.Combine(appData, "npm", name + ".cmd"),
+                        IOPath.Combine(appData, "npm", name + ".exe"),
+                    };
+                    string? path = Environment.GetEnvironmentVariable("PATH");
+                    if (!string.IsNullOrWhiteSpace(path))
+                        foreach (string folder in path.Split(IOPath.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            if (IOPath.IsPathFullyQualified(folder))
+                            {
+                                candidates.Add(IOPath.Combine(folder, name + ".exe"));
+                                candidates.Add(IOPath.Combine(folder, name + ".cmd"));
+                            }
                     string? cli = candidates.FirstOrDefault(File.Exists);
                     if (cli is null) { MessageBox.Show(T("No se encuentra la CLI del agente.", "The agent CLI could not be found.")); return; }
                     string login = name == "claude" ? "auth login" : "login";

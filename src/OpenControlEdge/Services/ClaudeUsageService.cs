@@ -14,6 +14,7 @@ internal sealed class ClaudeUsageService
 
     private const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    internal DateTimeOffset? RetryAfterUntil { get; private set; }
 
     public async Task<ClaudeSnapshot> FetchAsync()
     {
@@ -45,6 +46,17 @@ internal sealed class ClaudeUsageService
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Claude", $"HTTP {(int)response.StatusCode}");
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    TimeSpan delay = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
+                        ?? TimeSpan.FromMinutes(1);
+                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > TimeSpan.Zero ? delay : TimeSpan.FromMinutes(1));
+                }
+                else if ((int)response.StatusCode >= 500)
+                {
+                    RetryAfterUntil = DateTimeOffset.UtcNow.AddMinutes(1);
+                }
                 return free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
                     ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan, TokenExpiresAt = expiry }
                     : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = plan, TokenExpiresAt = expiry };
@@ -57,6 +69,7 @@ internal sealed class ClaudeUsageService
                 Log.Warn("Claude", "200 response without session data");
                 return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de sesión") with { Plan = plan, TokenExpiresAt = expiry };
             }
+            RetryAfterUntil = null;
             return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan, TokenExpiresAt = expiry };
         }
         catch (HttpRequestException ex)
