@@ -36,7 +36,7 @@ public partial class EdgeWindow : Window
     internal const int RingCpu = 6;
     internal const int RingGpu = 7;
 
-    // Geometry in design units â€” the original design scaled to 85 %. RootScale maps them to DIPs.
+    // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs.
     private const double PanelWidth = 94;
     private const double StripWidth = 5;
     private const double StripHeight = 400;
@@ -114,10 +114,10 @@ public partial class EdgeWindow : Window
 
     internal event Action<bool>? ExpandedChanged;
 
-    /// The pin/hide button was pressed: pinned â†’ auto or auto â†’ pinned. The owner persists it and calls ApplyMode.
+    /// The pin/hide button was pressed: pinned → auto or auto → pinned. The owner persists it and calls ApplyMode.
     internal event Action<PanelMode>? ModeChangeRequested;
 
-    /// The "SesiÃ³n" / "Total" tab of a card was switched; rings and card already show it. The owner persists it.
+    /// The "Sesión" / "Total" tab of a card was switched; rings and card already show it. The owner persists it.
     internal event Action<UsageView>? UsageViewChanged;
 
     /// The gear button was pressed: the owner opens the settings.
@@ -172,7 +172,7 @@ public partial class EdgeWindow : Window
         _timeTextTimer.Stop();
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Mode & panel buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Mode & panel buttons ─────────────────────────────
 
     internal void ApplyMode(PanelMode mode)
     {
@@ -299,7 +299,7 @@ public partial class EdgeWindow : Window
     /// Shown on the Claude card while the session is being renewed.
     internal void SetClaudeRenewing()
     {
-        ClearRing(ClaudeRing, ClaudeLabel, "â€¦");
+        ClearRing(ClaudeRing, ClaudeLabel, "…");
         ClaudeMetrics.Visibility = Visibility.Collapsed;
         ClaudeTabs.Visibility = Visibility.Collapsed;
         ClaudeMessage.Text = Loc.Get("Value.Renewing");
@@ -308,7 +308,7 @@ public partial class EdgeWindow : Window
     }
 
     /// The renewal could not start: puts the last reading back and says why on the card, instead of leaving
-    /// "Renovando la sesiÃ³nâ€¦" behind. The next usage refresh replaces the message.
+    /// "Renovando la sesión…" behind. The next usage refresh replaces the message.
     internal void SetClaudeRenewFailed(string message)
     {
         if (_claude is not null) SetClaude(_claude);
@@ -331,7 +331,7 @@ public partial class EdgeWindow : Window
         Animate(EdgePanel, Canvas.TopProperty, _panelTop, animate ? PanelMs : 0);
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Scale â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Scale ─────────────────────────────
 
     /// "uiScale" from the settings: a fixed scale, or null for automatic. Takes effect immediately.
     internal void ApplyScale(double? uiScale)
@@ -347,7 +347,7 @@ public partial class EdgeWindow : Window
     internal double Scale => _scale;
 
     /// Picks the scale for a work area of the given height (DIPs) and lays the canvas out in design units.
-    /// Automatic: proportional to the work area, limited to MinAutoScaleâ€“MaxAutoScale so the vectors stay crisp.
+    /// Automatic: proportional to the work area, limited to MinAutoScale–MaxAutoScale so the vectors stay crisp.
     /// Either way it never exceeds what fits the panel with all eight rings, so nothing is ever cut off.
     private void LayOut(double workHeightDip)
     {
@@ -420,7 +420,7 @@ public partial class EdgeWindow : Window
 
     internal bool ButtonsInOneRow => CloseButton.Parent == ButtonRowTop;
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Data ─────────────────────────────
 
     internal void SetClaude(ClaudeSnapshot snapshot)
     {
@@ -552,7 +552,7 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
-    /// "SesiÃ³n" â†’ the shorter window, "Total" â†’ the longer one. With a single window (e.g. the monthly one of the
+    /// "Sesión" → the shorter window, "Total" → the longer one. With a single window (e.g. the monthly one of the
     /// Go plan) both tabs show it.
     private CodexWindow CodexRingWindow(CodexWindow primary, CodexWindow? secondary)
     {
@@ -667,7 +667,7 @@ public partial class EdgeWindow : Window
 
     private static string CompactMoney(Money money)
     {
-        string symbol = money.Currency == "USD" ? "$" : money.Currency == "CNY" ? "Â¥" : money.Currency;
+        string symbol = money.Currency == "USD" ? "$" : money.Currency == "CNY" ? "¥" : money.Currency;
         return money.Amount >= 1000 ? $"{symbol}{money.Amount / 1000m:0.#}k" : $"{symbol}{money.Amount:0.##}";
     }
 
@@ -683,7 +683,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no estÃ¡ instalado") { ClearRing(CpuRing, CpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(CpuLabel); }
+            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(CpuRing, CpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(CpuLabel); }
             else { ResetTemperatureLabel(CpuLabel); ClearRing(CpuRing, CpuLabel); }
             ClearBar(TempBar);
             TempValue.Text = "--";
@@ -739,7 +739,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no estÃ¡ instalado") { ClearRing(GpuRing, GpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(GpuLabel); }
+            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(GpuRing, GpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(GpuLabel); }
             else { ResetTemperatureLabel(GpuLabel); ClearRing(GpuRing, GpuLabel); }
             ClearBar(GpuTempBar);
             GpuTempValue.Text = "--";
@@ -902,7 +902,7 @@ public partial class EdgeWindow : Window
         return name;
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Pointer polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────── Pointer polling ───────────────────────────
 
     private void OnPointerTick(object? sender, EventArgs e)
     {
@@ -962,7 +962,7 @@ public partial class EdgeWindow : Window
     }
 
     /// The cursor is off the panel and off the card: drop any ring hover, then collapse once the grace period
-    /// has passed â€” or, when pinned, only close the card.
+    /// has passed — or, when pinned, only close the card.
     private void HandleCursorAway()
     {
         if (_hoveredRing >= 0)
@@ -1008,7 +1008,7 @@ public partial class EdgeWindow : Window
                || (_cardVisible && Contains(Card, new Point(point.X, point.Y)));
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Expand / collapse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────── Expand / collapse ───────────────────────────
 
     private void Expand()
     {
@@ -1046,7 +1046,7 @@ public partial class EdgeWindow : Window
         ExpandedChanged?.Invoke(false);
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Rings & card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Rings & card ─────────────────────────────
 
     private void ScaleRing(int index, double scale)
     {
@@ -1068,7 +1068,7 @@ public partial class EdgeWindow : Window
 
         if (switching)
         {
-            // Slide from the previous ring to the new one â€” the card never disappears.
+            // Slide from the previous ring to the new one — the card never disappears.
             PlaceCard(animate: true);
         }
         else
@@ -1150,7 +1150,7 @@ public partial class EdgeWindow : Window
         return ease;
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Window plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Window plumbing ─────────────────────────────
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
@@ -1234,7 +1234,7 @@ public partial class EdgeWindow : Window
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Snapshot support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ───────────────────────────── Snapshot support ─────────────────────────────
 
     internal void ExpandNow() => Expand();
 
@@ -1248,7 +1248,7 @@ public partial class EdgeWindow : Window
         ShowCard(index);
     }
 
-    /// Renders the window at 2Ã— over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
+    /// Renders the window at 2× over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
     internal void SaveSnapshot(string path)
     {
         const double scale = 2;
