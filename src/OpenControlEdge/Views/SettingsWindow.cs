@@ -17,6 +17,7 @@ internal sealed class SettingsWindow : Window
     private readonly Action _refresh;
     private readonly Action<Settings> _apply;
     private readonly StackPanel _content = new();
+    private readonly StackPanel _navigation = new();
     private string _category = "General";
     private static readonly string[] Categories = ["General", "Personalización", "Agentes", "Información", "Actualizaciones", "Feedback"];
 
@@ -38,9 +39,9 @@ internal sealed class SettingsWindow : Window
         var title = new TextBlock { Text = "Open Control Edge · " + T("Ajustes", "Settings"), FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Brush(ThemeManager.Text), VerticalAlignment = VerticalAlignment.Center };
         header.Children.Add(title); header.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-        var nav = new StackPanel { Width = 184, Margin = new Thickness(12, 0, 8, 14) };
-        foreach (string category in Categories) { var b = new Button { Content = "◆   " + Category(category), HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 10, 8, 10), Margin = new Thickness(0, 2, 0, 2), BorderThickness = new Thickness(0), Background = category == _category ? Brush(ThemeManager.Raised) : Brushes.Transparent, Foreground = Brush(ThemeManager.Text) }; b.Click += (_, _) => { _category = category; RenderPage(); }; nav.Children.Add(b); }
-        DockPanel.SetDock(nav, Dock.Left); root.Children.Add(nav);
+        _navigation.Width = 184; _navigation.Margin = new Thickness(12, 0, 8, 14);
+        foreach (string category in Categories) { var b = new Button { Tag = category, Content = "◆   " + Category(category), HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 10, 8, 10), Margin = new Thickness(0, 2, 0, 2), BorderThickness = new Thickness(0), Background = category == _category ? Brush(ThemeManager.Raised) : Brushes.Transparent, Foreground = Brush(ThemeManager.Text) }; b.Click += (_, _) => { _category = category; RenderPage(); }; _navigation.Children.Add(b); }
+        DockPanel.SetDock(_navigation, Dock.Left); root.Children.Add(_navigation);
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(10, 0, 18, 16), Content = _content };
         root.Children.Add(scroll); frame.Child = root; Content = frame;
         ThemeManager.Changed += OnThemeChanged; Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
@@ -56,6 +57,12 @@ internal sealed class SettingsWindow : Window
     private string Category(string c) => c switch { "Personalización" => T(c, "Appearance"), "Agentes" => T(c, "Agents"), "Información" => T(c, "About"), "Actualizaciones" => T(c, "Updates"), "Feedback" => c, _ => T(c, "General") };
     private void RenderPage()
     {
+        foreach (Button button in _navigation.Children)
+        {
+            button.Background = Equals(button.Tag, _category) ? Brush(ThemeManager.Raised) : Brushes.Transparent;
+            button.Foreground = Brush(ThemeManager.Text);
+            button.Content = "◆   " + Category((string)button.Tag);
+        }
         _content.Children.Clear();
         AddHeading(Category(_category));
         switch (_category) { case "General": General(); break; case "Personalización": Appearance(); break; case "Agentes": Agents(); break; case "Información": About(); break; case "Actualizaciones": Updates(); break; case "Feedback": Feedback(); break; }

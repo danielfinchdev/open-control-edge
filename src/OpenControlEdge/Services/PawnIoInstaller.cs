@@ -28,7 +28,9 @@ internal static class PawnIoInstaller
             if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri.Host != "github.com") return "URL de descarga no válida.";
             byte[] bytes = await client.GetByteArrayAsync(uri, cancellationToken);
             if (bytes.Length is < 1024 or > 100_000_000) return "Tamaño del instalador no válido.";
-            string folder = Path.Combine(Path.GetTempPath(), "OpenControlEdge-PawnIO");
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (string.IsNullOrWhiteSpace(local)) return "No se encontró el directorio local del usuario.";
+            string folder = Path.Combine(local, "OpenControlEdge", "staging", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
             file = Path.Combine(folder, "PawnIO.Setup.exe");
             await File.WriteAllBytesAsync(file, bytes, cancellationToken);
@@ -51,6 +53,12 @@ internal static class PawnIoInstaller
         }
         catch (OperationCanceledException) { return "Instalación cancelada."; }
         catch (Exception ex) { Log.Warn("PawnIO", "installer: " + ex.GetType().Name); return "No se pudo descargar o instalar PawnIO."; }
-        finally { if (file is not null) try { File.Delete(file); } catch { } }
+        finally
+        {
+            if (file is not null)
+            {
+                try { File.Delete(file); string? folder = Path.GetDirectoryName(file); if (folder is not null && Directory.Exists(folder)) Directory.Delete(folder); } catch { }
+            }
+        }
     }
 }
