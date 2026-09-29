@@ -22,9 +22,41 @@ internal enum UsageView
     Total,
 }
 
+internal enum AppTheme
+{
+    Dark,
+    Light,
+
+    /// Follows the Windows app mode (light or dark) and switches with it.
+    System,
+}
+
+/// Colours of the ring arcs and card bars. Every theme keeps the red alert above Palette.AlertPercent.
+internal enum RingColorTheme
+{
+    Classic,
+    Mono,
+    Ocean,
+    Sunset,
+    Neon,
+}
+
+internal enum UiLanguage
+{
+    Spanish,
+    English,
+}
+
 internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, ProviderVisibility> Providers,
     UsageView UsageView = UsageView.Session)
 {
+    public AppTheme Theme { get; init; } = AppTheme.Dark;
+    public RingColorTheme ColorTheme { get; init; } = RingColorTheme.Classic;
+    public UiLanguage Language { get; init; } = UiLanguage.Spanish;
+
+    /// Fixed panel scale; null means "auto" (derived from the work area of the monitor).
+    public double? UiScale { get; init; }
+
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
 
@@ -33,6 +65,10 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 ///   {
 ///     "panelMode": "pinned" | "auto",
 ///     "usageView": "session" | "total",
+///     "theme": "dark" | "light" | "system",
+///     "colorTheme": "classic" | "mono" | "ocean" | "sunset" | "neon",
+///     "language": "es" | "en",
+///     "uiScale": "auto" | number (0.6 – 1.6),
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
@@ -91,7 +127,20 @@ internal static class SettingsStore
             PanelMode mode = GetString(root, "panelMode") == "auto" ? PanelMode.Auto : PanelMode.Pinned;
             FrozenDictionary<string, ProviderVisibility> providers = ParseProviders(root);
             UsageView view = GetString(root, "usageView") == "total" ? UsageView.Total : UsageView.Session;
-            return new Settings(mode, providers, view);
+            return new Settings(mode, providers, view)
+            {
+                Theme = GetString(root, "theme") switch { "light" => AppTheme.Light, "system" => AppTheme.System, _ => AppTheme.Dark },
+                ColorTheme = GetString(root, "colorTheme") switch
+                {
+                    "mono" => RingColorTheme.Mono,
+                    "ocean" => RingColorTheme.Ocean,
+                    "sunset" => RingColorTheme.Sunset,
+                    "neon" => RingColorTheme.Neon,
+                    _ => RingColorTheme.Classic,
+                },
+                Language = GetString(root, "language") == "en" ? UiLanguage.English : UiLanguage.Spanish,
+                UiScale = ParseScale(root),
+            };
         }
         catch (Exception ex)
         {
@@ -135,6 +184,17 @@ internal static class SettingsStore
         Save(current with { UsageView = view });
     }
 
+    /// For the settings window: applies a change to the stored settings and saves them. Returns what was saved,
+    /// or null when the file could not be read (then nothing is written, so it is never overwritten with defaults).
+    public static Settings? Update(Func<Settings, Settings> change)
+    {
+        Settings current = Load();
+        if (_unreadable) return null;
+        Settings updated = change(current);
+        Save(updated);
+        return updated;
+    }
+
     private static void Save(Settings settings)
     {
         try
@@ -145,6 +205,11 @@ internal static class SettingsStore
                 writer.WriteStartObject();
                 writer.WriteString("panelMode", settings.PanelMode == PanelMode.Auto ? "auto" : "pinned");
                 writer.WriteString("usageView", settings.UsageView == UsageView.Total ? "total" : "session");
+                writer.WriteString("theme", settings.Theme.ToString().ToLowerInvariant());
+                writer.WriteString("colorTheme", settings.ColorTheme.ToString().ToLowerInvariant());
+                writer.WriteString("language", settings.Language == UiLanguage.English ? "en" : "es");
+                if (settings.UiScale is double scale) writer.WriteNumber("uiScale", Math.Round(scale, 2));
+                else writer.WriteString("uiScale", "auto");
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -210,6 +275,16 @@ internal static class SettingsStore
         ProviderVisibility.Hide => "hide",
         _ => "auto",
     };
+
+    public const double MinUiScale = 0.6;
+    public const double MaxUiScale = 1.6;
+
+    /// "auto", a missing value or anything out of range means automatic scaling.
+    private static double? ParseScale(JsonElement root)
+    {
+        if (!root.TryGetProperty("uiScale", out JsonElement value) || value.ValueKind != JsonValueKind.Number) return null;
+        return value.TryGetDouble(out double scale) && scale >= MinUiScale && scale <= MaxUiScale ? scale : null;
+    }
 
     private static string? GetString(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

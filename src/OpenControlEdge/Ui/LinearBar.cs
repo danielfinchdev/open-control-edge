@@ -12,8 +12,9 @@ public sealed class LinearBar : FrameworkElement
 
     public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
         nameof(Fill), typeof(Brush), typeof(LinearBar),
-        new FrameworkPropertyMetadata(Palette.Green, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Palette.Low, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// Set by the implicit LinearBar style in App.xaml to the theme's ring track.
     public static readonly DependencyProperty TrackBrushProperty = DependencyProperty.Register(
         nameof(TrackBrush), typeof(Brush), typeof(LinearBar),
         new FrameworkPropertyMetadata(Palette.Track, FrameworkPropertyMetadataOptions.AffectsRender));

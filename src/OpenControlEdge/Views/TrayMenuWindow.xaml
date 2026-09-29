@@ -17,39 +17,40 @@
 
     <!-- 20 px margin leaves room for the shadow (TrayMenuWindow.ShadowMargin). -->
     <Grid Margin="20">
-        <Border CornerRadius="14" Background="#0A0A0A">
+        <Border CornerRadius="14" Background="{DynamicResource Theme.Menu}">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.5" />
             </Border.Effect>
         </Border>
 
-        <Border x:Name="MenuBody" CornerRadius="14" Background="#0A0A0A" BorderBrush="#232325" BorderThickness="1" Padding="6">
+        <Border x:Name="MenuBody" CornerRadius="14" Background="{DynamicResource Theme.Menu}" BorderBrush="{DynamicResource Theme.Border}"
+                BorderThickness="1" Padding="6">
             <StackPanel MinWidth="196">
-                <TextBlock Text="Open Control Edge" FontSize="12" Foreground="#8E8E93" Margin="12,6,12,6" />
+                <TextBlock Text="Open Control Edge" FontSize="12" Foreground="{DynamicResource Theme.TextSecondary}" Margin="12,6,12,6" />
 
                 <Button x:Name="RefreshButton" Style="{StaticResource MenuButton}" Click="OnRefreshClick"
-                        AutomationProperties.AutomationId="RefreshButton" AutomationProperties.Name="Actualizar ahora">
+                        AutomationProperties.AutomationId="RefreshButton" AutomationProperties.Name="{DynamicResource Menu.Refresh}">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{x:Static ui:Icons.RefreshImage}" Width="16" Height="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Actualizar ahora" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        <ui:IconView Icon="{x:Static ui:Icons.Refresh}" Style="{StaticResource MenuIcon}" />
+                        <TextBlock Text="{DynamicResource Menu.Refresh}" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
 
                 <Button x:Name="ApiKeysButton" Style="{StaticResource MenuButton}" Click="OnApiKeysClick"
-                        AutomationProperties.AutomationId="ApiKeysButton" AutomationProperties.Name="Claves de API">
+                        AutomationProperties.AutomationId="ApiKeysButton" AutomationProperties.Name="{DynamicResource Menu.ApiKeys}">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{x:Static ui:Icons.KeyImage}" Width="16" Height="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Claves de API…" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        <ui:IconView Icon="{x:Static ui:Icons.Key}" Style="{StaticResource MenuIcon}" />
+                        <TextBlock Text="{DynamicResource Menu.ApiKeys}" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
 
-                <Border Height="1" Background="#1F1F21" Margin="10,4" />
+                <Border Height="1" Background="{DynamicResource Theme.Border}" Margin="10,4" />
 
                 <Button x:Name="ExitButton" Style="{StaticResource MenuButton}" Click="OnExitClick"
-                        AutomationProperties.AutomationId="ExitButton" AutomationProperties.Name="Salir">
+                        AutomationProperties.AutomationId="ExitButton" AutomationProperties.Name="{DynamicResource Menu.Exit}">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{x:Static ui:Icons.PowerImage}" Width="16" Height="16" VerticalAlignment="Center" />
-                        <TextBlock Text="Salir" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        <ui:IconView Icon="{x:Static ui:Icons.Power}" Style="{StaticResource MenuIcon}" />
+                        <TextBlock Text="{DynamicResource Menu.Exit}" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>

@@ -36,7 +36,12 @@ internal static class Snapshot
         var cpu = new CpuSnapshot("Intel Core i7-8750H", 64, 78, 23, null);
         var gpu = new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", 41, 12, 783, 4096, null);
 
+        // Dark, classic colours, Spanish: the defaults, whatever the settings file says.
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
+        Loc.Apply(UiLanguage.Spanish);
+
         var window = new EdgeWindow(DateTime.Now.AddMinutes(-42), PanelMode.Auto) { PreviewMode = true, AnimationsEnabled = false };
+        window.PreviewWorkArea(ReferenceWorkArea);
         window.SetCodex(codexMonthly);
         window.SetCursor(cursor);
         window.SetOpenCode(openCode);
@@ -46,6 +51,8 @@ internal static class Snapshot
         window.Show();
         window.SetClaude(claude);
         window.SetCpu(cpu);
+        CheckFont(window.ClaudeLabel, FontWeights.Normal);
+        CheckFont(window.ClaudePlanText, FontWeights.SemiBold);
         window.SaveSnapshot(Path.Combine(directory, "01_auto_collapsed.png"));
 
         window.ExpandNow();
@@ -54,19 +61,23 @@ internal static class Snapshot
         window.ApplyMode(PanelMode.Pinned);
         window.SaveSnapshot(Path.Combine(directory, "03_pinned_eight_rings.png"));
 
+        // At scale 1 a row of three would be under 30 DIP, so the buttons sit two above and one below.
+        if (window.ButtonsInOneRow) throw new InvalidDataException("buttons should be 2 + 1 at scale 1");
         PaintHover(window.ModeButton, hovered: true);
-        PaintHover(window.CloseButton, hovered: true);
-        window.SaveSnapshot(Path.Combine(directory, "04_pinned_hover_ocultar_close.png"));
+        window.SaveSnapshot(Path.Combine(directory, "04_buttons_2_plus_1_hover_ocultar.png"));
         PaintHover(window.ModeButton, hovered: false);
+
+        PaintHover(window.CloseButton, hovered: true);
+        window.SaveSnapshot(Path.Combine(directory, "05_buttons_2_plus_1_hover_close.png"));
         PaintHover(window.CloseButton, hovered: false);
 
-        PaintHover(window.RefreshButton, hovered: true);
-        window.SaveSnapshot(Path.Combine(directory, "05_pinned_hover_actualizar.png"));
-        PaintHover(window.RefreshButton, hovered: false);
-
-        window.SetRefreshing(true);
-        window.SaveSnapshot(Path.Combine(directory, "06_pinned_actualizando.png"));
-        window.SetRefreshing(false);
+        // 1440p work area: scale 1.34, where three in a row already exceed 30 DIP.
+        window.PreviewWorkArea(1392);
+        if (!window.ButtonsInOneRow) throw new InvalidDataException("buttons should be in one row at 1440p");
+        PaintHover(window.SettingsButton, hovered: true);
+        window.SaveSnapshot(Path.Combine(directory, "06_buttons_one_row_1440p_hover_settings.png"));
+        PaintHover(window.SettingsButton, hovered: false);
+        window.PreviewWorkArea(ReferenceWorkArea);
 
         window.ShowCardNow(EdgeWindow.RingClaude);
         window.SaveSnapshot(Path.Combine(directory, "07_card_claude_spend.png"));
@@ -149,7 +160,10 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "29_tab_session_codex_two_windows.png"));
         window.ApplyUsageView(UsageView.Total);
         window.SaveSnapshot(Path.Combine(directory, "30_tab_total_codex_two_windows.png"));
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "37_tab_total_claude_weekly.png"));
         window.ApplyUsageView(UsageView.Session);
+        window.SaveSnapshot(Path.Combine(directory, "38_tab_session_claude.png"));
 
         window.SetClaude(ClaudeSnapshot.Failed(ClaudeUsageService.FreeAccountMessage) with { Plan = "free" });
         window.ShowCardNow(EdgeWindow.RingClaude);
@@ -201,6 +215,58 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingGpu);
         window.SaveSnapshot(Path.Combine(directory, "36_gpu_pawnio_required.png"));
 
+        // Eight rings of the reference scene for the theme, language and scale shots.
+        window.SetClaude(new ClaudeSnapshot(false, new UsageWindow(73, now.AddMinutes(51)), new UsageWindow(7, thursdayNoon),
+            new Money(10.53m, "EUR"), null) { Plan = "max" });
+        window.SetCodex(codexTwoWindows);
+        window.SetCursor(cursor);
+        window.SetOpenCode(openCode);
+        window.SetDeepSeek(deepSeek);
+        window.SetOpenRouter(openRouter);
+        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", 76, 88, 41, null));
+        window.SetGpu(gpu);
+
+        ThemeManager.Apply(AppTheme.Light, RingColorTheme.Classic);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "39_theme_light_claude_card.png"));
+        window.ShowCardNow(EdgeWindow.RingCpu);
+        window.SaveSnapshot(Path.Combine(directory, "40_theme_light_cpu_card.png"));
+        ThemeManager.Apply(AppTheme.Light, RingColorTheme.Neon);
+        window.ShowCardNow(EdgeWindow.RingCursor);
+        window.SaveSnapshot(Path.Combine(directory, "41_theme_light_colors_neon.png"));
+
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Ocean);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "42_colors_ocean.png"));
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Sunset);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "43_colors_sunset.png"));
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Mono);
+        window.SaveSnapshot(Path.Combine(directory, "44_colors_mono.png"));
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
+
+        Loc.Apply(UiLanguage.English);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "45_english_claude_card.png"));
+        window.ApplyUsageView(UsageView.Total);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "46_english_codex_total.png"));
+        window.ApplyUsageView(UsageView.Session);
+        window.SetClaude(ClaudeSnapshot.Failed("Sin conexión"));
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "47_english_service_message.png"));
+        Loc.Apply(UiLanguage.Spanish);
+        window.SetClaude(claude);
+
+        // Scale: 1366×768 at 100 %, 1080p at 125 % (both small), 1440p at 100 % (large). All eight rings fit.
+        foreach ((double work, string name) in new[] { (728.0, "48_scale_1366x768"), (824.0, "49_scale_1080p_125"), (1392.0, "50_scale_1440p") })
+        {
+            window.PreviewWorkArea(work);
+            window.ShowCardNow(EdgeWindow.RingClaude);
+            window.SaveSnapshot(Path.Combine(directory, $"{name}_x{window.Scale.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}.png"));
+        }
+        window.PreviewWorkArea(ReferenceWorkArea);
+
         var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
         keys.Show();
         keys.UpdateLayout();
@@ -215,39 +281,37 @@ internal static class Snapshot
         SaveElement((FrameworkElement)menu.Content, Path.Combine(directory, "15_tray_menu.png"));
         menu.CloseMenu();
 
+        ThemeManager.Apply(AppTheme.Light, RingColorTheme.Classic);
+        Loc.Apply(UiLanguage.English);
+        var lightMenu = new TrayMenuWindow { ShowActivated = false, Left = -32000, Top = -32000 };
+        lightMenu.Show();
+        lightMenu.UpdateLayout();
+        SaveElement((FrameworkElement)lightMenu.Content, Path.Combine(directory, "51_tray_menu_light_english.png"));
+        lightMenu.CloseMenu();
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
+        Loc.Apply(UiLanguage.Spanish);
     }
 
-    /// Paints the end state of a panel button's hover transition (the triggers need a real cursor).
+    /// Work area of a 1080p screen at 100 % minus the taskbar: scale 1.
+    private const double ReferenceWorkArea = 1040;
+
+    /// The embedded font must really be what the text is drawn with: fails the snapshot run otherwise.
+    private static void CheckFont(TextBlock text, FontWeight weight)
+    {
+        var typeface = new Typeface(text.FontFamily, text.FontStyle, weight, text.FontStretch);
+        if (!typeface.TryGetGlyphTypeface(out GlyphTypeface glyphs)
+            || !glyphs.FamilyNames.Values.Contains("Google Sans Flex")
+            || glyphs.Weight != weight)
+            throw new InvalidDataException($"font check failed for weight {weight}");
+    }
+
+    /// Paints the hover state of a round panel button (the triggers need a real cursor).
     private static void PaintHover(Button button, bool hovered)
     {
         button.ApplyTemplate();
-
-        if (button.Template.FindName("Chrome", button) is Border chrome && button.Template.FindName("Label", button) is TextBlock label)
-        {
-            if (hovered)
-            {
-                chrome.Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1E));
-                label.Foreground = Brushes.White;
-            }
-            else
-            {
-                chrome.ClearValue(Border.BackgroundProperty);
-                label.ClearValue(TextBlock.ForegroundProperty);
-            }
-        }
-        else if (button.Template.FindName("Disc", button) is Shape disc && button.Template.FindName("Glyph", button) is Shape glyph)
-        {
-            if (hovered)
-            {
-                disc.Fill = Palette.Red;
-                glyph.Stroke = Brushes.White;
-            }
-            else
-            {
-                disc.ClearValue(Shape.FillProperty);
-                glyph.ClearValue(Shape.StrokeProperty);
-            }
-        }
+        if (button.Template.FindName("Chrome", button) is not Shape chrome) return;
+        if (hovered) chrome.SetResourceReference(Shape.FillProperty, ThemeManager.ButtonHover);
+        else chrome.SetResourceReference(Shape.FillProperty, ThemeManager.Button);
     }
 
     private static void SaveElement(FrameworkElement element, string path)

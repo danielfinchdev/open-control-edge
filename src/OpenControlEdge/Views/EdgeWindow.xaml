@@ -13,14 +13,19 @@
         Focusable="False"
         UseLayoutRounding="True"
         FontFamily="{StaticResource UiFont}"
-        Foreground="White"
+        Foreground="{DynamicResource Theme.Text}"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Grayscale">
 
-    <!-- All sizes are the original design scaled to 85 % (rings 64 → 54, panel 110 → 94, card 300 → 255 …). -->
-    <Canvas x:Name="Root" ClipToBounds="True">
+    <!-- Host is what the snapshot mode renders. Root is laid out in design units (the original design scaled to 85 %) and
+         RootScale fits it to the monitor (see EdgeWindow.ApplyScale). -->
+    <Grid x:Name="Host">
+    <Canvas x:Name="Root" ClipToBounds="True" HorizontalAlignment="Left" VerticalAlignment="Top">
+        <Canvas.LayoutTransform>
+            <ScaleTransform x:Name="RootScale" />
+        </Canvas.LayoutTransform>
 
-        <!-- Auto mode, collapsed: 5 px strip on the right edge (hover target, deliberately not scaled). -->
+        <!-- Auto mode, collapsed: 5 DIP strip on the right edge (hover target; its width undoes the scale). -->
         <Rectangle x:Name="Strip" Width="5" Height="400" Fill="#99808080" />
 
         <!-- Detail card (to the left of the panel). -->
@@ -30,41 +35,54 @@
             </Grid.RenderTransform>
 
             <!-- No DropShadowEffect: the beak moves on every ring switch and the effect would re-rasterise each frame. -->
-            <ui:CardShape x:Name="CardBackground" Fill="#000000" CornerRadius="20" BeakLength="16" BeakHalfHeight="15" />
+            <ui:CardShape x:Name="CardBackground" Fill="{DynamicResource Theme.Background}" CornerRadius="20" BeakLength="16" BeakHalfHeight="15" />
 
             <Border x:Name="ContentClip" ClipToBounds="True" Margin="0,0,16,0">
                 <Grid x:Name="CardContent" Margin="16,15,16,15" VerticalAlignment="Top">
 
                     <!-- Claude -->
                     <StackPanel x:Name="ClaudeCard">
-                        <!-- Header: icon, title and plan badge. Resets sit on each metric row, leaving room for the badge. -->
+                        <!-- Header: icon, title and plan badge, then the "Sesión | Total" tabs. -->
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.ClaudeSparkImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de Claude" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.ClaudeSpark}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.Claude}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                             <Border x:Name="ClaudePlan" Style="{StaticResource PlanBadge}">
                                 <TextBlock x:Name="ClaudePlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
                         </StackPanel>
+                        <Border x:Name="ClaudeTabs" Style="{StaticResource UsageTabList}">
+                            <UniformGrid Columns="2">
+                                <RadioButton x:Name="ClaudeSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
+                                             GroupName="ClaudeView" AutomationProperties.AutomationId="ClaudeSessionTab" Checked="OnUsageViewChecked" />
+                                <RadioButton x:Name="ClaudeTotalTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Total}"
+                                             GroupName="ClaudeView" AutomationProperties.AutomationId="ClaudeTotalTab" Checked="OnUsageViewChecked" />
+                            </UniformGrid>
+                        </Border>
 
+                        <!-- Only the row of the selected tab is shown. -->
                         <StackPanel x:Name="ClaudeMetrics" Margin="0,11,0,0">
-                            <DockPanel>
-                                <TextBlock x:Name="ClaudeHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
-                                <TextBlock Text="Sesión actual" Style="{StaticResource RowLabel}" />
-                            </DockPanel>
-                            <ui:LinearBar x:Name="SessionBar" Height="4" Margin="0,6,0,0" />
-                            <TextBlock x:Name="SessionValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            <StackPanel x:Name="ClaudeSessionRow">
+                                <DockPanel>
+                                    <TextBlock x:Name="ClaudeHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                    <TextBlock Text="{DynamicResource Row.CurrentSession}" Style="{StaticResource RowLabel}" />
+                                </DockPanel>
+                                <ui:LinearBar x:Name="SessionBar" Height="4" Margin="0,6,0,0" />
+                                <TextBlock x:Name="SessionValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            </StackPanel>
 
-                            <DockPanel Margin="0,11,0,0">
-                                <TextBlock x:Name="WeeklyReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
-                                <TextBlock Text="Semanal" Style="{StaticResource RowLabel}" />
-                            </DockPanel>
-                            <ui:LinearBar x:Name="WeeklyBar" Height="4" Margin="0,6,0,0" />
-                            <TextBlock x:Name="WeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            <StackPanel x:Name="ClaudeWeeklyRow" Visibility="Collapsed">
+                                <DockPanel>
+                                    <TextBlock x:Name="WeeklyReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                    <TextBlock Text="{DynamicResource Row.Weekly}" Style="{StaticResource RowLabel}" />
+                                </DockPanel>
+                                <ui:LinearBar x:Name="WeeklyBar" Height="4" Margin="0,6,0,0" />
+                                <TextBlock x:Name="WeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            </StackPanel>
 
                             <!-- Usage credits spent (spend.used). The endpoint carries no remaining balance. -->
                             <DockPanel x:Name="ClaudeSpendRow" Margin="0,11,0,0" Visibility="Collapsed">
                                 <TextBlock x:Name="ClaudeSpendValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
-                                <TextBlock Text="Gastado" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource Row.Spent}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
                             </DockPanel>
                         </StackPanel>
 
@@ -72,43 +90,43 @@
                                    Margin="0,11,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
-                    <!-- Codex: one row per window the API returns, labelled by its length. -->
+                    <!-- Codex: the window of the selected tab (shorter for "Sesión", longer for "Total"), labelled by
+                         its length. With a single window the tabs are hidden. -->
                     <StackPanel x:Name="CodexCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.CodexImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de Codex" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.Codex}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.Codex}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                             <Border x:Name="CodexPlan" Style="{StaticResource PlanBadge}">
                                 <TextBlock x:Name="CodexPlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
                         </StackPanel>
+                        <Border x:Name="CodexTabs" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
+                            <UniformGrid Columns="2">
+                                <RadioButton x:Name="CodexSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
+                                             GroupName="CodexView" AutomationProperties.AutomationId="CodexSessionTab" Checked="OnUsageViewChecked" />
+                                <RadioButton x:Name="CodexTotalTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Total}"
+                                             GroupName="CodexView" AutomationProperties.AutomationId="CodexTotalTab" Checked="OnUsageViewChecked" />
+                            </UniformGrid>
+                        </Border>
 
                         <StackPanel x:Name="CodexMetrics" Margin="0,11,0,0">
                             <DockPanel>
-                                <TextBlock x:Name="CodexHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
-                                <TextBlock x:Name="CodexPrimaryLabel" Style="{StaticResource RowLabel}" />
+                                <TextBlock x:Name="CodexReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
+                                <TextBlock x:Name="CodexWindowLabel" Style="{StaticResource RowLabel}" />
                             </DockPanel>
-                            <ui:LinearBar x:Name="CodexPrimaryBar" Height="4" Margin="0,6,0,0" />
-                            <TextBlock x:Name="CodexPrimaryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-
-                            <StackPanel x:Name="CodexSecondaryRow" Visibility="Collapsed">
-                                <DockPanel Margin="0,11,0,0">
-                                    <TextBlock x:Name="CodexSecondaryReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
-                                    <TextBlock x:Name="CodexSecondaryLabel" Style="{StaticResource RowLabel}" />
-                                </DockPanel>
-                                <ui:LinearBar x:Name="CodexSecondaryBar" Height="4" Margin="0,6,0,0" />
-                                <TextBlock x:Name="CodexSecondaryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            </StackPanel>
+                            <ui:LinearBar x:Name="CodexBar" Height="4" Margin="0,6,0,0" />
+                            <TextBlock x:Name="CodexValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
 
                         <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
-                    <!-- Cursor monthly plan usage. -->
+                    <!-- Cursor monthly plan usage (one window, so no tabs). -->
                     <StackPanel x:Name="CursorCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.CursorImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de Cursor" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.Cursor}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.Cursor}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                             <Border x:Name="CursorPlan" Style="{StaticResource PlanBadge}">
                                 <TextBlock x:Name="CursorPlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
@@ -116,12 +134,12 @@
                         <StackPanel x:Name="CursorMetrics" Margin="0,11,0,0">
                             <DockPanel>
                                 <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
-                                <TextBlock Text="Ciclo mensual" Style="{StaticResource RowLabel}" />
+                                <TextBlock Text="{DynamicResource Row.MonthlyCycle}" Style="{StaticResource RowLabel}" />
                             </DockPanel>
                             <ui:LinearBar x:Name="CursorCycleBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="CursorCycleValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                             <StackPanel x:Name="CursorOnDemandRow" Visibility="Collapsed">
-                                <TextBlock Text="Bajo demanda" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                                <TextBlock Text="{DynamicResource Row.OnDemand}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                                 <ui:LinearBar x:Name="CursorOnDemandBar" Height="4" Margin="0,6,0,0" />
                                 <TextBlock x:Name="CursorOnDemandValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                             </StackPanel>
@@ -131,19 +149,19 @@
 
                     <StackPanel x:Name="OpenCodeCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.OpenCodeImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de OpenCode" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenCode}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.OpenCode}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                         </StackPanel>
                         <StackPanel x:Name="OpenCodeMetrics" Margin="0,11,0,0">
-                            <TextBlock Text="Tokens de entrada" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{DynamicResource Row.InputTokens}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="OpenCodeInput" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            <TextBlock Text="Tokens de salida" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.OutputTokens}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <TextBlock x:Name="OpenCodeOutput" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            <TextBlock Text="Tokens de razonamiento" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.ReasoningTokens}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <TextBlock x:Name="OpenCodeReasoning" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            <TextBlock Text="Caché (lectura / escritura)" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.Cache}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <TextBlock x:Name="OpenCodeCache" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            <TextBlock Text="Coste acumulado" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.TotalCost}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <TextBlock x:Name="OpenCodeCost" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
                         <TextBlock x:Name="OpenCodeMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
@@ -151,11 +169,11 @@
 
                     <StackPanel x:Name="DeepSeekCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.DeepSeekImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de DeepSeek" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.DeepSeek}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.DeepSeek}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                         </StackPanel>
                         <StackPanel x:Name="DeepSeekMetrics" Margin="0,11,0,0">
-                            <TextBlock Text="Saldo restante" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{DynamicResource Row.Balance}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="DeepSeekBalance" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
                         <TextBlock x:Name="DeepSeekMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
@@ -163,13 +181,13 @@
 
                     <StackPanel x:Name="OpenRouterCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.OpenRouterImage}" Width="18" Height="18" VerticalAlignment="Center" />
-                            <TextBlock Text="Uso de OpenRouter" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenRouter}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.OpenRouter}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                         </StackPanel>
                         <StackPanel x:Name="OpenRouterMetrics" Margin="0,11,0,0">
-                            <TextBlock x:Name="OpenRouterMetricLabel" Text="Gasto" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="OpenRouterMetricLabel" Text="{DynamicResource Row.Spend}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="OpenRouterUsage" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
-                            <TextBlock x:Name="OpenRouterRemainingLabel" Text="Límite restante" Style="{StaticResource RowLabel}" Margin="0,11,0,0" Visibility="Collapsed" />
+                            <TextBlock x:Name="OpenRouterRemainingLabel" Text="{DynamicResource Row.LimitRemaining}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" Visibility="Collapsed" />
                             <TextBlock x:Name="OpenRouterRemaining" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" Visibility="Collapsed" />
                         </StackPanel>
                         <TextBlock x:Name="OpenRouterMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
@@ -181,21 +199,21 @@
                             <TextBlock x:Name="CpuSince" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
                                        VerticalAlignment="Center" Margin="10,0,0,0" />
                             <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.CpuImage}" Width="18" Height="18" VerticalAlignment="Center" />
+                                <ui:IconView Icon="{x:Static ui:Icons.Cpu}" Style="{StaticResource CardIcon}" />
                                 <TextBlock x:Name="CpuTitle" Text="CPU" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                             </StackPanel>
                         </DockPanel>
 
                         <StackPanel Margin="0,11,0,0">
-                            <TextBlock Text="Temperatura" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{DynamicResource Row.Temperature}" Style="{StaticResource RowLabel}" />
                             <ui:LinearBar x:Name="TempBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="TempValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
 
-                            <TextBlock Text="Máxima de la sesión" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.SessionMax}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <ui:LinearBar x:Name="MaxBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="MaxValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
 
-                            <TextBlock Text="Carga de CPU" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.CpuLoad}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <ui:LinearBar x:Name="LoadBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="LoadValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
@@ -207,22 +225,22 @@
                     <!-- GPU (NVIDIA) -->
                     <StackPanel x:Name="GpuCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Image Source="{x:Static ui:Icons.GpuImage}" Width="18" Height="18" VerticalAlignment="Center" />
+                            <ui:IconView Icon="{x:Static ui:Icons.Gpu}" Style="{StaticResource CardIcon}" />
                             <TextBlock x:Name="GpuTitle" Text="GPU" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
                         </StackPanel>
 
                         <StackPanel Margin="0,11,0,0">
-                            <TextBlock Text="Temperatura" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{DynamicResource Row.Temperature}" Style="{StaticResource RowLabel}" />
                             <ui:LinearBar x:Name="GpuTempBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="GpuTempValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
 
-                            <TextBlock Text="Uso" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                            <TextBlock Text="{DynamicResource Row.GpuLoad}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                             <ui:LinearBar x:Name="GpuLoadBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="GpuLoadValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
 
                             <!-- Only when the GPU exposes "GPU Memory Used"; the bar needs "GPU Memory Total" too. -->
                             <StackPanel x:Name="GpuMemoryRow" Visibility="Collapsed">
-                                <TextBlock Text="Memoria usada" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
+                                <TextBlock Text="{DynamicResource Row.MemoryUsed}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                                 <ui:LinearBar x:Name="GpuMemoryBar" Height="4" Margin="0,6,0,0" />
                                 <TextBlock x:Name="GpuMemoryValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                             </StackPanel>
@@ -236,28 +254,19 @@
             </Border>
         </Grid>
 
-        <!-- Panel: a pure black tab whose concave flares (38 above and below the body) melt into the screen edge. -->
+        <!-- Panel: a tab whose concave flares (38 above and below the body) melt into the screen edge. -->
         <Grid x:Name="EdgePanel" Width="94">
             <Grid.RenderTransform>
                 <TranslateTransform x:Name="PanelShift" X="94" />
             </Grid.RenderTransform>
 
-            <ui:EdgeTabShape Fill="#000000" CornerRadius="32" FlareHeight="38" />
+            <ui:EdgeTabShape Fill="{DynamicResource Theme.Background}" CornerRadius="32" FlareHeight="38" />
 
             <Grid x:Name="PanelRoot" Margin="0,38,0,38">
-                <StackPanel x:Name="PanelStack" Margin="0,30,0,10">
-                    <!-- Which window the AI rings show: short ("Sesión") or long ("Total"). Remembered in settings;
-                         shown only when Claude or Codex is available. -->
-                    <StackPanel x:Name="UsageTabs" Orientation="Horizontal" HorizontalAlignment="Center">
-                        <RadioButton x:Name="SessionTab" Style="{StaticResource PanelTab}" Content="Sesión" GroupName="UsageView"
-                                     AutomationProperties.AutomationId="SessionTab" Checked="OnUsageViewChecked" />
-                        <RadioButton x:Name="TotalTab" Style="{StaticResource PanelTab}" Content="Total" GroupName="UsageView"
-                                     AutomationProperties.AutomationId="TotalTab" Margin="10,0,0,0" Checked="OnUsageViewChecked" />
-                    </StackPanel>
-
+                <StackPanel x:Name="PanelStack" Margin="0,20,0,14">
                     <!-- Un clic renueva la sesión de Claude y abre Claude Code (ver App.RenewClaudeSession). -->
-                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand" Margin="0,12,0,0"
-                          ToolTip="Renovar la sesión de Claude y abrir Claude Code"
+                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
+                          ToolTip="{DynamicResource Tip.ClaudeRing}"
                           MouseLeftButtonUp="OnClaudeClick">
                         <StackPanel>
                             <ui:RingGauge x:Name="ClaudeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.ClaudeSpark}">
@@ -270,7 +279,7 @@
                     </Grid>
 
                     <!-- Hidden when Codex/ChatGPT is not installed (see AiDetector). -->
-                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CodexRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Codex}">
                                 <ui:RingGauge.RenderTransform>
@@ -282,7 +291,7 @@
                     </Grid>
 
                     <!-- Hidden when Cursor is not installed (see AiDetector). -->
-                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="CursorRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cursor}">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -290,7 +299,7 @@
                             <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="OpenCodeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenCode}">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -298,7 +307,7 @@
                             <TextBlock x:Name="OpenCodeLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="DeepSeekRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.DeepSeek}">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -306,7 +315,7 @@
                             <TextBlock x:Name="DeepSeekLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="OpenRouterRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenRouter}">
                                 <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
@@ -314,7 +323,7 @@
                             <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,12,0,0">
+                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0">
                         <StackPanel>
                             <ui:RingGauge x:Name="CpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cpu}">
                                 <ui:RingGauge.RenderTransform>
@@ -326,7 +335,7 @@
                     </Grid>
 
                     <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
-                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel>
                             <ui:RingGauge x:Name="GpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gpu}">
                                 <ui:RingGauge.RenderTransform>
@@ -337,24 +346,34 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Same button, same place in both modes: "Ocultar" when pinned, "Fijar" in auto (label set in code). -->
-                    <Button x:Name="ModeButton" Style="{StaticResource PanelTextButton}" Content="Ocultar"
-                            AutomationProperties.AutomationId="ModeButton"
-                            HorizontalAlignment="Center" Margin="0,10,0,0" Click="OnModeClick" />
-
-                    <!-- Refreshes usage providers and sensors; reads "Actualizando" until that finishes. -->
-                    <Button x:Name="RefreshButton" Style="{StaticResource PanelTextButton}" Content="Actualizar"
-                            AutomationProperties.AutomationId="PanelRefreshButton"
-                            HorizontalAlignment="Center" Click="OnRefreshClick" />
-
+                    <!-- Round buttons: in one row when they come out at 30 DIP or more, otherwise two above and close
+                         below (EdgeWindow.LayOutButtons moves CloseButton between the rows). -->
+                    <StackPanel x:Name="PanelButtons" Margin="0,14,0,0" HorizontalAlignment="Center">
+                        <StackPanel x:Name="ButtonRowTop" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <!-- Fijar / ocultar: the chevron points where the panel goes. -->
+                            <Button x:Name="ModeButton" Style="{StaticResource PanelRoundButton}" Click="OnModeClick"
+                                    AutomationProperties.AutomationId="ModeButton">
+                                <ui:IconView x:Name="ModeIcon" Icon="{x:Static ui:Icons.ChevronRight}" Foreground="{DynamicResource Theme.Text}" />
+                            </Button>
+                            <Button x:Name="SettingsButton" Style="{StaticResource PanelRoundButton}" Click="OnSettingsClick"
+                                    ToolTip="{DynamicResource Tip.Settings}" AutomationProperties.AutomationId="SettingsButton"
+                                    AutomationProperties.Name="{DynamicResource Tip.Settings}">
+                                <ui:IconView Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
+                            </Button>
+                        </StackPanel>
+                        <StackPanel x:Name="ButtonRowBottom" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <!-- Quits the whole application, like "Salir" in the tray menu. -->
+                            <Button x:Name="CloseButton" Style="{StaticResource PanelRoundButton}" Click="OnCloseClick"
+                                    ToolTip="{DynamicResource Tip.Close}" AutomationProperties.AutomationId="CloseButton"
+                                    AutomationProperties.Name="{DynamicResource Tip.Close}">
+                                <ui:IconView Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
-
-                <!-- Quits the whole application, like "Salir" in the tray menu. -->
-                <Button x:Name="CloseButton" Style="{StaticResource PanelCloseButton}"
-                        AutomationProperties.AutomationId="CloseButton" AutomationProperties.Name="Cerrar"
-                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,9,9,0" Click="OnCloseClick" />
             </Grid>
         </Grid>
 
     </Canvas>
+    </Grid>
 </Window>

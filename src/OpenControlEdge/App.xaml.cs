@@ -94,6 +94,11 @@ public partial class App : Application
             return;
         }
 
+        // Theme, ring colours and language before any window exists, so nothing paints twice.
+        Settings appearance = SettingsStore.Load();
+        ThemeManager.Apply(appearance.Theme, appearance.ColorTheme);
+        Loc.Apply(appearance.Language);
+
         if (Array.IndexOf(e.Args, "--check-pawnio") >= 0)
         {
             bool installed;
@@ -135,6 +140,7 @@ public partial class App : Application
         _sensors = new HardwareSensorService();
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
         Settings settings = SettingsStore.Load();
+        _edge.ApplyScale(settings.UiScale);
         _lastClaude = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)
             ? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
         _edge.SetClaude(_lastClaude);
@@ -158,7 +164,8 @@ public partial class App : Application
         };
         _edge.ModeChangeRequested += SetPanelMode;
         _edge.UsageViewChanged += SettingsStore.SaveUsageView;
-        _edge.RefreshRequested += () => _ = RefreshEverythingAsync();
+        // The settings window comes with a later task; for now the request is only logged.
+        _edge.SettingsRequested += () => Log.Info("App", "settings requested from the panel");
         _edge.CloseRequested += Shutdown;
         _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync();
         _edge.Show();
@@ -341,13 +348,11 @@ public partial class App : Application
         }
     }
 
-    /// Panel "Actualizar" and tray "Actualizar ahora": refresh usage providers and sensors, joining in-flight work.
-    /// The panel button reads "Actualizando" and stays disabled until everything has finished.
+    /// Tray "Actualizar ahora": refresh usage providers and sensors, joining in-flight work.
     private async Task RefreshEverythingAsync()
     {
         if (_manualRefresh || _edge is null) return;
         _manualRefresh = true;
-        _edge.SetRefreshing(true);
         Log.Trace("Refresh", "manual refresh started");
         var clock = Stopwatch.StartNew();
         try
@@ -359,7 +364,6 @@ public partial class App : Application
         }
         finally
         {
-            _edge.SetRefreshing(false);
             _manualRefresh = false;
             Log.Trace("Refresh", $"manual refresh finished in {clock.ElapsedMilliseconds} ms");
         }
@@ -549,6 +553,7 @@ public partial class App : Application
         _warmupTimer?.Stop();
         _tray?.Dispose();
         _sensors?.Dispose();
+        ThemeManager.Shutdown();
         if (_mutex is not null)
         {
             try { _mutex.ReleaseMutex(); }

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
 using OpenControlEdge.Services;
+using OpenControlEdge.Ui;
 
 namespace OpenControlEdge.Views;
 
@@ -12,8 +13,8 @@ public partial class ApiKeyWindow : Window
     internal ApiKeyWindow(string? focusProvider = null, bool previewMode = false)
     {
         InitializeComponent();
-        DeepSeekStatus.Text = !previewMode && ProviderKeyStore.IsConfigured("deepseek") ? "Guardada" : "Sin clave";
-        OpenRouterStatus.Text = !previewMode && ProviderKeyStore.IsConfigured("openrouter") ? "Guardada" : "Sin clave";
+        DeepSeekStatus.Text = !previewMode && ProviderKeyStore.IsConfigured("deepseek") ? Loc.Get("Keys.Saved") : Loc.Get("Keys.None");
+        OpenRouterStatus.Text = !previewMode && ProviderKeyStore.IsConfigured("openrouter") ? Loc.Get("Keys.Saved") : Loc.Get("Keys.None");
         Loaded += (_, _) => (focusProvider == "openrouter" ? OpenRouterKey : DeepSeekKey).Focus();
     }
 
@@ -31,7 +32,7 @@ public partial class ApiKeyWindow : Window
         byte[] bytes = Array.Empty<byte>();
         try
         {
-            if (secure.Length == 0) { status.Text = "Escribe una clave"; return; }
+            if (secure.Length == 0) { status.Text = Loc.Get("Keys.Empty"); return; }
             pointer = Marshal.SecureStringToGlobalAllocUnicode(secure);
             chars = new char[secure.Length];
             Marshal.Copy(pointer, chars, 0, chars.Length);
@@ -39,12 +40,12 @@ public partial class ApiKeyWindow : Window
             int length = chars.Length;
             while (length > 0 && char.IsWhiteSpace(chars[start])) { start++; length--; }
             while (length > 0 && char.IsWhiteSpace(chars[start + length - 1])) length--;
-            if (length == 0) { status.Text = "Escribe una clave"; return; }
+            if (length == 0) { status.Text = Loc.Get("Keys.Empty"); return; }
             bytes = Encoding.UTF8.GetBytes(chars, start, length);
-            status.Text = ProviderKeyStore.Save(provider, bytes) ? "Guardada" : "No se pudo guardar";
+            status.Text = ProviderKeyStore.Save(provider, bytes) ? Loc.Get("Keys.Saved") : Loc.Get("Keys.SaveFailed");
             box.Clear();
         }
-        catch { status.Text = "No se pudo guardar"; }
+        catch { status.Text = Loc.Get("Keys.SaveFailed"); }
         finally
         {
             if (pointer != IntPtr.Zero) Marshal.ZeroFreeGlobalAllocUnicode(pointer);
@@ -56,7 +57,7 @@ public partial class ApiKeyWindow : Window
 
     private static void DeleteKey(string provider, System.Windows.Controls.PasswordBox box, System.Windows.Controls.TextBlock status)
     {
-        status.Text = ProviderKeyStore.Delete(provider) ? "Borrada" : "No se pudo borrar";
+        status.Text = ProviderKeyStore.Delete(provider) ? Loc.Get("Keys.Deleted") : Loc.Get("Keys.DeleteFailed");
         box.Clear();
     }
 }

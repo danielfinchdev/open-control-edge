@@ -19,6 +19,11 @@ public sealed class RingGauge : FrameworkElement
         nameof(TrackBrush), typeof(Brush), typeof(RingGauge),
         new FrameworkPropertyMetadata(Palette.Track, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// Colour of the centre logo (the theme's text colour).
+    public static readonly DependencyProperty IconBrushProperty = DependencyProperty.Register(
+        nameof(IconBrush), typeof(Brush), typeof(RingGauge),
+        new FrameworkPropertyMetadata(Brushes.White, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty StrokeThicknessProperty = DependencyProperty.Register(
         nameof(StrokeThickness), typeof(double), typeof(RingGauge),
         new FrameworkPropertyMetadata(4.0, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -48,6 +53,12 @@ public sealed class RingGauge : FrameworkElement
     {
         get => (Brush)GetValue(TrackBrushProperty);
         set => SetValue(TrackBrushProperty, value);
+    }
+
+    public Brush IconBrush
+    {
+        get => (Brush)GetValue(IconBrushProperty);
+        set => SetValue(IconBrushProperty, value);
     }
 
     public double StrokeThickness
@@ -95,7 +106,7 @@ public sealed class RingGauge : FrameworkElement
             double iconSize = IconSize;
             dc.PushTransform(new TranslateTransform(center.X - iconSize / 2, center.Y - iconSize / 2));
             dc.PushTransform(new ScaleTransform(iconSize / 24, iconSize / 24));
-            dc.DrawDrawing(icon);
+            dc.DrawDrawing(Icons.Tint(icon, IconBrush is SolidColorBrush tint ? tint.Color : Colors.White));
             dc.Pop();
             dc.Pop();
         }

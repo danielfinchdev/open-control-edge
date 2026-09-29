@@ -1,14 +1,15 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using OpenControlEdge.Services;
 using OpenControlEdge.Ui;
 using static OpenControlEdge.Interop.NativeMethods;
@@ -20,7 +21,8 @@ namespace OpenControlEdge.Views;
 /// animations instead of moving HWNDs.
 ///
 /// Two modes: Pinned (panel always expanded, default) and Auto (collapses to a strip, expands on hover).
-/// The panel carries a mode button ("Ocultar" / "Fijar") and a close button. Provider and sensor rings can come and go.
+/// The panel ends in three round buttons: pin/hide, settings and close. Provider and sensor rings can come and go.
+/// Everything is laid out in design units and scaled as a whole to the monitor's work area (ApplyScale).
 /// Hover is driven by polling the cursor position: while collapsed the window is click-through
 /// (WS_EX_TRANSPARENT) and receives no mouse input at all, so events could not detect the strip.
 public partial class EdgeWindow : Window
@@ -34,7 +36,7 @@ public partial class EdgeWindow : Window
     internal const int RingCpu = 6;
     internal const int RingGpu = 7;
 
-    // Geometry in DIPs — the original design scaled to 85 %.
+    // Geometry in design units â€” the original design scaled to 85 %. RootScale maps them to DIPs.
     private const double PanelWidth = 94;
     private const double StripWidth = 5;
     private const double StripHeight = 400;
@@ -44,8 +46,26 @@ public partial class EdgeWindow : Window
     private const double CardSideRoom = 12;
     private const double CardVerticalRoom = 16;  // keep the card inside the window
     private const double WindowWidthDip = CardSideRoom + CardBodyWidth + BeakLength + CardGap + PanelWidth;
-    private const double WindowHeightDip = 960;  // maximum design height
-    private double _availableHeight = WindowHeightDip;
+
+    // Automatic scale: 1.0 on a 1080p work area at 100 %, bigger on taller screens, never cut off.
+    private const double ReferenceWorkHeight = 1040;
+    private const double MinAutoScale = 0.8;
+    private const double MaxAutoScale = 1.4;
+    private const double MinFitScale = 0.6;       // only reached when all eight rings would not fit otherwise
+    private const double ScreenMargin = 4;        // DIPs kept free above and below the panel
+
+    // Round buttons: three in a row when that gives at least MinRowButtonDip, otherwise two above and one below.
+    private const double ButtonGap = 5;
+    private const double ButtonSidePadding = 8;
+    private const double RowButtonDiameter = (PanelWidth - 2 * ButtonSidePadding - 2 * ButtonGap) / 3;
+    private const double StackedButtonDiameter = 32;
+    private const double StackedButtonGap = 8;
+    private const double MinRowButtonDip = 30;
+
+    private double _scale = 1;
+    private double _windowHeightDip = ReferenceWorkHeight;
+    private double _availableHeight = ReferenceWorkHeight;  // design units
+    private double? _uiScale;
 
     private const int PanelMs = 250;
     private const int RingHoverMs = 150;
@@ -77,7 +97,13 @@ public partial class EdgeWindow : Window
     private bool _hasWindowRect;
     private ClaudeSnapshot? _claude;
     private CodexSnapshot? _codex;
+    private CodexWindow? _codexShown;
     private CursorSnapshot? _cursor;
+    private OpenCodeSnapshot? _openCode;
+    private DeepSeekSnapshot? _deepSeek;
+    private OpenRouterSnapshot? _openRouter;
+    private CpuSnapshot? _cpu;
+    private GpuSnapshot? _gpu;
     private UsageView _usageView = UsageView.Session;
     private bool _syncingTabs;
 
@@ -88,14 +114,14 @@ public partial class EdgeWindow : Window
 
     internal event Action<bool>? ExpandedChanged;
 
-    /// The panel's "Actualizar" button was pressed: refresh usage providers and sensors (the owner calls SetRefreshing).
-    internal event Action? RefreshRequested;
-
-    /// "Ocultar" (pinned → auto) or "Fijar" (auto → pinned) was pressed. The owner persists it and calls ApplyMode.
+    /// The pin/hide button was pressed: pinned â†’ auto or auto â†’ pinned. The owner persists it and calls ApplyMode.
     internal event Action<PanelMode>? ModeChangeRequested;
 
-    /// The "Sesión" / "Total" tab was switched; the rings already show it. The owner persists the choice.
+    /// The "SesiÃ³n" / "Total" tab of a card was switched; rings and card already show it. The owner persists it.
     internal event Action<UsageView>? UsageViewChanged;
+
+    /// The gear button was pressed: the owner opens the settings.
+    internal event Action? SettingsRequested;
 
     /// The panel's close button was pressed: quit the application.
     internal event Action? CloseRequested;
@@ -112,38 +138,41 @@ public partial class EdgeWindow : Window
         _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem };
         _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing };
         _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard };
-        foreach (RingGauge ring in _rings) ring.RingBrush = Palette.Other;
-        ClaudeRing.RingBrush = Palette.Claude;
-        CodexRing.RingBrush = Palette.OpenAi;
-        CpuRing.RingBrush = GpuRing.RingBrush = Palette.Green;
+        ApplyRingBrushes();
 
-        Width = WindowWidthDip;
-        Height = _availableHeight;
         Left = -32000;
         Top = -32000;
-
-        Canvas.SetLeft(Strip, WindowWidthDip - StripWidth);
-        Canvas.SetTop(Strip, (_availableHeight - StripHeight) / 2);
 
         SyncModeButton();
         SyncUsageTabs();
         Canvas.SetLeft(EdgePanel, WindowWidthDip - PanelWidth);
-        CenterPanel(animate: false);
-
         Canvas.SetLeft(Card, CardSideRoom);
         Card.Width = CardBodyWidth + BeakLength;
         Card.Height = 0;
+        LayOut(ReferenceWorkHeight);
 
         _pointerWatch = new DispatcherTimer(DispatcherPriority.Input) { Interval = FarPoll };
         _pointerWatch.Tick += OnPointerTick;
         _timeTextTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
         _timeTextTimer.Tick += (_, _) => RefreshTimeTexts();
 
+        ThemeManager.Changed += Reapply;
+        Loc.Changed += Reapply;
         SourceInitialized += OnSourceInitialized;
+        Closed += OnClosed;
         RefreshTimeTexts();
     }
 
-    // ───────────────────────────── Mode & panel buttons ─────────────────────────────
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        ThemeManager.Changed -= Reapply;
+        Loc.Changed -= Reapply;
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        _pointerWatch.Stop();
+        _timeTextTimer.Stop();
+    }
+
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Mode & panel buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     internal void ApplyMode(PanelMode mode)
     {
@@ -153,12 +182,12 @@ public partial class EdgeWindow : Window
 
         if (mode == PanelMode.Auto)
         {
-            // The label keeps saying "Ocultar" while the panel slides out; it is refreshed on the next expand.
+            // The chevron keeps pointing right while the panel slides out; it is refreshed on the next expand.
             Collapse();
         }
         else if (_expanded)
         {
-            // "Fijar" pressed on a hover-expanded panel: it simply stays open.
+            // Pinned from a hover-expanded panel: it simply stays open.
             SyncModeButton();
         }
         else
@@ -167,9 +196,15 @@ public partial class EdgeWindow : Window
         }
     }
 
-    /// Same button, same place: "Ocultar" when pinned, "Fijar" in auto mode.
-    private void SyncModeButton() =>
-        ModeButton.Content = _mode == PanelMode.Pinned ? "Ocultar" : "Fijar";
+    /// Pinned: chevron to the right ("hide into the edge"). Auto: chevron to the left ("bring the panel out").
+    private void SyncModeButton()
+    {
+        bool pinned = _mode == PanelMode.Pinned;
+        ModeIcon.Icon = pinned ? Icons.ChevronRight : Icons.ChevronLeft;
+        string tip = pinned ? "Tip.Hide" : "Tip.Pin";
+        ModeButton.SetResourceReference(ToolTipProperty, tip);
+        ModeButton.SetResourceReference(AutomationProperties.NameProperty, tip);
+    }
 
     private void OnModeClick(object sender, RoutedEventArgs e)
     {
@@ -178,40 +213,10 @@ public partial class EdgeWindow : Window
         ModeChangeRequested?.Invoke(target);
     }
 
-    /// Sets the tab without raising UsageViewChanged (used at start-up with the saved choice).
-    internal void ApplyUsageView(UsageView view)
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
-        if (_usageView == view) return;
-        _usageView = view;
-        SyncUsageTabs();
-        RefreshUsageRings();
-    }
-
-    private void SyncUsageTabs()
-    {
-        _syncingTabs = true;
-        SessionTab.IsChecked = _usageView == UsageView.Session;
-        TotalTab.IsChecked = _usageView == UsageView.Total;
-        _syncingTabs = false;
-    }
-
-    private void OnUsageViewChecked(object sender, RoutedEventArgs e)
-    {
-        if (_syncingTabs) return;
-        UsageView view = sender == TotalTab ? UsageView.Total : UsageView.Session;
-        if (_usageView == view) return;
-        Log.Trace("Edge", $"usage view -> {view}");
-        _usageView = view;
-        RefreshUsageRings();
-        UsageViewChanged?.Invoke(view);
-    }
-
-    /// Re-applies the last snapshots so the AI rings switch to the window of the selected tab.
-    private void RefreshUsageRings()
-    {
-        if (_claude is not null) SetClaude(_claude);
-        if (_codex is not null) SetCodex(_codex);
-        if (_cursor is not null) SetCursor(_cursor);
+        Log.Trace("Edge", "settings button clicked");
+        SettingsRequested?.Invoke();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -220,11 +225,69 @@ public partial class EdgeWindow : Window
         CloseRequested?.Invoke();
     }
 
-
-    private void OnRefreshClick(object sender, RoutedEventArgs e)
+    /// Sets the tab without raising UsageViewChanged (used at start-up with the saved choice).
+    internal void ApplyUsageView(UsageView view)
     {
-        Log.Trace("Edge", "refresh button clicked");
-        RefreshRequested?.Invoke();
+        if (_usageView == view) return;
+        _usageView = view;
+        SyncUsageTabs();
+        RefreshUsage();
+    }
+
+    /// The choice is global: both cards with tabs always show the same one.
+    private void SyncUsageTabs()
+    {
+        _syncingTabs = true;
+        bool total = _usageView == UsageView.Total;
+        ClaudeSessionTab.IsChecked = CodexSessionTab.IsChecked = !total;
+        ClaudeTotalTab.IsChecked = CodexTotalTab.IsChecked = total;
+        _syncingTabs = false;
+    }
+
+    private void OnUsageViewChecked(object sender, RoutedEventArgs e)
+    {
+        if (_syncingTabs) return;
+        UsageView view = sender == ClaudeTotalTab || sender == CodexTotalTab ? UsageView.Total : UsageView.Session;
+        if (_usageView == view) return;
+        Log.Trace("Edge", $"usage view -> {view}");
+        _usageView = view;
+        SyncUsageTabs();
+        RefreshUsage();
+        UsageViewChanged?.Invoke(view);
+    }
+
+    /// Re-applies the last snapshots so rings and card rows switch to the window of the selected tab.
+    private void RefreshUsage()
+    {
+        if (_claude is not null) SetClaude(_claude);
+        if (_codex is not null) SetCodex(_codex);
+        if (_cursor is not null) SetCursor(_cursor);
+    }
+
+    /// Theme or language changed: repaint everything composed in code from the last readings.
+    private void Reapply()
+    {
+        ApplyRingBrushes();
+        SyncModeButton();
+        RefreshUsage();
+        if (_openCode is not null) SetOpenCode(_openCode);
+        if (_deepSeek is not null) SetDeepSeek(_deepSeek);
+        if (_openRouter is not null) SetOpenRouter(_openRouter);
+        if (_cpu is not null) SetCpu(_cpu);
+        if (_gpu is not null) SetGpu(_gpu);
+        RefreshTimeTexts();
+        CardContent.InvalidateMeasure();
+        CenterPanel(animate: false);
+        if (_cardVisible) PlaceCard(animate: false);
+    }
+
+    /// Resting colours of rings that have no reading yet; readings repaint their own ring.
+    private void ApplyRingBrushes()
+    {
+        foreach (RingGauge ring in _rings) ring.RingBrush = Palette.Other;
+        ClaudeRing.RingBrush = Palette.Claude;
+        CodexRing.RingBrush = Palette.OpenAi;
+        CpuRing.RingBrush = GpuRing.RingBrush = Palette.Low;
     }
 
     private void OnClaudeClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -236,29 +299,23 @@ public partial class EdgeWindow : Window
     /// Shown on the Claude card while the session is being renewed.
     internal void SetClaudeRenewing()
     {
-        ClearRing(ClaudeRing, ClaudeLabel, "…");
+        ClearRing(ClaudeRing, ClaudeLabel, "â€¦");
         ClaudeMetrics.Visibility = Visibility.Collapsed;
-        ClaudeMessage.Text = "Renovando la sesión…";
+        ClaudeTabs.Visibility = Visibility.Collapsed;
+        ClaudeMessage.Text = Loc.Get("Value.Renewing");
         ClaudeMessage.Visibility = Visibility.Visible;
         if (_cardVisible) PlaceCard(animate: true);
     }
 
     /// The renewal could not start: puts the last reading back and says why on the card, instead of leaving
-    /// "Renovando la sesión…" behind. The next usage refresh replaces the message.
+    /// "Renovando la sesiÃ³nâ€¦" behind. The next usage refresh replaces the message.
     internal void SetClaudeRenewFailed(string message)
     {
         if (_claude is not null) SetClaude(_claude);
         else ClearRing(ClaudeRing, ClaudeLabel);
-        ClaudeMessage.Text = message;
+        ClaudeMessage.Text = Loc.Message(message);
         ClaudeMessage.Visibility = Visibility.Visible;
         if (_cardVisible) PlaceCard(animate: true);
-    }
-
-    /// While a full refresh runs the button reads "Actualizando" and is disabled.
-    internal void SetRefreshing(bool refreshing)
-    {
-        RefreshButton.Content = refreshing ? "Actualizando" : "Actualizar";
-        RefreshButton.IsEnabled = !refreshing;
     }
 
     /// Vertically centres the panel; its height changes when a ring is shown or hidden.
@@ -274,7 +331,96 @@ public partial class EdgeWindow : Window
         Animate(EdgePanel, Canvas.TopProperty, _panelTop, animate ? PanelMs : 0);
     }
 
-    // ───────────────────────────── Data ─────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Scale â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    /// "uiScale" from the settings: a fixed scale, or null for automatic. Takes effect immediately.
+    internal void ApplyScale(double? uiScale)
+    {
+        _uiScale = uiScale is double s ? Math.Clamp(s, SettingsStore.MinUiScale, SettingsStore.MaxUiScale) : null;
+        if (PreviewMode || !_hasWindowRect) LayOut(_windowHeightDip);
+        else PositionOnPrimaryScreen();
+    }
+
+    /// Snapshot support: lays the window out as if the monitor's work area were this many DIPs tall.
+    internal void PreviewWorkArea(double workHeightDip) => LayOut(workHeightDip);
+
+    internal double Scale => _scale;
+
+    /// Picks the scale for a work area of the given height (DIPs) and lays the canvas out in design units.
+    /// Automatic: proportional to the work area, limited to MinAutoScaleâ€“MaxAutoScale so the vectors stay crisp.
+    /// Either way it never exceeds what fits the panel with all eight rings, so nothing is ever cut off.
+    private void LayOut(double workHeightDip)
+    {
+        double preferred = _uiScale ?? Math.Clamp(workHeightDip / ReferenceWorkHeight, MinAutoScale, MaxAutoScale);
+        double fit = (workHeightDip - 2 * ScreenMargin) / FullPanelHeight();
+        _scale = Math.Round(Math.Max(MinFitScale, Math.Min(preferred, fit)), 3);
+        _windowHeightDip = workHeightDip;
+        _availableHeight = workHeightDip / _scale;
+
+        RootScale.ScaleX = RootScale.ScaleY = _scale;
+        Root.Width = WindowWidthDip;
+        Root.Height = _availableHeight;
+        Width = WindowWidthDip * _scale;
+        Height = workHeightDip;
+
+        Strip.Width = StripWidth / _scale;
+        Strip.Height = Math.Min(StripHeight, _availableHeight);
+        Canvas.SetLeft(Strip, WindowWidthDip - Strip.Width);
+        Canvas.SetTop(Strip, (_availableHeight - Strip.Height) / 2);
+
+        LayOutButtons();
+        CenterPanel(animate: false);
+        if (_cardVisible) PlaceCard(animate: false);
+        Log.Trace("Edge", $"scale {_scale} (preferred {preferred:0.###}, fit {fit:0.###}) for {workHeightDip:0} DIP");
+    }
+
+    /// Height of the panel (design units) with every ring shown, whatever is visible right now, so the scale does
+    /// not jump when a provider appears.
+    private double FullPanelHeight()
+    {
+        var saved = new Visibility[_ringItems.Length];
+        for (int i = 0; i < _ringItems.Length; i++)
+        {
+            saved[i] = _ringItems[i].Visibility;
+            _ringItems[i].Visibility = Visibility.Visible;
+        }
+        LayOutButtons();
+        PanelStack.InvalidateMeasure();
+        PanelRoot.InvalidateMeasure();
+        EdgePanel.InvalidateMeasure();
+        EdgePanel.Measure(new Size(PanelWidth, double.PositiveInfinity));
+        double height = EdgePanel.DesiredSize.Height;
+        for (int i = 0; i < _ringItems.Length; i++) _ringItems[i].Visibility = saved[i];
+        return height;
+    }
+
+    /// Three buttons in one row if each would be at least MinRowButtonDip wide on screen, else two plus one below.
+    private void LayOutButtons()
+    {
+        bool row = RowButtonDiameter * _scale >= MinRowButtonDip;
+        double diameter = row ? RowButtonDiameter : StackedButtonDiameter;
+        double gap = row ? ButtonGap : StackedButtonGap;
+
+        Panel target = row ? ButtonRowTop : ButtonRowBottom;
+        if (CloseButton.Parent != target)
+        {
+            ((Panel)CloseButton.Parent).Children.Remove(CloseButton);
+            target.Children.Add(CloseButton);
+        }
+
+        ModeButton.Margin = new Thickness(0);
+        SettingsButton.Margin = new Thickness(gap, 0, 0, 0);
+        CloseButton.Margin = row ? new Thickness(gap, 0, 0, 0) : new Thickness(0, gap, 0, 0);
+        foreach (Button button in new[] { ModeButton, SettingsButton, CloseButton })
+        {
+            button.Width = button.Height = diameter;
+            if (button.Content is FrameworkElement icon) icon.Width = icon.Height = Math.Round(diameter * 0.5);
+        }
+    }
+
+    internal bool ButtonsInOneRow => CloseButton.Parent == ButtonRowTop;
+
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     internal void SetClaude(ClaudeSnapshot snapshot)
     {
@@ -286,24 +432,28 @@ public partial class EdgeWindow : Window
         if (snapshot.Session is UsageWindow session)
         {
             // "Total" shows the weekly limit; "--" when the response carried none.
-            if ((_usageView == UsageView.Total ? snapshot.Weekly : session) is UsageWindow ringWindow)
+            bool total = _usageView == UsageView.Total;
+            if ((total ? snapshot.Weekly : session) is UsageWindow ringWindow)
                 SetUsageRing(ClaudeRing, ClaudeLabel, Palette.Claude, ringWindow.Percent);
             else
                 ClearRing(ClaudeRing, ClaudeLabel);
 
             SetPercentBar(SessionBar, session.Percent);
-            SessionValue.Text = $"{Fmt.Percent(session.Percent)} usado";
+            SessionValue.Text = Fmt.Used(session.Percent);
 
             if (snapshot.Weekly is UsageWindow weekly)
             {
                 SetPercentBar(WeeklyBar, weekly.Percent);
-                WeeklyValue.Text = $"{Fmt.Percent(weekly.Percent)} usado";
+                WeeklyValue.Text = Fmt.Used(weekly.Percent);
             }
             else
             {
                 ClearBar(WeeklyBar);
                 WeeklyValue.Text = "--";
             }
+
+            ClaudeSessionRow.Visibility = total ? Visibility.Collapsed : Visibility.Visible;
+            ClaudeWeeklyRow.Visibility = total ? Visibility.Visible : Visibility.Collapsed;
 
             if (snapshot.Spent is Money spent)
             {
@@ -315,14 +465,16 @@ public partial class EdgeWindow : Window
                 ClaudeSpendRow.Visibility = Visibility.Collapsed;
             }
 
+            ClaudeTabs.Visibility = Visibility.Visible;
             ClaudeMetrics.Visibility = Visibility.Visible;
             ClaudeMessage.Visibility = Visibility.Collapsed;
         }
         else
         {
             ClearRing(ClaudeRing, ClaudeLabel);
+            ClaudeTabs.Visibility = Visibility.Collapsed;
             ClaudeMetrics.Visibility = Visibility.Collapsed;
-            ClaudeMessage.Text = snapshot.Message ?? "Sin datos";
+            ClaudeMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             ClaudeMessage.Visibility = Visibility.Visible;
         }
 
@@ -339,33 +491,25 @@ public partial class EdgeWindow : Window
 
         if (snapshot.Primary is CodexWindow primary)
         {
-            CodexWindow ringWindow = CodexRingWindow(primary, snapshot.Secondary);
-            SetUsageRing(CodexRing, CodexLabel, Palette.OpenAi, ringWindow.Percent);
+            CodexWindow shown = CodexRingWindow(primary, snapshot.Secondary);
+            _codexShown = shown;
+            SetUsageRing(CodexRing, CodexLabel, Palette.OpenAi, shown.Percent);
 
-            CodexPrimaryLabel.Text = Fmt.WindowLabel(primary.Length);
-            SetPercentBar(CodexPrimaryBar, primary.Percent);
-            CodexPrimaryValue.Text = $"{Fmt.Percent(primary.Percent)} usado";
+            CodexWindowLabel.Text = Fmt.WindowLabel(shown.Length);
+            SetPercentBar(CodexBar, shown.Percent);
+            CodexValue.Text = Fmt.Used(shown.Percent);
 
-            if (snapshot.Secondary is CodexWindow secondary)
-            {
-                CodexSecondaryLabel.Text = Fmt.WindowLabel(secondary.Length);
-                SetPercentBar(CodexSecondaryBar, secondary.Percent);
-                CodexSecondaryValue.Text = $"{Fmt.Percent(secondary.Percent)} usado";
-                CodexSecondaryRow.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                CodexSecondaryRow.Visibility = Visibility.Collapsed;
-            }
-
+            CodexTabs.Visibility = snapshot.Secondary is null ? Visibility.Collapsed : Visibility.Visible;
             CodexMetrics.Visibility = Visibility.Visible;
             CodexMessage.Visibility = Visibility.Collapsed;
         }
         else
         {
+            _codexShown = null;
             ClearRing(CodexRing, CodexLabel);
+            CodexTabs.Visibility = Visibility.Collapsed;
             CodexMetrics.Visibility = Visibility.Collapsed;
-            CodexMessage.Text = snapshot.Message ?? "Sin datos";
+            CodexMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             CodexMessage.Visibility = Visibility.Visible;
         }
 
@@ -385,11 +529,11 @@ public partial class EdgeWindow : Window
         {
             SetUsageRing(CursorRing, CursorLabel, Palette.Other, cycle.Percent);
             SetPercentBar(CursorCycleBar, cycle.Percent);
-            CursorCycleValue.Text = $"{Fmt.Percent(cycle.Percent)} usado";
+            CursorCycleValue.Text = Fmt.Used(cycle.Percent);
             if (snapshot.OnDemand is UsageWindow onDemand)
             {
                 SetPercentBar(CursorOnDemandBar, onDemand.Percent);
-                CursorOnDemandValue.Text = $"{Fmt.Percent(onDemand.Percent)} usado";
+                CursorOnDemandValue.Text = Fmt.Used(onDemand.Percent);
                 CursorOnDemandRow.Visibility = Visibility.Visible;
             }
             else CursorOnDemandRow.Visibility = Visibility.Collapsed;
@@ -400,7 +544,7 @@ public partial class EdgeWindow : Window
         {
             ClearRing(CursorRing, CursorLabel);
             CursorMetrics.Visibility = Visibility.Collapsed;
-            CursorMessage.Text = snapshot.Message ?? "Sin datos";
+            CursorMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             CursorMessage.Visibility = Visibility.Visible;
         }
 
@@ -408,7 +552,7 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
-    /// "Sesión" → the shorter window, "Total" → the longer one. With a single window (e.g. the monthly one of the
+    /// "SesiÃ³n" â†’ the shorter window, "Total" â†’ the longer one. With a single window (e.g. the monthly one of the
     /// Go plan) both tabs show it.
     private CodexWindow CodexRingWindow(CodexWindow primary, CodexWindow? secondary)
     {
@@ -428,6 +572,7 @@ public partial class EdgeWindow : Window
 
     internal void SetOpenCode(OpenCodeSnapshot snapshot)
     {
+        _openCode = snapshot;
         SetRingVisible(RingOpenCode, !snapshot.Hidden);
         if (snapshot.Hidden) return;
         if (snapshot.Message is null && snapshot.CostUsd is decimal cost)
@@ -436,10 +581,10 @@ public partial class EdgeWindow : Window
                 + snapshot.TokensCacheRead + snapshot.TokensCacheWrite;
             OpenCodeLabel.Text = CompactCount(total);
             Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
-            OpenCodeInput.Text = snapshot.TokensIn.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
-            OpenCodeOutput.Text = snapshot.TokensOut.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
-            OpenCodeReasoning.Text = snapshot.TokensReasoning.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
-            OpenCodeCache.Text = $"{snapshot.TokensCacheRead.ToString("N0", CultureInfo.GetCultureInfo("es-ES"))} / {snapshot.TokensCacheWrite.ToString("N0", CultureInfo.GetCultureInfo("es-ES"))}";
+            OpenCodeInput.Text = snapshot.TokensIn.ToString("N0", Loc.Culture);
+            OpenCodeOutput.Text = snapshot.TokensOut.ToString("N0", Loc.Culture);
+            OpenCodeReasoning.Text = snapshot.TokensReasoning.ToString("N0", Loc.Culture);
+            OpenCodeCache.Text = $"{snapshot.TokensCacheRead.ToString("N0", Loc.Culture)} / {snapshot.TokensCacheWrite.ToString("N0", Loc.Culture)}";
             OpenCodeCost.Text = Fmt.Amount(new Money(cost, "USD"));
             OpenCodeMetrics.Visibility = Visibility.Visible;
             OpenCodeMessage.Visibility = Visibility.Collapsed;
@@ -449,7 +594,7 @@ public partial class EdgeWindow : Window
             OpenCodeLabel.Text = "--";
             Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
             OpenCodeMetrics.Visibility = Visibility.Collapsed;
-            OpenCodeMessage.Text = snapshot.Message ?? "Sin datos";
+            OpenCodeMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             OpenCodeMessage.Visibility = Visibility.Visible;
         }
         if (_cardVisible) PlaceCard(animate: true);
@@ -457,6 +602,7 @@ public partial class EdgeWindow : Window
 
     internal void SetDeepSeek(DeepSeekSnapshot snapshot)
     {
+        _deepSeek = snapshot;
         SetRingVisible(RingDeepSeek, !snapshot.Hidden);
         if (snapshot.Hidden) return;
         if (snapshot.Balance is Money balance)
@@ -472,7 +618,7 @@ public partial class EdgeWindow : Window
             DeepSeekLabel.Text = "--";
             Animate(DeepSeekRing, RingGauge.ValueProperty, 0, 300);
             DeepSeekMetrics.Visibility = Visibility.Collapsed;
-            DeepSeekMessage.Text = snapshot.Message ?? "Sin datos";
+            DeepSeekMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             DeepSeekMessage.Visibility = Visibility.Visible;
         }
         if (_cardVisible) PlaceCard(animate: true);
@@ -480,6 +626,7 @@ public partial class EdgeWindow : Window
 
     internal void SetOpenRouter(OpenRouterSnapshot snapshot)
     {
+        _openRouter = snapshot;
         SetRingVisible(RingOpenRouter, !snapshot.Hidden);
         if (snapshot.Hidden) return;
         if (snapshot.Message is null)
@@ -488,8 +635,8 @@ public partial class EdgeWindow : Window
             {
                 double percent = (double)Math.Clamp(snapshot.UsageUsd / limit * 100, 0, 100);
                 SetUsageRing(OpenRouterRing, OpenRouterLabel, Palette.Other, percent);
-                OpenRouterMetricLabel.Text = "Uso del límite";
-                OpenRouterUsage.Text = $"{Fmt.Amount(new Money(snapshot.UsageUsd, "USD"))} de {Fmt.Amount(new Money(limit, "USD"))}";
+                OpenRouterMetricLabel.Text = Loc.Get("Row.LimitUsage");
+                OpenRouterUsage.Text = Loc.Format("Value.Of", Fmt.Amount(new Money(snapshot.UsageUsd, "USD")), Fmt.Amount(new Money(limit, "USD")));
                 OpenRouterRemainingLabel.Visibility = Visibility.Visible;
                 OpenRouterRemaining.Visibility = Visibility.Visible;
                 OpenRouterRemaining.Text = Fmt.Amount(new Money(remaining, "USD"));
@@ -497,7 +644,7 @@ public partial class EdgeWindow : Window
             else
             {
                 ClearRing(OpenRouterRing, OpenRouterLabel, CompactMoney(new Money(snapshot.UsageUsd, "USD")));
-                OpenRouterMetricLabel.Text = "Gasto acumulado";
+                OpenRouterMetricLabel.Text = Loc.Get("Row.TotalSpend");
                 OpenRouterUsage.Text = Fmt.Amount(new Money(snapshot.UsageUsd, "USD"));
                 OpenRouterRemainingLabel.Visibility = Visibility.Collapsed;
                 OpenRouterRemaining.Visibility = Visibility.Collapsed;
@@ -509,23 +656,24 @@ public partial class EdgeWindow : Window
         {
             ClearRing(OpenRouterRing, OpenRouterLabel);
             OpenRouterMetrics.Visibility = Visibility.Collapsed;
-            OpenRouterMessage.Text = snapshot.Message;
+            OpenRouterMessage.Text = Loc.Message(snapshot.Message);
             OpenRouterMessage.Visibility = Visibility.Visible;
         }
         if (_cardVisible) PlaceCard(animate: true);
     }
 
     private static string CompactCount(decimal value) => value >= 1_000_000 ? $"{value / 1_000_000m:0.#}M"
-        : value >= 10_000 ? $"{value / 1_000m:0.#}K" : value.ToString("N0", CultureInfo.GetCultureInfo("es-ES"));
+        : value >= 10_000 ? $"{value / 1_000m:0.#}K" : value.ToString("N0", Loc.Culture);
 
     private static string CompactMoney(Money money)
     {
-        string symbol = money.Currency == "USD" ? "$" : money.Currency == "CNY" ? "¥" : money.Currency;
+        string symbol = money.Currency == "USD" ? "$" : money.Currency == "CNY" ? "Â¥" : money.Currency;
         return money.Amount >= 1000 ? $"{symbol}{money.Amount / 1000m:0.#}k" : $"{symbol}{money.Amount:0.##}";
     }
 
     internal void SetCpu(CpuSnapshot snapshot)
     {
+        _cpu = snapshot;
         if (snapshot.Temperature is double temperature)
         {
             ResetTemperatureLabel(CpuLabel);
@@ -535,7 +683,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(CpuRing, CpuLabel, "Instala PawnIO para ver la temperatura"); SetPawnIoLabel(CpuLabel); }
+            if (snapshot.Message == "PawnIO no estÃ¡ instalado") { ClearRing(CpuRing, CpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(CpuLabel); }
             else { ResetTemperatureLabel(CpuLabel); ClearRing(CpuRing, CpuLabel); }
             ClearBar(TempBar);
             TempValue.Text = "--";
@@ -555,7 +703,7 @@ public partial class EdgeWindow : Window
         if (snapshot.Load is double load)
         {
             SetPercentBar(LoadBar, load);
-            LoadValue.Text = $"{Fmt.Percent(load)} en uso";
+            LoadValue.Text = Loc.Format("Value.InUse", Fmt.Percent(load));
         }
         else
         {
@@ -564,10 +712,11 @@ public partial class EdgeWindow : Window
         }
 
         CpuTitle.Text = ShortHardwareName(snapshot.Name, "CPU");
-        if (CpuMessage.Text != snapshot.Message || (CpuMessage.Visibility == Visibility.Visible) != (snapshot.Message is not null))
+        string? message = Loc.Message(snapshot.Message);
+        if (CpuMessage.Text != (message ?? string.Empty) || (CpuMessage.Visibility == Visibility.Visible) != (message is not null))
         {
-            CpuMessage.Text = snapshot.Message ?? string.Empty;
-            CpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+            CpuMessage.Text = message ?? string.Empty;
+            CpuMessage.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
             CardContent.InvalidateMeasure();
         }
 
@@ -577,6 +726,7 @@ public partial class EdgeWindow : Window
 
     internal void SetGpu(GpuSnapshot snapshot)
     {
+        _gpu = snapshot;
         SetRingVisible(RingGpu, snapshot.Detected);
         if (!snapshot.Detected) return;
 
@@ -589,7 +739,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(GpuRing, GpuLabel, "Instala PawnIO para ver la temperatura"); SetPawnIoLabel(GpuLabel); }
+            if (snapshot.Message == "PawnIO no estÃ¡ instalado") { ClearRing(GpuRing, GpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(GpuLabel); }
             else { ResetTemperatureLabel(GpuLabel); ClearRing(GpuRing, GpuLabel); }
             ClearBar(GpuTempBar);
             GpuTempValue.Text = "--";
@@ -598,7 +748,7 @@ public partial class EdgeWindow : Window
         if (snapshot.Load is double load)
         {
             SetPercentBar(GpuLoadBar, load);
-            GpuLoadValue.Text = $"{Fmt.Percent(load)} en uso";
+            GpuLoadValue.Text = Loc.Format("Value.InUse", Fmt.Percent(load));
         }
         else
         {
@@ -612,7 +762,7 @@ public partial class EdgeWindow : Window
             {
                 SetPercentBar(GpuMemoryBar, used / total * 100);
                 GpuMemoryBar.Visibility = Visibility.Visible;
-                GpuMemoryValue.Text = $"{Fmt.Megabytes(used)} de {Fmt.Megabytes(total)}";
+                GpuMemoryValue.Text = Loc.Format("Value.Of", Fmt.Megabytes(used), Fmt.Megabytes(total));
             }
             else
             {
@@ -627,10 +777,11 @@ public partial class EdgeWindow : Window
         }
 
         GpuTitle.Text = ShortHardwareName(snapshot.Name, "GPU");
-        if (GpuMessage.Text != snapshot.Message || (GpuMessage.Visibility == Visibility.Visible) != (snapshot.Message is not null))
+        string? message = Loc.Message(snapshot.Message);
+        if (GpuMessage.Text != (message ?? string.Empty) || (GpuMessage.Visibility == Visibility.Visible) != (message is not null))
         {
-            GpuMessage.Text = snapshot.Message ?? string.Empty;
-            GpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+            GpuMessage.Text = message ?? string.Empty;
+            GpuMessage.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
             CardContent.InvalidateMeasure();
         }
 
@@ -645,9 +796,6 @@ public partial class EdgeWindow : Window
         Log.Trace("Edge", $"ring {index} {(visible ? "shown" : "hidden")}");
 
         item.Visibility = target;
-        bool anyUsageRing = _ringItems[RingClaude].Visibility == Visibility.Visible
-                            || _ringItems[RingCodex].Visibility == Visibility.Visible;
-        UsageTabs.Visibility = anyUsageRing ? Visibility.Visible : Visibility.Collapsed;
         if (!visible)
         {
             if (_hoveredRing == index)
@@ -656,6 +804,15 @@ public partial class EdgeWindow : Window
                 _hoveredRing = -1;
             }
             if (_cardVisible && _activeRing == index) HideCard();
+        }
+
+        // The first visible ring carries no top margin, so the panel starts at the same place whichever it is.
+        bool first = true;
+        foreach (FrameworkElement ringItem in _ringItems)
+        {
+            if (ringItem.Visibility != Visibility.Visible) continue;
+            ringItem.Margin = new Thickness(0, first ? 0 : 10, 0, 0);
+            first = false;
         }
 
         CenterPanel(animate: _expanded);
@@ -667,10 +824,9 @@ public partial class EdgeWindow : Window
         var now = DateTimeOffset.Now;
         ClaudeHeaderReset.Text = _claude?.Session is UsageWindow session ? Fmt.Reset(session.ResetsAt, now) : string.Empty;
         WeeklyReset.Text = _claude?.Weekly is UsageWindow weekly ? Fmt.Reset(weekly.ResetsAt, now) : string.Empty;
-        CodexHeaderReset.Text = _codex?.Primary is CodexWindow primary ? Fmt.Reset(primary.ResetsAt, now) : string.Empty;
-        CodexSecondaryReset.Text = _codex?.Secondary is CodexWindow secondary ? Fmt.Reset(secondary.ResetsAt, now) : string.Empty;
+        CodexReset.Text = _codexShown is CodexWindow shown ? Fmt.Reset(shown.ResetsAt, now) : string.Empty;
         CursorHeaderReset.Text = _cursor?.Cycle is UsageWindow cursorCycle ? Fmt.Reset(cursorCycle.ResetsAt, now) : string.Empty;
-        CpuSince.Text = $"desde las {_sessionStart:HH:mm}";
+        CpuSince.Text = Loc.Format("Card.Since", _sessionStart);
     }
 
     /// Usage ring: the provider's colour; above Palette.AlertPercent both the arc and the percentage turn red.
@@ -679,24 +835,31 @@ public partial class EdgeWindow : Window
         ring.RingBrush = Palette.ForRing(brand, percent);
         Animate(ring, RingGauge.ValueProperty, Fraction(percent), 600);
         label.Text = Fmt.Percent(percent);
-        label.Foreground = Palette.IsAlert(percent) ? Palette.Red : Brushes.White;
+        SetLabelAlert(label, Palette.IsAlert(percent));
     }
 
-    /// Temperature ring: green / yellow / red by band, and the reading turns red with the arc.
+    /// Temperature ring: low / medium / red by band, and the reading turns red with the arc.
     private void SetTemperatureRing(RingGauge ring, TextBlock label, double celsius)
     {
         SolidColorBrush brush = Palette.ForTemperature(celsius);
         ring.RingBrush = brush;
         Animate(ring, RingGauge.ValueProperty, Fraction(celsius), 600);
         label.Text = Fmt.Celsius(celsius);
-        label.Foreground = brush == Palette.Red ? Palette.Red : Brushes.White;
+        SetLabelAlert(label, brush == Palette.Red);
     }
 
     private void ClearRing(RingGauge ring, TextBlock label, string text = "--")
     {
         Animate(ring, RingGauge.ValueProperty, 0, 300);
         label.Text = text;
-        label.Foreground = Brushes.White;
+        SetLabelAlert(label, false);
+    }
+
+    /// Red in alert; otherwise back to the RingLabel style, which follows the theme's text colour.
+    private static void SetLabelAlert(TextBlock label, bool alert)
+    {
+        if (alert) label.Foreground = Palette.Red;
+        else label.ClearValue(TextBlock.ForegroundProperty);
     }
 
     private static void SetPawnIoLabel(TextBlock label)
@@ -709,10 +872,10 @@ public partial class EdgeWindow : Window
 
     private static void ResetTemperatureLabel(TextBlock label)
     {
-        label.FontSize = 16;
+        label.ClearValue(TextBlock.FontSizeProperty);
         label.TextWrapping = TextWrapping.NoWrap;
         label.MaxWidth = double.PositiveInfinity;
-        label.Margin = new Thickness(0, 8, 0, 0);
+        label.ClearValue(MarginProperty);
     }
 
     private void SetPercentBar(LinearBar bar, double percent)
@@ -739,7 +902,7 @@ public partial class EdgeWindow : Window
         return name;
     }
 
-    // ─────────────────────────── Pointer polling ───────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Pointer polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnPointerTick(object? sender, EventArgs e)
     {
@@ -767,17 +930,13 @@ public partial class EdgeWindow : Window
             return;
         }
 
-        // The close button overlaps the top of the first ring's row; hovering it must not open a card.
         int ring = -1;
-        if (!Contains(CloseButton, screen))
+        for (int i = 0; i < _ringItems.Length; i++)
         {
-            for (int i = 0; i < _ringItems.Length; i++)
+            if (_ringItems[i].Visibility == Visibility.Visible && Contains(_ringItems[i], screen))
             {
-                if (_ringItems[i].Visibility == Visibility.Visible && Contains(_ringItems[i], screen))
-                {
-                    ring = i;
-                    break;
-                }
+                ring = i;
+                break;
             }
         }
 
@@ -803,7 +962,7 @@ public partial class EdgeWindow : Window
     }
 
     /// The cursor is off the panel and off the card: drop any ring hover, then collapse once the grace period
-    /// has passed — or, when pinned, only close the card.
+    /// has passed â€” or, when pinned, only close the card.
     private void HandleCursorAway()
     {
         if (_hoveredRing >= 0)
@@ -849,7 +1008,7 @@ public partial class EdgeWindow : Window
                || (_cardVisible && Contains(Card, new Point(point.X, point.Y)));
     }
 
-    // ─────────────────────────── Expand / collapse ───────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Expand / collapse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void Expand()
     {
@@ -887,7 +1046,7 @@ public partial class EdgeWindow : Window
         ExpandedChanged?.Invoke(false);
     }
 
-    // ───────────────────────────── Rings & card ─────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Rings & card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void ScaleRing(int index, double scale)
     {
@@ -909,13 +1068,15 @@ public partial class EdgeWindow : Window
 
         if (switching)
         {
-            // Slide from the previous ring to the new one — the card never disappears.
+            // Slide from the previous ring to the new one â€” the card never disappears.
             PlaceCard(animate: true);
         }
         else
         {
             PlaceCard(animate: false);
             _cardVisible = true;
+            // The card takes clicks (its tabs) only while it is on screen.
+            Card.IsHitTestVisible = true;
             _timeTextTimer.Start();
             Animate(CardShift, TranslateTransform.XProperty, 0, 220, from: 10);
             Animate(Card, OpacityProperty, 1, 180);
@@ -927,6 +1088,7 @@ public partial class EdgeWindow : Window
         if (!_cardVisible) return;
         Log.Trace("Edge", "hide card");
         _cardVisible = false;
+        Card.IsHitTestVisible = false;
         _timeTextTimer.Stop();
         _activeRing = -1;
         Animate(Card, OpacityProperty, 0, 150);
@@ -937,9 +1099,10 @@ public partial class EdgeWindow : Window
     {
         if (_activeRing < 0) return;
 
-        // Measure only when content changes; UpdateLayout would remeasure the whole layered window on every sample.
-        if (!CardContent.IsMeasureValid)
-            CardContent.Measure(new Size(CardBodyWidth, double.PositiveInfinity));
+        // Measure only the card, never UpdateLayout (that would remeasure the whole layered window on every sample).
+        // Always unconstrained: a layout pass measures it within the card's current height (0 before the first show),
+        // and Measure itself is a no-op while neither the content nor the constraint changed.
+        CardContent.Measure(new Size(CardBodyWidth, double.PositiveInfinity));
         double height = Math.Ceiling(CardContent.DesiredSize.Height);
 
         // Measured against the panel's target top, so the card aims at where the ring ends up while the panel is
@@ -955,6 +1118,9 @@ public partial class EdgeWindow : Window
         Animate(Card, Canvas.TopProperty, top, ms);
         Animate(Card, HeightProperty, height, ms);
         Animate(CardBackground, CardShape.BeakCenterProperty, beakCenter, ms);
+        // The canvas's own size never changes, so it would keep arranging the card in its previous slot (and clip it).
+        Card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Root.InvalidateArrange();
     }
 
     private void Animate(IAnimatable target, DependencyProperty property, double to, int milliseconds, double? from = null)
@@ -984,7 +1150,7 @@ public partial class EdgeWindow : Window
         return ease;
     }
 
-    // ───────────────────────────── Window plumbing ─────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Window plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
@@ -995,6 +1161,7 @@ public partial class EdgeWindow : Window
 
         if (!PreviewMode)
         {
+            SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             PositionOnPrimaryScreen();
             SetClickThrough(true);
             _tickClock.Start();
@@ -1004,12 +1171,17 @@ public partial class EdgeWindow : Window
         if (_mode == PanelMode.Pinned) Expand();
     }
 
+    /// Resolution, DPI, monitor or taskbar changes: fit the panel to the new work area.
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (!PreviewMode && (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED))
+        if (!PreviewMode && (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED
+                             || (msg == WM_SETTINGCHANGE && wParam.ToInt64() == SPI_SETWORKAREA)))
             Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnPrimaryScreen));
         return IntPtr.Zero;
     }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnPrimaryScreen));
 
     private void SetClickThrough(bool enabled)
     {
@@ -1019,7 +1191,8 @@ public partial class EdgeWindow : Window
         else AddExtendedStyle(hwnd, 0, WS_EX_TRANSPARENT);
     }
 
-    /// Right edge of the primary monitor, vertically centred, in physical pixels.
+    /// Right edge of the primary monitor's work area, full work-area height, in physical pixels. The scale follows
+    /// the work area in DIPs (resolution and DPI together).
     private void PositionOnPrimaryScreen()
     {
         try
@@ -1031,29 +1204,21 @@ public partial class EdgeWindow : Window
             var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
             if (!GetMonitorInfo(monitor, ref info)) return;
 
-            double scale = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0
+            double dpi = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0
                 ? dpiX / 96.0
                 : VisualTreeHelper.GetDpi(this).DpiScaleX;
 
-            RECT bounds = info.rcMonitor;
-            int width = (int)Math.Round(WindowWidthDip * scale);
-            int height = Math.Min((int)Math.Round(WindowHeightDip * scale), bounds.Bottom - bounds.Top);
-            _availableHeight = height / scale;
-            Height = _availableHeight;
-            Strip.Height = Math.Min(StripHeight, _availableHeight);
-            EdgePanel.LayoutTransform = _availableHeight < 960
-                ? new ScaleTransform(1, Math.Max(0.78, _availableHeight / 960))
-                : Transform.Identity;
-            CenterPanel(animate: false);
-            Canvas.SetTop(Strip, (_availableHeight - Strip.Height) / 2);
-            int x = bounds.Right - width;
-            int y = bounds.Top + (bounds.Bottom - bounds.Top - height) / 2;
+            RECT work = info.rcWork;
+            int height = work.Bottom - work.Top;
+            LayOut(height / dpi);
+            int width = (int)Math.Round(WindowWidthDip * _scale * dpi);
+            int x = work.Right - width;
 
-            SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+            SetWindowPos(hwnd, HWND_TOPMOST, x, work.Top, width, height, SWP_NOACTIVATE);
 
             // Cached for the pointer poll's fast path; re-cached on every reposition (display or DPI change).
             _hasWindowRect = true;
-            Log.Trace("Edge", $"positioned at {x},{y} {width}x{height} (scale {scale})");
+            Log.Trace("Edge", $"positioned at {x},{work.Top} {width}x{height} (dpi {dpi}, scale {_scale})");
         }
         catch (Exception ex)
         {
@@ -1069,7 +1234,7 @@ public partial class EdgeWindow : Window
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
-    // ───────────────────────────── Snapshot support ─────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Snapshot support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     internal void ExpandNow() => Expand();
 
@@ -1083,13 +1248,19 @@ public partial class EdgeWindow : Window
         ShowCard(index);
     }
 
-    /// Renders the window content at 2× over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
+    /// Renders the window at 2Ã— over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
     internal void SaveSnapshot(string path)
     {
-        UpdateLayout();
         const double scale = 2;
+        double width = WindowWidthDip * _scale, height = _windowHeightDip;
+        // The window is never shown here, so its layout queue never runs: lay out the rendered tree directly.
+        Root.InvalidateArrange();
+        Host.InvalidateArrange();
+        Host.Measure(new Size(width, height));
+        Host.Arrange(new Rect(0, 0, width, height));
+        UpdateLayout();
         var bitmap = new RenderTargetBitmap(
-            (int)(WindowWidthDip * scale), (int)(WindowHeightDip * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            (int)Math.Round(width * scale), (int)Math.Round(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
 
         var backdrop = new DrawingVisual();
         using (DrawingContext dc = backdrop.RenderOpen())
@@ -1101,10 +1272,10 @@ public partial class EdgeWindow : Window
                 new(Color.FromRgb(0x1D, 0x4E, 0x72), 0.75),
                 new(Color.FromRgb(0xC9, 0x6A, 0x3B), 1),
             }, 90);
-            dc.DrawRectangle(gradient, null, new Rect(0, 0, WindowWidthDip, WindowHeightDip));
+            dc.DrawRectangle(gradient, null, new Rect(0, 0, width, height));
         }
         bitmap.Render(backdrop);
-        bitmap.Render(Root);
+        bitmap.Render(Host);
 
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

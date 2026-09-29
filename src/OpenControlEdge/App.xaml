@@ -4,258 +4,230 @@
              xmlns:ui="clr-namespace:OpenControlEdge.Ui"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
+        <ResourceDictionary>
+            <!-- Interface texts; Loc swaps this dictionary for Strings.en.xaml in place. -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Assets/Strings/Strings.es.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-        <!-- Edge widget sizes are the original design scaled to 85 %. -->
+            <!-- Edge widget sizes are the original design scaled to 85 %; EdgeWindow scales the whole canvas on top. -->
 
-        <!-- Geist (SIL OFL 1.1, Assets/Fonts/OFL.txt), embedded; Segoe UI only covers glyphs Geist lacks. -->
-        <FontFamily x:Key="UiFont">pack://application:,,,/Assets/Fonts/#Geist, Segoe UI</FontFamily>
+            <!-- Google Sans Flex (SIL OFL 1.1, Assets/Fonts/OFL.txt), static 400 and 600 instances embedded;
+                 Segoe UI only covers glyphs it lacks. -->
+            <FontFamily x:Key="UiFont">pack://application:,,,/Assets/Fonts/#Google Sans Flex, Segoe UI</FontFamily>
 
-        <Style x:Key="SecondaryText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#8E8E93" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
+            <!-- Colour tokens: the dark theme until ThemeManager.Apply replaces them (see ThemeManager for the rest). -->
+            <SolidColorBrush x:Key="Theme.Background" Color="#000000" />
+            <SolidColorBrush x:Key="Theme.Surface" Color="#1C1C1E" />
+            <SolidColorBrush x:Key="Theme.Raised" Color="#333336" />
+            <SolidColorBrush x:Key="Theme.Border" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="Theme.Text" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="Theme.TextSecondary" Color="#8E8E93" />
+            <SolidColorBrush x:Key="Theme.RingTrack" Color="#2A2A2A" />
+            <SolidColorBrush x:Key="Theme.Button" Color="#202022" />
+            <SolidColorBrush x:Key="Theme.ButtonHover" Color="#2E2E31" />
+            <SolidColorBrush x:Key="Theme.ButtonPressed" Color="#161618" />
+            <SolidColorBrush x:Key="Theme.Menu" Color="#0A0A0A" />
 
-        <Style x:Key="CardTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
+            <Style x:Key="SecondaryText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.TextSecondary}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
-        <!-- Name of a card row ("Sesión actual"); its reset time sits on the right in SecondaryText. -->
-        <Style x:Key="RowLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
-        <Style x:Key="ValueText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11.5" />
-            <Setter Property="Foreground" Value="White" />
-        </Style>
+            <!-- Name of a card row ("Sesión actual"); its reset time sits on the right in SecondaryText. -->
+            <Style x:Key="RowLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
-        <!-- Plan badge next to a card title ("Free", "Pro", "Max"…); collapsed while the plan is unknown. -->
-        <Style x:Key="PlanBadge" TargetType="Border">
-            <Setter Property="Background" Value="#242426" />
-            <Setter Property="CornerRadius" Value="5" />
-            <Setter Property="Padding" Value="6,1,6,2" />
-            <Setter Property="Margin" Value="8,0,0,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Visibility" Value="Collapsed" />
-        </Style>
+            <Style x:Key="ValueText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+            </Style>
 
-        <Style x:Key="PlanBadgeText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#C7C7CC" />
-        </Style>
+            <!-- Card header logo, same colour as the text. -->
+            <Style x:Key="CardIcon" TargetType="ui:IconView">
+                <Setter Property="Width" Value="18" />
+                <Setter Property="Height" Value="18" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+            </Style>
 
-        <Style x:Key="RingLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,8,0,0" />
-        </Style>
+            <!-- Plan badge next to a card title ("Free", "Pro", "Max"…); collapsed while the plan is unknown. -->
+            <Style x:Key="PlanBadge" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource Theme.Surface}" />
+                <Setter Property="CornerRadius" Value="5" />
+                <Setter Property="Padding" Value="6,1,6,2" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Style>
 
-        <!-- Every ring of the panel: thick #2A2A2A track, white logo of 22 in a 54 ring. -->
-        <Style x:Key="PanelRing" TargetType="ui:RingGauge">
-            <Setter Property="Width" Value="54" />
-            <Setter Property="Height" Value="54" />
-            <Setter Property="StrokeThickness" Value="5.5" />
-            <Setter Property="IconSize" Value="22" />
-            <Setter Property="TrackBrush" Value="#2A2A2A" />
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        </Style>
+            <Style x:Key="PlanBadgeText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="Opacity" Value="0.8" />
+            </Style>
 
-        <!-- ───── Panel buttons: one family. Same timing and easing, grey #8E8E93 at rest, white on hover. ───── -->
+            <Style x:Key="RingLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="0,7,0,0" />
+            </Style>
 
-        <Duration x:Key="PanelHoverDuration">0:0:0.15</Duration>
-        <CubicEase x:Key="PanelHoverEase" EasingMode="EaseOut" />
+            <!-- Every ring of the panel: thick track, logo of 22 in a 54 ring, both from the theme. -->
+            <Style x:Key="PanelRing" TargetType="ui:RingGauge">
+                <Setter Property="Width" Value="54" />
+                <Setter Property="Height" Value="54" />
+                <Setter Property="StrokeThickness" Value="5.5" />
+                <Setter Property="IconSize" Value="22" />
+                <Setter Property="TrackBrush" Value="{DynamicResource Theme.RingTrack}" />
+                <Setter Property="IconBrush" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            </Style>
 
-        <!-- "Ocultar" / "Fijar" / "Actualizar": text only; hover adds a #1C1C1E rounded background. -->
-        <Style x:Key="PanelTextButton" TargetType="Button">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Height="26" Padding="12,0" CornerRadius="8">
-                            <Border.Background>
-                                <!-- Same colour at zero alpha, so the fade never passes through a darker tint. -->
-                                <SolidColorBrush Color="#001C1C1E" />
-                            </Border.Background>
-                            <TextBlock x:Name="Label" VerticalAlignment="Center"
-                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}">
-                                <TextBlock.Foreground>
-                                    <SolidColorBrush Color="#8E8E93" />
-                                </TextBlock.Foreground>
-                            </TextBlock>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <!-- Hover only while enabled: a disabled button ("Actualizando") keeps the resting look. -->
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsMouseOver" Value="True" />
-                                    <Condition Property="IsEnabled" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <MultiTrigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <ColorAnimation Storyboard.TargetName="Chrome"
-                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                            To="#FF1C1C1E" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                            <ColorAnimation Storyboard.TargetName="Label"
-                                                            Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)"
-                                                            To="#FFFFFFFF" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </MultiTrigger.EnterActions>
-                                <MultiTrigger.ExitActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <ColorAnimation Storyboard.TargetName="Chrome"
-                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                            To="#001C1C1E" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                            <ColorAnimation Storyboard.TargetName="Label"
-                                                            Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)"
-                                                            To="#FF8E8E93" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </MultiTrigger.ExitActions>
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style TargetType="ui:LinearBar">
+                <Setter Property="TrackBrush" Value="{DynamicResource Theme.RingTrack}" />
+            </Style>
 
-        <!-- "Sesión" / "Total" tabs: grey text at rest, white on hover; the checked one is white and underlined. -->
-        <Style x:Key="PanelTab" TargetType="RadioButton">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <StackPanel Background="Transparent">
-                            <TextBlock x:Name="Label" HorizontalAlignment="Center" Foreground="#8E8E93"
-                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" />
-                            <Border x:Name="Underline" Height="2" CornerRadius="1" Margin="0,4,0,0" Background="White" Opacity="0" />
-                        </StackPanel>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Label" Property="Foreground" Value="White" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Label" Property="Foreground" Value="White" />
-                                <Setter TargetName="Underline" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <!-- ───── "Sesión | Total" inside the card: a segmented control (shadcn Tabs). ───── -->
 
-        <!-- Close: 16×16 X with round caps; hover fills a #FF453A disc and turns the X white. -->
-        <Style x:Key="PanelCloseButton" TargetType="Button">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Width" Value="16" />
-            <Setter Property="Height" Value="16" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid Background="Transparent">
-                            <Ellipse x:Name="Disc">
-                                <Ellipse.Fill>
-                                    <SolidColorBrush Color="#00FF453A" />
-                                </Ellipse.Fill>
-                            </Ellipse>
-                            <Path x:Name="Glyph" Data="M 4.75,4.75 L 11.25,11.25 M 11.25,4.75 L 4.75,11.25"
-                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
-                                <Path.Stroke>
-                                    <SolidColorBrush Color="#8E8E93" />
-                                </Path.Stroke>
-                            </Path>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <ColorAnimation Storyboard.TargetName="Disc"
-                                                            Storyboard.TargetProperty="(Shape.Fill).(SolidColorBrush.Color)"
-                                                            To="#FFFF453A" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                            <ColorAnimation Storyboard.TargetName="Glyph"
-                                                            Storyboard.TargetProperty="(Shape.Stroke).(SolidColorBrush.Color)"
-                                                            To="#FFFFFFFF" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <ColorAnimation Storyboard.TargetName="Disc"
-                                                            Storyboard.TargetProperty="(Shape.Fill).(SolidColorBrush.Color)"
-                                                            To="#00FF453A" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                            <ColorAnimation Storyboard.TargetName="Glyph"
-                                                            Storyboard.TargetProperty="(Shape.Stroke).(SolidColorBrush.Color)"
-                                                            To="#FF8E8E93" Duration="{StaticResource PanelHoverDuration}"
-                                                            EasingFunction="{StaticResource PanelHoverEase}" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.ExitActions>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="UsageTabList" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource Theme.Surface}" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="3" />
+                <Setter Property="Margin" Value="0,11,0,0" />
+            </Style>
 
-        <!-- Tray menu item: fully custom template, no theme style involved. -->
-        <Style x:Key="MenuButton" TargetType="Button">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="8" Padding="12,9">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center" RecognizesAccessKey="False" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#242426" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#242426" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#303033" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+            <Style x:Key="UsageTab" TargetType="RadioButton">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Chip" CornerRadius="6" Padding="0,4,0,5" Background="Transparent">
+                                <TextBlock x:Name="Label" HorizontalAlignment="Center" Foreground="{DynamicResource Theme.TextSecondary}"
+                                           Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Chip" Property="Background" Value="{DynamicResource Theme.Raised}" />
+                                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
+            <!-- ───── Round panel buttons (fijar/ocultar, ajustes, cerrar), like the ones of the Claude app:
+                 dark grey disc, white glyph, hairline border. Diameter set by EdgeWindow. ───── -->
+            <Style x:Key="PanelRoundButton" TargetType="Button">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid x:Name="Body" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse x:Name="Chrome" Fill="{DynamicResource Theme.Button}"
+                                         Stroke="{DynamicResource Theme.Border}" StrokeThickness="1" />
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Fill" Value="{DynamicResource Theme.ButtonHover}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Chrome" Property="Fill" Value="{DynamicResource Theme.ButtonPressed}" />
+                                    <Setter TargetName="Body" Property="RenderTransform">
+                                        <Setter.Value>
+                                            <ScaleTransform ScaleX="0.94" ScaleY="0.94" />
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Tooltips live in their own popup window and would not inherit the font or colours otherwise. -->
+            <Style TargetType="ToolTip">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="HasDropShadow" Value="False" />
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{DynamicResource Theme.Menu}" BorderBrush="{DynamicResource Theme.Border}"
+                                    BorderThickness="1" CornerRadius="7" Padding="9,5,9,6">
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Tray menu item: fully custom template, no theme style involved. -->
+            <Style x:Key="MenuButton" TargetType="Button">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chrome" Background="Transparent" CornerRadius="8" Padding="12,9">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center" RecognizesAccessKey="False" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Theme.ButtonHover}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Theme.ButtonHover}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Theme.ButtonPressed}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="MenuIcon" TargetType="ui:IconView">
+                <Setter Property="Width" Value="16" />
+                <Setter Property="Height" Value="16" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

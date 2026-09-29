@@ -3,26 +3,30 @@ using OpenControlEdge.Services;
 
 namespace OpenControlEdge.Ui;
 
+/// Number, date and label formats in the current interface language (Loc).
 internal static class Fmt
 {
-    private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-ES");
+    private static CultureInfo Culture => Loc.Culture;
 
     public static string Percent(double value) =>
-        Math.Round(value, MidpointRounding.AwayFromZero).ToString("0", Spanish) + "%";
+        Math.Round(value, MidpointRounding.AwayFromZero).ToString("0", Culture) + "%";
 
     public static string Celsius(double value) =>
-        Math.Round(value, MidpointRounding.AwayFromZero).ToString("0", Spanish) + "°C";
+        Math.Round(value, MidpointRounding.AwayFromZero).ToString("0", Culture) + "°C";
 
-    /// "783 MB", "4.096 MB".
+    /// "783 MB", "4.096 MB" ("4,096 MB" in English).
     public static string Megabytes(double value) =>
-        Math.Round(value, MidpointRounding.AwayFromZero).ToString("N0", Spanish) + " MB";
+        Math.Round(value, MidpointRounding.AwayFromZero).ToString("N0", Culture) + " MB";
 
-    /// "10,53 €"; other currencies keep their ISO code ("10,53 USD").
+    /// "10,53 €" ("10.53 €" in English); other currencies keep their ISO code ("10,53 USD").
     public static string Amount(Money money)
     {
-        string number = money.Amount.ToString("N2", Spanish);
+        string number = money.Amount.ToString("N2", Culture);
         return money.Currency == "EUR" ? $"{number} €" : $"{number} {money.Currency}";
     }
+
+    /// "{0} usado" / "{0} used".
+    public static string Used(double percent) => Loc.Format("Value.Used", Percent(percent));
 
     /// Plan badge text from a provider's raw plan id: "free" → "Free", "pro_plus" → "Pro+", "free_trial" → "Prueba".
     /// Unknown ids are shown capitalised rather than hidden; null or blank means no badge.
@@ -33,7 +37,7 @@ internal static class Fmt
         return key switch
         {
             "free" => "Free",
-            "free_trial" or "trial" => "Prueba",
+            "free_trial" or "trial" => Loc.Get("Plan.Trial"),
             "go" => "Go",
             "plus" => "Plus",
             "pro" => "Pro",
@@ -51,39 +55,40 @@ internal static class Fmt
     /// Codex window names by length: 5 h "Sesión", 7 days "Semanal", 30 days "Mensual".
     public static string WindowLabel(TimeSpan? length)
     {
-        if (length is not TimeSpan span) return "Límite";
+        if (length is not TimeSpan span) return Loc.Get("Window.Limit");
         long seconds = (long)Math.Round(span.TotalSeconds);
         return seconds switch
         {
-            5 * 3600 => "Sesión",
-            86400 => "Diario",
-            7 * 86400 => "Semanal",
-            30 * 86400 => "Mensual",
-            _ when seconds % 86400 == 0 => $"Límite de {seconds / 86400} días",
-            _ when seconds % 3600 == 0 => $"Límite de {seconds / 3600} h",
-            _ => "Límite",
+            5 * 3600 => Loc.Get("Window.Session"),
+            86400 => Loc.Get("Window.Daily"),
+            7 * 86400 => Loc.Get("Window.Weekly"),
+            30 * 86400 => Loc.Get("Window.Monthly"),
+            _ when seconds % 86400 == 0 => Loc.Format("Window.Days", seconds / 86400),
+            _ when seconds % 3600 == 0 => Loc.Format("Window.Hours", seconds / 3600),
+            _ => Loc.Get("Window.Limit"),
         };
     }
 
     /// "Se reinicia en 2 h 05 min" / "Se reinicia en 38 min" within 24 h, "Se reinicia el mié 16, 08:00" within a
-    /// week, otherwise "Se reinicia el 13 oct, 01:02".
+    /// week, otherwise "Se reinicia el 13 oct, 01:02". English: "Resets in 38 min", "Resets Wed 16, 8:00 AM".
     public static string Reset(DateTimeOffset? resetsAt, DateTimeOffset now)
     {
         if (resetsAt is not DateTimeOffset at) return string.Empty;
 
         TimeSpan left = at - now;
-        if (left <= TimeSpan.Zero) return "Se reinicia ahora";
+        if (left <= TimeSpan.Zero) return Loc.Get("Reset.Now");
 
         if (left < TimeSpan.FromHours(24))
         {
             int totalMinutes = (int)Math.Ceiling(left.TotalMinutes);
             int hours = totalMinutes / 60;
             int minutes = totalMinutes % 60;
-            return hours > 0 ? $"Se reinicia en {hours} h {minutes:00} min" : $"Se reinicia en {minutes} min";
+            return hours > 0 ? Loc.Format("Reset.InHours", hours, minutes) : Loc.Format("Reset.InMinutes", minutes);
         }
 
         DateTimeOffset local = at.ToLocalTime();
-        string day = local.ToString(left < TimeSpan.FromDays(7) ? "ddd d" : "d MMM", Spanish).Replace(".", string.Empty);
-        return $"Se reinicia el {day}, {local.ToString("HH:mm", Spanish)}";
+        string pattern = Loc.Get(left < TimeSpan.FromDays(7) ? "Reset.DayFormat" : "Reset.DateFormat");
+        string day = local.ToString(pattern, Culture).Replace(".", string.Empty);
+        return Loc.Format("Reset.On", day, local.ToString(Loc.Get("Reset.TimeFormat"), Culture));
     }
 }

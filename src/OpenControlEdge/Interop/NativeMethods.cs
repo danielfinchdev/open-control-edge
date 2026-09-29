@@ -15,6 +15,8 @@ internal static class NativeMethods
     public const uint SWP_NOACTIVATE = 0x0010;
     public static readonly IntPtr HWND_TOPMOST = new(-1);
 
+    public const int WM_SETTINGCHANGE = 0x001A;
+    public const int SPI_SETWORKAREA = 0x002F;
     public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_DPICHANGED = 0x02E0;
     public const int WM_LBUTTONUP = 0x0202;
