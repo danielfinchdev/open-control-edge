@@ -19,6 +19,7 @@ internal static class UpdateService
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(4) };
     private const long MaxArchiveBytes = 300L * 1024 * 1024;
     private const long MaxExpandedBytes = 900L * 1024 * 1024;
+    private static string UserAgent => $"OpenControlEdge/{typeof(UpdateService).Assembly.GetName().Version?.ToString(3) ?? "unknown"}";
 
     internal static async Task<UpdateCheckResult> CheckAsync(string apiUrl = LatestApi, CancellationToken cancellationToken = default)
     {
@@ -27,7 +28,7 @@ internal static class UpdateService
             if (!Uri.TryCreate(apiUrl, UriKind.Absolute, out Uri? endpoint) || !IsSecureUri(endpoint))
                 return new(null, "La dirección de releases no es segura.");
             using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-            request.Headers.UserAgent.ParseAdd("OpenControlEdge/2.1");
+            request.Headers.UserAgent.ParseAdd(UserAgent);
             using HttpResponseMessage response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
@@ -73,7 +74,7 @@ internal static class UpdateService
             || !release.ZipUri.AbsolutePath.StartsWith("/danielfinchdev/open-control-edge/releases/download/", StringComparison.Ordinal)))
             throw new InvalidDataException("La URL del ZIP no es segura.");
         using var request = new HttpRequestMessage(HttpMethod.Get, release.ZipUri);
-        request.Headers.UserAgent.ParseAdd("OpenControlEdge/2.1");
+        request.Headers.UserAgent.ParseAdd(UserAgent);
         using HttpResponseMessage download = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         download.EnsureSuccessStatusCode();
         if (download.Content.Headers.ContentLength is long length && (length <= 0 || length > MaxArchiveBytes))

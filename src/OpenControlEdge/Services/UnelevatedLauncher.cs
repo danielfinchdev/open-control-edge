@@ -161,10 +161,17 @@ internal static class UnelevatedLauncher
 
             // UAC off: the shell itself is elevated, so there is no plain-user token to hand out.
             if (IsTokenElevated(token)) return "el escritorio corre como administrador; no se lanza nada";
+            if (!IsMediumIntegrity(token)) return "el escritorio no tiene nivel de integridad medio; no se lanza nada";
 
             const uint access = TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_SESSIONID;
             if (!DuplicateTokenEx(token, access, IntPtr.Zero, SecurityImpersonation, TokenPrimary, out primary))
                 return $"no se puede duplicar el token (error {Marshal.GetLastWin32Error()})";
+            if (!IsMediumIntegrity(primary))
+            {
+                CloseHandle(primary);
+                primary = IntPtr.Zero;
+                return "el token duplicado no tiene nivel de integridad medio; no se lanza nada";
+            }
             return null;
         }
         catch (Exception ex)
@@ -176,6 +183,25 @@ internal static class UnelevatedLauncher
             if (token != IntPtr.Zero) CloseHandle(token);
             CloseHandle(process);
         }
+    }
+
+    private static bool IsMediumIntegrity(IntPtr token)
+    {
+        const int BufferSize = 1024;
+        IntPtr buffer = Marshal.AllocHGlobal(BufferSize);
+        try
+        {
+            if (!GetTokenInformation(token, TokenIntegrityLevel, buffer, BufferSize, out _)) return false;
+            IntPtr sid = Marshal.ReadIntPtr(buffer);
+            if (sid == IntPtr.Zero) return false;
+            IntPtr countPointer = GetSidSubAuthorityCount(sid);
+            if (countPointer == IntPtr.Zero) return false;
+            byte count = Marshal.ReadByte(countPointer);
+            if (count == 0) return false;
+            IntPtr rid = GetSidSubAuthority(sid, (uint)(count - 1));
+            return rid != IntPtr.Zero && Marshal.ReadInt32(rid) == 0x2000;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
     }
 
     /// The interactive desktop belongs to the account this process runs as (ported from instalar.ps1, which refused

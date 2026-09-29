@@ -19,6 +19,7 @@ internal static class ProcessNative
     public const uint TOKEN_ADJUST_SESSIONID = 0x0100;
 
     public const int TokenElevation = 20;
+    public const int TokenIntegrityLevel = 25;
     public const int SecurityImpersonation = 2;
     public const int TokenPrimary = 1;
 
@@ -163,6 +164,15 @@ internal static class ProcessNative
 
     [DllImport("advapi32.dll", SetLastError = true)]
     public static extern bool GetTokenInformation(IntPtr token, int infoClass, out int info, int length, out int returned);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern bool GetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length, out int returned);
+
+    [DllImport("advapi32.dll")]
+    public static extern IntPtr GetSidSubAuthorityCount(IntPtr sid);
+
+    [DllImport("advapi32.dll")]
+    public static extern IntPtr GetSidSubAuthority(IntPtr sid, uint index);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     public static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attributes, int impersonationLevel,
