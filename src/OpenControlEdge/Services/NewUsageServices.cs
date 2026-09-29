@@ -21,7 +21,7 @@ internal sealed class OpenCodeUsageService
     {
         try { return await Task.Run(ReadLocal).WaitAsync(Timeout).ConfigureAwait(false); }
         catch (TimeoutException) { return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
-        catch (Exception) { return OpenCodeSnapshot.Failed("No se pudo leer el uso local"); }
+        catch (Exception ex) { Log.Warn("OpenCode", ex.GetType().Name + ": " + ex.Message); return OpenCodeSnapshot.Failed("No se pudo leer el uso local"); }
     }
 
     private OpenCodeSnapshot ReadLocal()
@@ -42,7 +42,19 @@ internal sealed class OpenCodeUsageService
             };
             using var connection = new SqliteConnection(builder.ToString());
             connection.Open();
+            using (var schema = connection.CreateCommand())
+            {
+                schema.CommandText = "PRAGMA table_info(session)";
+                schema.CommandTimeout = 2;
+                using var columnsReader = schema.ExecuteReader();
+                var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (columnsReader.Read()) columns.Add(columnsReader.GetString(1));
+                string[] required = { "tokens_input", "tokens_output", "tokens_reasoning", "tokens_cache_read", "tokens_cache_write", "cost" };
+                if (required.Any(column => !columns.Contains(column)))
+                    return OpenCodeSnapshot.Failed("Versión de OpenCode no compatible");
+            }
             using var command = connection.CreateCommand();
+            command.CommandTimeout = 2;
             command.CommandText = "SELECT COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0), COALESCE(SUM(tokens_reasoning), 0), COALESCE(SUM(tokens_cache_read), 0), COALESCE(SUM(tokens_cache_write), 0), COALESCE(SUM(cost), 0) FROM session";
             using SqliteDataReader reader = command.ExecuteReader();
             if (!reader.Read()) return OpenCodeSnapshot.Failed("Respuesta local sin datos");
@@ -78,8 +90,8 @@ internal sealed class OpenCodeUsageService
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode"),
         };
-        return directories.Where(Directory.Exists).SelectMany(dir => Directory.EnumerateFiles(dir, "opencode*.db"))
-            .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).Where(File.Exists).ToArray();
+        string? database = directories.Select(dir => Path.Combine(dir, "opencode.db")).FirstOrDefault(File.Exists);
+        return database is null ? Array.Empty<string>() : new[] { Path.GetFullPath(database) };
     }
 }
 
@@ -99,16 +111,16 @@ internal sealed class DeepSeekUsageService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Encoding.UTF8.GetString(key));
             request.Headers.Accept.ParseAdd("application/json");
             using HttpResponseMessage response = await Http.SendAsync(request).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized) return DeepSeekSnapshot.Failed("Clave API no válida");
-            if (!response.IsSuccessStatusCode) return DeepSeekSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
+            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("DeepSeek", "HTTP 401"); return DeepSeekSnapshot.Failed("Clave API no válida"); }
+            if (!response.IsSuccessStatusCode) { Log.Warn("DeepSeek", $"HTTP {(int)response.StatusCode}"); return DeepSeekSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"); }
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try { return new DeepSeekSnapshot(false, DeepSeekBalanceParser.Parse(Encoding.UTF8.GetString(body)), null); }
             finally { CryptographicOperations.ZeroMemory(body); }
         }
-        catch (TaskCanceledException) { return DeepSeekSnapshot.Failed("Tiempo de espera agotado"); }
-        catch (HttpRequestException) { return DeepSeekSnapshot.Failed("Sin conexión"); }
-        catch (System.Text.Json.JsonException) { return DeepSeekSnapshot.Failed("Respuesta no válida"); }
-        catch (Exception) { return DeepSeekSnapshot.Failed("No se pudo leer el saldo"); }
+        catch (TaskCanceledException) { Log.Warn("DeepSeek", "timeout"); return DeepSeekSnapshot.Failed("Tiempo de espera agotado"); }
+        catch (HttpRequestException ex) { Log.Warn("DeepSeek", ex.Message); return DeepSeekSnapshot.Failed("Sin conexión"); }
+        catch (System.Text.Json.JsonException ex) { Log.Warn("DeepSeek", "invalid JSON: " + ex.Message); return DeepSeekSnapshot.Failed("Respuesta no válida"); }
+        catch (Exception ex) { Log.Warn("DeepSeek", ex.GetType().Name + ": " + ex.Message); return DeepSeekSnapshot.Failed("No se pudo leer el saldo"); }
         finally { if (key is not null) CryptographicOperations.ZeroMemory(key); }
     }
 }
@@ -129,8 +141,8 @@ internal sealed class OpenRouterUsageService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Encoding.UTF8.GetString(key));
             request.Headers.Accept.ParseAdd("application/json");
             using HttpResponseMessage response = await Http.SendAsync(request).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized) return OpenRouterSnapshot.Failed("Clave API no válida");
-            if (!response.IsSuccessStatusCode) return OpenRouterSnapshot.Failed($"Error HTTP {(int)response.StatusCode}");
+            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("OpenRouter", "HTTP 401"); return OpenRouterSnapshot.Failed("Clave API no válida"); }
+            if (!response.IsSuccessStatusCode) { Log.Warn("OpenRouter", $"HTTP {(int)response.StatusCode}"); return OpenRouterSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"); }
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try
             {
@@ -139,10 +151,10 @@ internal sealed class OpenRouterUsageService
             }
             finally { CryptographicOperations.ZeroMemory(body); }
         }
-        catch (TaskCanceledException) { return OpenRouterSnapshot.Failed("Tiempo de espera agotado"); }
-        catch (HttpRequestException) { return OpenRouterSnapshot.Failed("Sin conexión"); }
-        catch (System.Text.Json.JsonException) { return OpenRouterSnapshot.Failed("Respuesta no válida"); }
-        catch (Exception) { return OpenRouterSnapshot.Failed("No se pudo leer el uso"); }
+        catch (TaskCanceledException) { Log.Warn("OpenRouter", "timeout"); return OpenRouterSnapshot.Failed("Tiempo de espera agotado"); }
+        catch (HttpRequestException ex) { Log.Warn("OpenRouter", ex.Message); return OpenRouterSnapshot.Failed("Sin conexión"); }
+        catch (System.Text.Json.JsonException ex) { Log.Warn("OpenRouter", "invalid JSON: " + ex.Message); return OpenRouterSnapshot.Failed("Respuesta no válida"); }
+        catch (Exception ex) { Log.Warn("OpenRouter", ex.GetType().Name + ": " + ex.Message); return OpenRouterSnapshot.Failed("No se pudo leer el uso"); }
         finally { if (key is not null) CryptographicOperations.ZeroMemory(key); }
     }
 }

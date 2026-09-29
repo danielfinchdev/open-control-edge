@@ -34,7 +34,7 @@ internal sealed record HardwareSnapshot(CpuSnapshot Cpu, GpuSnapshot Gpu);
 internal sealed record CodexWindow(double Percent, TimeSpan? Length, DateTimeOffset? ResetsAt);
 
 /// Hidden: the provider is not installed (or forced off in settings). Otherwise Primary is null when there is no
-/// usable session yet; Message then explains why (including «Inicia sesión en …»).
+/// usable session yet; Message then explains why (including renewal guidance for an expired access token).
 internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWindow? Secondary, string? Message)
 {
     public static CodexSnapshot Absent() => new(true, null, null, null);

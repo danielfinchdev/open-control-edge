@@ -20,8 +20,6 @@ public partial class App : Application
     internal const string RenewTaskMissingMessage =
         $"No se puede renovar: falta la tarea «{RenewTaskName}». Se instala con claude-sesion.ps1 -Instalar.";
 
-    /// The Claude Code desktop app, opened through Explorer so it does not inherit the administrator token.
-    private const string ClaudeAppId = @"shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude";
     // Two cadences for each source: the fast one only while the pinned panel is actually on screen, the slow
     // one the rest of the time. The sensors never stop, so "Máxima de la sesión" also catches the peaks
     // nobody was watching — the boot spike above all.
@@ -90,9 +88,19 @@ public partial class App : Application
         int snapshotArg = Array.IndexOf(e.Args, "--snapshot");
         if (snapshotArg >= 0 && snapshotArg + 1 < e.Args.Length)
         {
-            try { Snapshot.Run(e.Args[snapshotArg + 1]); }
-            catch (Exception ex) { Log.Error("Snapshot", ex); }
-            Shutdown();
+            Log.Suppress();
+            try { Snapshot.Run(e.Args[snapshotArg + 1]); Shutdown(0); }
+            catch (Exception) { Environment.ExitCode = 1; Shutdown(1); }
+            return;
+        }
+
+        if (Array.IndexOf(e.Args, "--check-pawnio") >= 0)
+        {
+            bool installed;
+            try { installed = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; }
+            catch { installed = false; }
+            Environment.ExitCode = installed ? 0 : 1;
+            Shutdown(Environment.ExitCode);
             return;
         }
 
@@ -127,6 +135,9 @@ public partial class App : Application
         _sensors = new HardwareSensorService();
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
         Settings settings = SettingsStore.Load();
+        _lastClaude = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)
+            ? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
+        _edge.SetClaude(_lastClaude);
         _edge.ApplyUsageView(settings.UsageView);
         _lastCodex = InitialCodex(settings);
         _edge.SetCodex(_lastCodex);
@@ -138,8 +149,6 @@ public partial class App : Application
         _edge.SetDeepSeek(_lastDeepSeek);
         _lastOpenRouter = InitialOpenRouter(settings);
         _edge.SetOpenRouter(_lastOpenRouter);
-        if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings))
-            _edge.SetClaude(ClaudeSnapshot.Absent());
         _edge.ExpandedChanged += expanded =>
         {
             _panelExpanded = expanded;
@@ -190,7 +199,7 @@ public partial class App : Application
         }
     }
 
-    /// Claude, Codex and Cursor (every 2 minutes). Joins an in-flight refresh.
+    /// Refreshes all usage providers concurrently. Joins an in-flight refresh.
     private Task RefreshUsageAsync()
     {
         if (_usageRefresh is null || _usageRefresh.IsCompleted) _usageRefresh = RunUsageRefreshAsync();
@@ -205,18 +214,9 @@ public partial class App : Application
             Log.Trace("Usage", "refresh started");
             Settings settings = SettingsStore.Load();
 
-            _lastClaude = await RefreshClaudeAsync(settings);
-            _edge.SetClaude(_lastClaude);
-            _lastCodex = await RefreshCodexAsync(settings);
-            _edge.SetCodex(_lastCodex);
-            _lastCursor = await RefreshCursorAsync(settings);
-            _edge.SetCursor(_lastCursor);
-            _lastOpenCode = await RefreshOpenCodeAsync(settings);
-            _edge.SetOpenCode(_lastOpenCode);
-            _lastDeepSeek = await RefreshDeepSeekAsync(settings);
-            _edge.SetDeepSeek(_lastDeepSeek);
-            _lastOpenRouter = await RefreshOpenRouterAsync(settings);
-            _edge.SetOpenRouter(_lastOpenRouter);
+            await Task.WhenAll(
+                ApplyClaudeAsync(settings), ApplyCodexAsync(settings), ApplyCursorAsync(settings),
+                ApplyOpenCodeAsync(settings), ApplyDeepSeekAsync(settings), ApplyOpenRouterAsync(settings));
 
             _edge.ReassertTopmost();
             UpdateTooltip();
@@ -227,6 +227,13 @@ public partial class App : Application
             Log.Error("Usage refresh", ex);
         }
     }
+
+    private async Task ApplyClaudeAsync(Settings s) { if (_renewing) return; _lastClaude = await RefreshClaudeAsync(s); _edge?.SetClaude(_lastClaude); }
+    private async Task ApplyCodexAsync(Settings s) { _lastCodex = await RefreshCodexAsync(s); _edge?.SetCodex(_lastCodex); }
+    private async Task ApplyCursorAsync(Settings s) { _lastCursor = await RefreshCursorAsync(s); _edge?.SetCursor(_lastCursor); }
+    private async Task ApplyOpenCodeAsync(Settings s) { _lastOpenCode = await RefreshOpenCodeAsync(s); _edge?.SetOpenCode(_lastOpenCode); }
+    private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); _edge?.SetDeepSeek(_lastDeepSeek); }
+    private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); _edge?.SetOpenRouter(_lastOpenRouter); }
 
     private CodexSnapshot InitialCodex(Settings settings)
     {
@@ -334,8 +341,8 @@ public partial class App : Application
         }
     }
 
-    /// Panel "Actualizar" and tray "Actualizar ahora": CPU, GPU, Claude and Codex at once, joining any refresh already
-    /// in flight. The panel button reads "Actualizando" and stays disabled until everything has finished.
+    /// Panel "Actualizar" and tray "Actualizar ahora": refresh usage providers and sensors, joining in-flight work.
+    /// The panel button reads "Actualizando" and stays disabled until everything has finished.
     private async Task RefreshEverythingAsync()
     {
         if (_manualRefresh || _edge is null) return;
@@ -360,9 +367,8 @@ public partial class App : Application
 
     /// Clicking the Claude ring. The widget never touches the credentials file itself: it asks the scheduled
     /// task to do it, which runs as the plain user, refreshes the token and opens Claude Code. When that task
-    /// is not installed (or will not start), the card says so and Claude Code is opened on its own — which does
-    /// not renew anything, but at least puts the user where they can. Otherwise the usage is read again once
-    /// the refresh has had time to finish.
+    /// is not installed (or will not start), the card explains how to fix it. Usage is read again after the
+    /// refresh has had time to finish.
     private async Task RenewClaudeSessionAsync()
     {
         if (_renewing || _edge is null) return;
@@ -381,13 +387,14 @@ public partial class App : Application
                 _edge.SetClaudeRenewFailed(result == RenewResult.Missing
                     ? RenewTaskMissingMessage
                     : $"No se puede renovar: la tarea «{RenewTaskName}» no ha arrancado");
-                Start("explorer.exe", ClaudeAppId)?.Dispose();
                 return;
             }
 
             // The CLI needs a while to refresh the token and rewrite the credentials file: 13–17 s per
             // tools\claude-sesion.log, so 15 s often read the old, still expired file.
             await Task.Delay(TimeSpan.FromSeconds(25));
+            _renewing = false;
+            _usageRefresh = null;
             await RefreshUsageAsync();
         }
         catch (Exception ex)
@@ -466,14 +473,16 @@ public partial class App : Application
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
         string openCode = _lastOpenCode is { Hidden: false, Message: null } oc
-            ? $" · OpenCode {((decimal)oc.TokensIn + oc.TokensOut + oc.TokensReasoning + oc.TokensCacheRead + oc.TokensCacheWrite):N0} tokens" : string.Empty;
+            ? $" · OpenCode {CompactTokens((decimal)oc.TokensIn + oc.TokensOut + oc.TokensReasoning + oc.TokensCacheRead + oc.TokensCacheWrite)}" : string.Empty;
         string deepSeek = _lastDeepSeek is { Hidden: false, Balance: Money balance } ? $" · DeepSeek {Fmt.Amount(balance)}" : string.Empty;
         string openRouter = _lastOpenRouter is { Hidden: false, Message: null } routerUsage
             ? $" · OpenRouter {(routerUsage.LimitUsd is decimal limit && limit > 0 && routerUsage.RemainingUsd is not null ? Fmt.Percent((double)Math.Clamp(routerUsage.UsageUsd / limit * 100, 0, 100)) : Fmt.Amount(new Money(routerUsage.UsageUsd, "USD")))}" : string.Empty;
         string claudePart = claude.Length == 0 ? string.Empty : $"Claude {claude} · ";
-        _tray?.SetTooltip($"{claudePart}CPU {cpu}{codex}{cursor}{openCode}{deepSeek}{openRouter}{gpu}");
+        _tray?.SetTooltip($"CPU {cpu}{gpu}{claudePart}{codex}{cursor}{openCode}{deepSeek}{openRouter}");
         LogStatusChange();
     }
+
+    private static string CompactTokens(decimal n) => n >= 1_000_000 ? $"{n / 1_000_000m:0.#}M tokens" : n >= 10_000 ? $"{n / 1_000m:0.#}K tokens" : $"{n:N0} tokens";
 
     /// One log line whenever a source changes between available and failing (not on every refresh).
     private void LogStatusChange()

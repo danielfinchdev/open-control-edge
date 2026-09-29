@@ -17,16 +17,14 @@ internal sealed class CursorUsageService
 
     public CursorSnapshot Initial()
     {
-        try { return CursorCredentialReader.Read(_databasePath) is null
-            ? CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage) : CursorSnapshot.Failed("Cargando…"); }
-        catch { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
+        return CursorSnapshot.Failed("Cargando…");
     }
 
     public async Task<CursorSnapshot> FetchAsync()
     {
         try
         {
-            var credentials = CursorCredentialReader.Read(_databasePath);
+            var credentials = await Task.Run(() => CursorCredentialReader.Read(_databasePath)).ConfigureAwait(false);
             if (credentials is null) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             string cookieValue = Uri.EscapeDataString(credentials.UserId + "::" + credentials.AccessToken);
@@ -36,7 +34,10 @@ internal sealed class CursorUsageService
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.Unauthorized) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
             if (!response.IsSuccessStatusCode)
+            {
+                Log.Warn("Cursor", $"HTTP {(int)response.StatusCode}");
                 return CursorSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = credentials.MembershipType };
+            }
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try
             {
@@ -49,12 +50,12 @@ internal sealed class CursorUsageService
             }
             finally { CryptographicOperations.ZeroMemory(body); }
         }
-        catch (HttpRequestException) { return CursorSnapshot.Failed("Sin conexión"); }
-        catch (TaskCanceledException) { return CursorSnapshot.Failed("Tiempo de espera agotado"); }
-        catch (System.Text.Json.JsonException) { return CursorSnapshot.Failed("Respuesta no válida"); }
-        catch (Microsoft.Data.Sqlite.SqliteException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
-        catch (UnauthorizedAccessException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
-        catch (IOException) { return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
-        catch (Exception) { return CursorSnapshot.Failed("No se pudo leer el uso"); }
+        catch (HttpRequestException ex) { Log.Warn("Cursor", ex.Message); return CursorSnapshot.Failed("Sin conexión"); }
+        catch (TaskCanceledException) { Log.Warn("Cursor", "timeout"); return CursorSnapshot.Failed("Tiempo de espera agotado"); }
+        catch (System.Text.Json.JsonException ex) { Log.Warn("Cursor", "invalid JSON: " + ex.Message); return CursorSnapshot.Failed("Respuesta no válida"); }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) { Log.Warn("Cursor", ex.GetType().Name + ": " + ex.Message); return CursorSnapshot.NotAvailable("Cursor ocupado, se reintentará"); }
+        catch (UnauthorizedAccessException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
+        catch (IOException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
+        catch (Exception ex) { Log.Warn("Cursor", ex.GetType().Name + ": " + ex.Message); return CursorSnapshot.Failed("No se pudo leer el uso"); }
     }
 }

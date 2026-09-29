@@ -28,6 +28,7 @@ public partial class TrayMenuWindow : Window
 
         _outsideClickWatch = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(50) };
         _outsideClickWatch.Tick += OnOutsideClickWatch;
+        Closed += (_, _) => _outsideClickWatch.Stop();
 
         SourceInitialized += (_, _) =>
             AddExtendedStyle(new WindowInteropHelper(this).Handle, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW);
@@ -91,6 +92,7 @@ public partial class TrayMenuWindow : Window
 
     private void OnOutsideClickWatch(object? sender, EventArgs e)
     {
+        if (PresentationSource.FromVisual(MenuBody) is null) return;
         if (!IsAnyMouseButtonDown() || !GetCursorPos(out POINT cursor)) return;
         Point local = MenuBody.PointFromScreen(new Point(cursor.X, cursor.Y));
         bool inside = local.X >= 0 && local.Y >= 0 && local.X < MenuBody.ActualWidth && local.Y < MenuBody.ActualHeight;

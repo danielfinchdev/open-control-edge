@@ -7,7 +7,7 @@ internal static class Palette
     public static readonly SolidColorBrush Green = Make(0x22, 0xC5, 0x5E);
     public static readonly SolidColorBrush Yellow = Make(0xE5, 0xE6, 0x19);
     public static readonly SolidColorBrush Orange = Make(0xE8, 0x49, 0x1D);
-    public static readonly SolidColorBrush Red = Make(0xFF, 0x2D, 0x37);
+    public static readonly SolidColorBrush Red = Make(0xFF, 0x00, 0x72);
     public static readonly SolidColorBrush Track = Make(0x2A, 0x2A, 0x2A);
     public static readonly SolidColorBrush Secondary = Make(0x8E, 0x8E, 0x93);
 

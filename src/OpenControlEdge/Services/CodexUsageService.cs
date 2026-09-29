@@ -19,15 +19,21 @@ internal sealed class CodexUsageService
     public CodexUsageService(string? authPath = null) => _authPath = authPath ?? CodexCredentialReader.DefaultPath;
 
     /// No network: hidden when there is no usable login, otherwise a placeholder until the first fetch.
-    public CodexSnapshot Initial() =>
-        UnusableReason(out _) is string ? CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage) : CodexSnapshot.Failed("Cargando…");
+    public CodexSnapshot Initial()
+    {
+        string? reason = UnusableReason(out _);
+        return reason is null ? CodexSnapshot.Failed("Cargando…")
+            : CodexSnapshot.NotAvailable(reason == "access token expired" ? "Abre Codex para renovar" : AiDetector.CodexLoginMessage);
+    }
 
     public async Task<CodexSnapshot> FetchAsync()
     {
         try
         {
             // Missing file, no token or expired token: hide the ring without sending the request.
-            if (UnusableReason(out var credentials) is not null) return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
+            string? unusable = UnusableReason(out var credentials);
+            if (unusable is not null) return CodexSnapshot.NotAvailable(unusable == "access token expired"
+                ? "Abre Codex para renovar" : AiDetector.CodexLoginMessage);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials!.AccessToken);

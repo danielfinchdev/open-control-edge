@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Concurrent;
 
 namespace OpenControlEdge.Services;
 
@@ -16,6 +17,7 @@ internal enum AiProviderId
 /// Cheap, offline checks for whether an AI client is present on this machine. Never reads credential files.
 internal static class AiDetector
 {
+    private static readonly ConcurrentDictionary<AiProviderId, bool> InstalledCache = new();
     internal static IReadOnlyList<AiProviderId> All { get; } = new[]
     {
         AiProviderId.Claude, AiProviderId.Codex, AiProviderId.Cursor,
@@ -26,16 +28,30 @@ internal static class AiDetector
     internal const string CodexLoginMessage = "Inicia sesión en ChatGPT o Codex";
     internal const string CursorLoginMessage = "Inicia sesión en Cursor";
 
-    public static bool IsInstalled(AiProviderId provider) => provider switch
+    public static bool IsInstalled(AiProviderId provider)
+    {
+        if (provider is AiProviderId.DeepSeek or AiProviderId.OpenRouter)
+            return provider == AiProviderId.DeepSeek ? ProviderKeyStore.IsConfigured("deepseek") : ProviderKeyStore.IsConfigured("openrouter");
+        return InstalledCache.GetOrAdd(provider, DetectInstalled);
+    }
+
+    private static bool DetectInstalled(AiProviderId provider) => provider switch
     {
         AiProviderId.Claude => IsClaudeInstalled(),
         AiProviderId.Codex => IsCodexInstalled(),
         AiProviderId.Cursor => IsCursorInstalled(),
-        AiProviderId.OpenCode => CommandOnPath("opencode") || OpenCodeDataDirs.Any(Directory.Exists),
+        AiProviderId.OpenCode => CommandOnPath("opencode") || OpenCodeDatabaseExists(),
         AiProviderId.DeepSeek => ProviderKeyStore.IsConfigured("deepseek"),
         AiProviderId.OpenRouter => ProviderKeyStore.IsConfigured("openrouter"),
         _ => false,
     };
+
+    private static bool OpenCodeDatabaseExists()
+    {
+        string? configured = Environment.GetEnvironmentVariable("OPENCODE_DB");
+        if (!string.IsNullOrWhiteSpace(configured) && Path.IsPathFullyQualified(configured) && File.Exists(configured)) return true;
+        return OpenCodeDataDirs.Any(dir => File.Exists(Path.Combine(dir, "opencode.db")));
+    }
 
     private static bool IsClaudeInstalled()
     {

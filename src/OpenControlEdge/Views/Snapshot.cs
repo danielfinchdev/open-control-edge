@@ -194,6 +194,13 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(directory, "34_alert_card_cpu.png"));
 
+        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", null, null, 12, "PawnIO no está instalado"));
+        window.SetGpu(new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", null, 12, 783, 4096, "PawnIO no está instalado"));
+        window.ShowCardNow(EdgeWindow.RingCpu);
+        window.SaveSnapshot(Path.Combine(directory, "35_cpu_pawnio_required.png"));
+        window.ShowCardNow(EdgeWindow.RingGpu);
+        window.SaveSnapshot(Path.Combine(directory, "36_gpu_pawnio_required.png"));
+
         var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
         keys.Show();
         keys.UpdateLayout();

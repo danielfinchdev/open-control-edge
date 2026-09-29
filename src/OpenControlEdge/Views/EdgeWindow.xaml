@@ -247,7 +247,7 @@
             <Grid x:Name="PanelRoot" Margin="0,38,0,38">
                 <StackPanel x:Name="PanelStack" Margin="0,30,0,10">
                     <!-- Which window the AI rings show: short ("Sesión") or long ("Total"). Remembered in settings;
-                         hidden while no Claude, Codex or Cursor ring is shown. -->
+                         shown only when Claude or Codex is available. -->
                     <StackPanel x:Name="UsageTabs" Orientation="Horizontal" HorizontalAlignment="Center">
                         <RadioButton x:Name="SessionTab" Style="{StaticResource PanelTab}" Content="Sesión" GroupName="UsageView"
                                      AutomationProperties.AutomationId="SessionTab" Checked="OnUsageViewChecked" />
@@ -342,7 +342,7 @@
                             AutomationProperties.AutomationId="ModeButton"
                             HorizontalAlignment="Center" Margin="0,10,0,0" Click="OnModeClick" />
 
-                    <!-- Refreshes CPU, GPU, Claude and Codex; reads "Actualizando" and is disabled until that finishes. -->
+                    <!-- Refreshes usage providers and sensors; reads "Actualizando" until that finishes. -->
                     <Button x:Name="RefreshButton" Style="{StaticResource PanelTextButton}" Content="Actualizar"
                             AutomationProperties.AutomationId="PanelRefreshButton"
                             HorizontalAlignment="Center" Click="OnRefreshClick" />

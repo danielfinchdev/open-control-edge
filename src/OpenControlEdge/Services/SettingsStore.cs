@@ -43,6 +43,8 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 internal static class SettingsStore
 {
     private const string FileName = "OpenControlEdge.settings.json";
+    private static bool _unreadable;
+    private static bool _warnedUnreadable;
 
     public static string FilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenControlEdge", FileName);
@@ -56,16 +58,22 @@ internal static class SettingsStore
 
     public static Settings Load()
     {
+        _unreadable = false;
         try
         {
-            if (!File.Exists(FilePath) && File.Exists(PreviousFilePath))
+            bool settingsPresent = FilePresence(FilePath);
+            if (_unreadable) return Settings.Defaults;
+            if (!settingsPresent && FilePresence(PreviousFilePath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 File.Copy(PreviousFilePath, FilePath);
+                settingsPresent = true;
             }
 
-            string path = File.Exists(FilePath) ? FilePath : LegacyFilePath;
-            if (!File.Exists(path)) return Settings.Defaults;
+            string path = settingsPresent ? FilePath : LegacyFilePath;
+            bool legacyPresent = settingsPresent || FilePresence(path);
+            if (_unreadable) return Settings.Defaults;
+            if (!legacyPresent) return Settings.Defaults;
 
             using var document = JsonDocument.Parse(File.ReadAllBytes(path), new JsonDocumentOptions
             {
@@ -74,7 +82,11 @@ internal static class SettingsStore
             });
 
             JsonElement root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return Settings.Defaults;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                MarkUnreadable("settings root is not an object");
+                return Settings.Defaults;
+            }
 
             PanelMode mode = GetString(root, "panelMode") == "auto" ? PanelMode.Auto : PanelMode.Pinned;
             FrozenDictionary<string, ProviderVisibility> providers = ParseProviders(root);
@@ -83,15 +95,35 @@ internal static class SettingsStore
         }
         catch (Exception ex)
         {
-            Log.Warn("Settings", "unreadable, using defaults: " + ex.Message);
+            MarkUnreadable(ex.Message);
             return Settings.Defaults;
         }
+    }
+
+    private static bool FilePresence(string path)
+    {
+        try
+        {
+            FileAttributes attributes = File.GetAttributes(path);
+            return (attributes & FileAttributes.Directory) == 0;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+        catch (Exception ex) { MarkUnreadable(ex.Message); return false; }
+    }
+
+    private static void MarkUnreadable(string reason)
+    {
+        if (!_warnedUnreadable) Log.Warn("Settings", "unreadable, using defaults: " + reason);
+        _warnedUnreadable = true;
+        _unreadable = true;
     }
 
     /// Saves only supported settings; legacy properties such as "grok" are ignored.
     public static void SavePanelMode(PanelMode mode)
     {
         Settings current = Load();
+        if (_unreadable) return;
         Save(current with { PanelMode = mode });
     }
 
@@ -99,6 +131,7 @@ internal static class SettingsStore
     public static void SaveUsageView(UsageView view)
     {
         Settings current = Load();
+        if (_unreadable) return;
         Save(current with { UsageView = view });
     }
 
@@ -139,15 +172,25 @@ internal static class SettingsStore
 
     private static FrozenDictionary<string, ProviderVisibility> ParseProviders(JsonElement root)
     {
-        if (!root.TryGetProperty("providers", out JsonElement providers) || providers.ValueKind != JsonValueKind.Object)
+        if (!root.TryGetProperty("providers", out JsonElement providers))
             return FrozenDictionary<string, ProviderVisibility>.Empty;
+        if (providers.ValueKind != JsonValueKind.Object)
+        {
+            MarkUnreadable("providers is not an object");
+            return FrozenDictionary<string, ProviderVisibility>.Empty;
+        }
 
         var map = new Dictionary<string, ProviderVisibility>(StringComparer.OrdinalIgnoreCase);
         foreach (JsonProperty property in providers.EnumerateObject())
         {
-            if (property.Value.ValueKind != JsonValueKind.String) continue;
+            if (property.Value.ValueKind != JsonValueKind.String)
+            {
+                MarkUnreadable("provider visibility is not a string");
+                continue;
+            }
             ProviderVisibility? visibility = ParseVisibility(property.Value.GetString());
             if (visibility is ProviderVisibility parsed) map[property.Name] = parsed;
+            else MarkUnreadable("unknown provider visibility");
         }
 
         return map.Count == 0 ? FrozenDictionary<string, ProviderVisibility>.Empty : map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);

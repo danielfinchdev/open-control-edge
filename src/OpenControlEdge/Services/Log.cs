@@ -11,6 +11,9 @@ internal static class Log
     private static readonly string Directory_ = ResolveDirectory();
     private static readonly string FilePath = Path.Combine(Directory_, "widget.log");
     private static bool _reported;
+    private static bool _suppressed;
+
+    internal static void Suppress() => _suppressed = true;
 
     /// %LOCALAPPDATA%\OpenControlEdge. GetFolderPath answers with an empty string when it cannot resolve the
     /// folder, which would turn the log path into a relative one and scatter it over whatever the working
@@ -33,6 +36,7 @@ internal static class Log
 
     private static void Write(string level, string area, string message)
     {
+        if (_suppressed) return;
         try
         {
             lock (Gate)
@@ -56,7 +60,7 @@ internal static class Log
         }
     }
 
-    /// The first failure, and only the first, written where the log itself could not go.
+    /// The first failure, and only the first, sent to the debugger without another file write.
     private static void ReportOnce(Exception ex)
     {
         lock (Gate)
@@ -65,14 +69,6 @@ internal static class Log
             _reported = true;
         }
 
-        try
-        {
-            File.WriteAllText(Path.Combine(Path.GetTempPath(), "OpenControlEdge-log-error.txt"),
-                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{FilePath}{Environment.NewLine}{ex}{Environment.NewLine}");
-        }
-        catch
-        {
-            // Nothing else to try.
-        }
+        System.Diagnostics.Trace.WriteLine($"OpenControlEdge log failure: {ex.GetType().Name}: {ex.Message}");
     }
 }

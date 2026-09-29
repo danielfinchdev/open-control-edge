@@ -20,7 +20,7 @@ namespace OpenControlEdge.Views;
 /// animations instead of moving HWNDs.
 ///
 /// Two modes: Pinned (panel always expanded, default) and Auto (collapses to a strip, expands on hover).
-/// The panel carries a mode button ("Ocultar" / "Fijar") and a close button. The Codex and GPU rings can come and go.
+/// The panel carries a mode button ("Ocultar" / "Fijar") and a close button. Provider and sensor rings can come and go.
 /// Hover is driven by polling the cursor position: while collapsed the window is click-through
 /// (WS_EX_TRANSPARENT) and receives no mouse input at all, so events could not detect the strip.
 public partial class EdgeWindow : Window
@@ -44,7 +44,8 @@ public partial class EdgeWindow : Window
     private const double CardSideRoom = 12;
     private const double CardVerticalRoom = 16;  // keep the card inside the window
     private const double WindowWidthDip = CardSideRoom + CardBodyWidth + BeakLength + CardGap + PanelWidth;
-    private const double WindowHeightDip = 960;  // eight rings plus the panel's top and bottom flares
+    private const double WindowHeightDip = 960;  // maximum design height
+    private double _availableHeight = WindowHeightDip;
 
     private const int PanelMs = 250;
     private const int RingHoverMs = 150;
@@ -61,6 +62,7 @@ public partial class EdgeWindow : Window
 
     private readonly DateTime _sessionStart;
     private readonly DispatcherTimer _pointerWatch;
+    private readonly DispatcherTimer _timeTextTimer;
     private readonly Stopwatch _outside = new();
     private readonly Stopwatch _tickClock = new();
     private readonly FrameworkElement[] _ringItems;
@@ -72,7 +74,6 @@ public partial class EdgeWindow : Window
     private int _activeRing = -1;
     private int _hoveredRing = -1;
     private double _panelTop;
-    private RECT _windowRect;
     private bool _hasWindowRect;
     private ClaudeSnapshot? _claude;
     private CodexSnapshot? _codex;
@@ -87,7 +88,7 @@ public partial class EdgeWindow : Window
 
     internal event Action<bool>? ExpandedChanged;
 
-    /// The panel's "Actualizar" button was pressed: refresh CPU, GPU, Claude and Codex (the owner calls SetRefreshing).
+    /// The panel's "Actualizar" button was pressed: refresh usage providers and sensors (the owner calls SetRefreshing).
     internal event Action? RefreshRequested;
 
     /// "Ocultar" (pinned → auto) or "Fijar" (auto → pinned) was pressed. The owner persists it and calls ApplyMode.
@@ -117,12 +118,12 @@ public partial class EdgeWindow : Window
         CpuRing.RingBrush = GpuRing.RingBrush = Palette.Green;
 
         Width = WindowWidthDip;
-        Height = WindowHeightDip;
+        Height = _availableHeight;
         Left = -32000;
         Top = -32000;
 
         Canvas.SetLeft(Strip, WindowWidthDip - StripWidth);
-        Canvas.SetTop(Strip, (WindowHeightDip - StripHeight) / 2);
+        Canvas.SetTop(Strip, (_availableHeight - StripHeight) / 2);
 
         SyncModeButton();
         SyncUsageTabs();
@@ -135,6 +136,8 @@ public partial class EdgeWindow : Window
 
         _pointerWatch = new DispatcherTimer(DispatcherPriority.Input) { Interval = FarPoll };
         _pointerWatch.Tick += OnPointerTick;
+        _timeTextTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
+        _timeTextTimer.Tick += (_, _) => RefreshTimeTexts();
 
         SourceInitialized += OnSourceInitialized;
         RefreshTimeTexts();
@@ -267,7 +270,7 @@ public partial class EdgeWindow : Window
         PanelRoot.InvalidateMeasure();
         EdgePanel.InvalidateMeasure();
         EdgePanel.Measure(new Size(PanelWidth, double.PositiveInfinity));
-        _panelTop = Math.Round((WindowHeightDip - EdgePanel.DesiredSize.Height) / 2);
+        _panelTop = Math.Round((_availableHeight - EdgePanel.DesiredSize.Height) / 2);
         Animate(EdgePanel, Canvas.TopProperty, _panelTop, animate ? PanelMs : 0);
     }
 
@@ -525,13 +528,15 @@ public partial class EdgeWindow : Window
     {
         if (snapshot.Temperature is double temperature)
         {
+            ResetTemperatureLabel(CpuLabel);
             SetTemperatureRing(CpuRing, CpuLabel, temperature);
             SetTemperatureBar(TempBar, temperature);
             TempValue.Text = Fmt.Celsius(temperature);
         }
         else
         {
-            ClearRing(CpuRing, CpuLabel);
+            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(CpuRing, CpuLabel, "Instala PawnIO para ver la temperatura"); SetPawnIoLabel(CpuLabel); }
+            else { ResetTemperatureLabel(CpuLabel); ClearRing(CpuRing, CpuLabel); }
             ClearBar(TempBar);
             TempValue.Text = "--";
         }
@@ -559,8 +564,12 @@ public partial class EdgeWindow : Window
         }
 
         CpuTitle.Text = ShortHardwareName(snapshot.Name, "CPU");
-        CpuMessage.Text = snapshot.Message ?? string.Empty;
-        CpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (CpuMessage.Text != snapshot.Message || (CpuMessage.Visibility == Visibility.Visible) != (snapshot.Message is not null))
+        {
+            CpuMessage.Text = snapshot.Message ?? string.Empty;
+            CpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+            CardContent.InvalidateMeasure();
+        }
 
         RefreshTimeTexts();
         if (_cardVisible) PlaceCard(animate: true);
@@ -573,13 +582,15 @@ public partial class EdgeWindow : Window
 
         if (snapshot.Temperature is double temperature)
         {
+            ResetTemperatureLabel(GpuLabel);
             SetTemperatureRing(GpuRing, GpuLabel, temperature);
             SetTemperatureBar(GpuTempBar, temperature);
             GpuTempValue.Text = Fmt.Celsius(temperature);
         }
         else
         {
-            ClearRing(GpuRing, GpuLabel);
+            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(GpuRing, GpuLabel, "Instala PawnIO para ver la temperatura"); SetPawnIoLabel(GpuLabel); }
+            else { ResetTemperatureLabel(GpuLabel); ClearRing(GpuRing, GpuLabel); }
             ClearBar(GpuTempBar);
             GpuTempValue.Text = "--";
         }
@@ -616,8 +627,12 @@ public partial class EdgeWindow : Window
         }
 
         GpuTitle.Text = ShortHardwareName(snapshot.Name, "GPU");
-        GpuMessage.Text = snapshot.Message ?? string.Empty;
-        GpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (GpuMessage.Text != snapshot.Message || (GpuMessage.Visibility == Visibility.Visible) != (snapshot.Message is not null))
+        {
+            GpuMessage.Text = snapshot.Message ?? string.Empty;
+            GpuMessage.Visibility = snapshot.Message is null ? Visibility.Collapsed : Visibility.Visible;
+            CardContent.InvalidateMeasure();
+        }
 
         if (_cardVisible) PlaceCard(animate: true);
     }
@@ -631,8 +646,7 @@ public partial class EdgeWindow : Window
 
         item.Visibility = target;
         bool anyUsageRing = _ringItems[RingClaude].Visibility == Visibility.Visible
-                            || _ringItems[RingCodex].Visibility == Visibility.Visible
-                            || _ringItems[RingCursor].Visibility == Visibility.Visible;
+                            || _ringItems[RingCodex].Visibility == Visibility.Visible;
         UsageTabs.Visibility = anyUsageRing ? Visibility.Visible : Visibility.Collapsed;
         if (!visible)
         {
@@ -685,6 +699,22 @@ public partial class EdgeWindow : Window
         label.Foreground = Brushes.White;
     }
 
+    private static void SetPawnIoLabel(TextBlock label)
+    {
+        label.FontSize = 7;
+        label.TextWrapping = TextWrapping.Wrap;
+        label.MaxWidth = 50;
+        label.Margin = new Thickness(0);
+    }
+
+    private static void ResetTemperatureLabel(TextBlock label)
+    {
+        label.FontSize = 16;
+        label.TextWrapping = TextWrapping.NoWrap;
+        label.MaxWidth = double.PositiveInfinity;
+        label.Margin = new Thickness(0, 8, 0, 0);
+    }
+
     private void SetPercentBar(LinearBar bar, double percent)
     {
         bar.Fill = Palette.ForPercent(percent);
@@ -719,10 +749,8 @@ public partial class EdgeWindow : Window
 
         if (!GetCursorPos(out POINT cursor)) return;
 
-        // Cheap gate first: while the cursor is anywhere else on the desktop — almost always — a tick costs
-        // four integer comparisons and nothing else. WPF hit-testing (PointFromScreen walks the visual tree
-        // and validates layout) only runs once the cursor is actually over this window.
-        bool near = !_hasWindowRect || Contains(_windowRect, cursor);
+        // Poll quickly only when the pointer is over the strip, panel or visible card; ignore the empty window area.
+        bool near = !_hasWindowRect || NearInteractiveArea(cursor);
         SetPollInterval(near ? NearPoll : FarPoll);
         if (!near)
         {
@@ -814,9 +842,12 @@ public partial class EdgeWindow : Window
         return local.X >= 0 && local.Y >= 0 && local.X < element.ActualWidth && local.Y < element.ActualHeight;
     }
 
-    /// Physical pixels, as GetCursorPos and SetWindowPos both report them.
-    private static bool Contains(RECT rect, POINT point) =>
-        point.X >= rect.Left && point.X < rect.Right && point.Y >= rect.Top && point.Y < rect.Bottom;
+    private bool NearInteractiveArea(POINT point)
+    {
+        if (!_expanded) return _mode == PanelMode.Auto && Contains(Strip, new Point(point.X, point.Y));
+        return Contains(EdgePanel, new Point(point.X, point.Y))
+               || (_cardVisible && Contains(Card, new Point(point.X, point.Y)));
+    }
 
     // ─────────────────────────── Expand / collapse ───────────────────────────
 
@@ -885,6 +916,7 @@ public partial class EdgeWindow : Window
         {
             PlaceCard(animate: false);
             _cardVisible = true;
+            _timeTextTimer.Start();
             Animate(CardShift, TranslateTransform.XProperty, 0, 220, from: 10);
             Animate(Card, OpacityProperty, 1, 180);
         }
@@ -895,6 +927,7 @@ public partial class EdgeWindow : Window
         if (!_cardVisible) return;
         Log.Trace("Edge", "hide card");
         _cardVisible = false;
+        _timeTextTimer.Stop();
         _activeRing = -1;
         Animate(Card, OpacityProperty, 0, 150);
     }
@@ -904,10 +937,9 @@ public partial class EdgeWindow : Window
     {
         if (_activeRing < 0) return;
 
-        // Flush pending layout first: a bare Measure() on an ancestor returns a cached size when only a
-        // descendant changed (e.g. a message line collapsed), which left the card too tall.
-        UpdateLayout();
-        CardContent.Measure(new Size(CardBodyWidth, double.PositiveInfinity));
+        // Measure only when content changes; UpdateLayout would remeasure the whole layered window on every sample.
+        if (!CardContent.IsMeasureValid)
+            CardContent.Measure(new Size(CardBodyWidth, double.PositiveInfinity));
         double height = Math.Ceiling(CardContent.DesiredSize.Height);
 
         // Measured against the panel's target top, so the card aims at where the ring ends up while the panel is
@@ -915,7 +947,7 @@ public partial class EdgeWindow : Window
         FrameworkElement ring = _rings[_activeRing];
         double ringCenter = _panelTop + ring.TranslatePoint(new Point(ring.ActualWidth / 2, ring.ActualHeight / 2), EdgePanel).Y;
 
-        double maxTop = Math.Max(CardVerticalRoom, WindowHeightDip - CardVerticalRoom - height);
+        double maxTop = Math.Max(CardVerticalRoom, _availableHeight - CardVerticalRoom - height);
         double top = Math.Min(Math.Max(ringCenter - height / 2, CardVerticalRoom), maxTop);
         double beakCenter = ringCenter - top;
 
@@ -927,12 +959,18 @@ public partial class EdgeWindow : Window
 
     private void Animate(IAnimatable target, DependencyProperty property, double to, int milliseconds, double? from = null)
     {
-        if (!AnimationsEnabled || milliseconds <= 0)
+        DependencyObject dependency = (DependencyObject)target;
+        if (!_expanded && !PreviewMode || !AnimationsEnabled || milliseconds <= 0)
         {
             target.BeginAnimation(property, null);
-            ((DependencyObject)target).SetValue(property, to);
+            dependency.SetValue(property, to);
             return;
         }
+        if (from is null && target is Animatable animatable
+            && animatable.GetAnimationBaseValue(property) is double baseValue
+            && animatable.GetValue(property) is double current
+            && Math.Abs(baseValue - to) < 0.001 && Math.Abs(current - to) < 0.001)
+            return;
 
         var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = EaseOut };
         if (from is double start) animation.From = start;
@@ -1000,13 +1038,20 @@ public partial class EdgeWindow : Window
             RECT bounds = info.rcMonitor;
             int width = (int)Math.Round(WindowWidthDip * scale);
             int height = Math.Min((int)Math.Round(WindowHeightDip * scale), bounds.Bottom - bounds.Top);
+            _availableHeight = height / scale;
+            Height = _availableHeight;
+            Strip.Height = Math.Min(StripHeight, _availableHeight);
+            EdgePanel.LayoutTransform = _availableHeight < 960
+                ? new ScaleTransform(1, Math.Max(0.78, _availableHeight / 960))
+                : Transform.Identity;
+            CenterPanel(animate: false);
+            Canvas.SetTop(Strip, (_availableHeight - Strip.Height) / 2);
             int x = bounds.Right - width;
             int y = bounds.Top + (bounds.Bottom - bounds.Top - height) / 2;
 
             SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
 
             // Cached for the pointer poll's fast path; re-cached on every reposition (display or DPI change).
-            _windowRect = new RECT { Left = x, Top = y, Right = x + width, Bottom = y + height };
             _hasWindowRect = true;
             Log.Trace("Edge", $"positioned at {x},{y} {width}x{height} (scale {scale})");
         }
