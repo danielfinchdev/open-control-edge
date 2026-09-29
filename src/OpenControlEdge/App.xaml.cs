@@ -402,7 +402,7 @@ public partial class App : Application
         Settings settings = SettingsStore.Load();
         switch (id)
         {
-            case AiProviderId.Claude: _lastClaude = await _claude.FetchAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetClaude(_lastClaude); break;
+            case AiProviderId.Claude: _lastClaude = await FetchClaudePreservingAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetClaude(_lastClaude); break;
             case AiProviderId.Codex: _lastCodex = await _codex.FetchAsync(); TrackAgent(id, _lastCodex.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCodex(_lastCodex); break;
             case AiProviderId.Cursor: _lastCursor = await _cursor.FetchAsync(); TrackAgent(id, _lastCursor.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCursor(_lastCursor); break;
             case AiProviderId.OpenCode: _lastOpenCode = await _openCode.FetchAsync(); TrackAgent(id, _lastOpenCode.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetOpenCode(_lastOpenCode); break;
@@ -559,6 +559,11 @@ public partial class App : Application
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)) return ClaudeSnapshot.Absent();
         if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Claude, settings))
             return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
+        return await FetchClaudePreservingAsync();
+    }
+
+    private async Task<ClaudeSnapshot> FetchClaudePreservingAsync()
+    {
         if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt
             && _lastClaude is { Hidden: false, Session: not null })
             return _lastClaude;
