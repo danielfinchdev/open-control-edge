@@ -144,7 +144,8 @@ Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente c
      La carpeta `C:\Program Files\EdgeWidget` y tus ajustes se conservan;
    - arranca la copia instalada.
 
-   Las opciones `--portable` y `--no-elevate` solo tienen efecto en un proceso que ya se está ejecutando sin elevar.
+   «Usar sin instalar» y las opciones `--portable` / `--no-elevate` solo están disponibles si el proceso ya corre sin
+   elevar; en una ejecución elevada la ventana oculta esa opción.
 
 PawnIO también se puede instalar desde Ajustes → Información. Se descarga el asset oficial `PawnIO_setup.exe`;
 antes de abrirlo se comprueba la firma Authenticode, el sujeto `CN=namazso.eu` y la huella

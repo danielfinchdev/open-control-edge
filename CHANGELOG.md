@@ -9,7 +9,7 @@
   exige SHA-256 y una firma Authenticode válida de SignPath Foundation. Las descargas de actualización y PawnIO usan
   nombres de asset fijos; PawnIO exige el firmante fijado `CN=namazso.eu`.
 - Los argumentos `--snapshot`, `--smoke-test` y `--test-update-fixture` solo se procesan en Debug.
-  `--portable` y `--no-elevate` se ignoran cuando el proceso está elevado.
+  `--portable`, `--no-elevate` y «Usar sin instalar» se ignoran u ocultan cuando el proceso está elevado.
 - Los enlaces, el Explorador y los logins se lanzan con el token del usuario. Feedback abre un formulario público vacío
   y copia el borrador para que se revise y edite antes de enviarlo.
 - «Liberar RAM» está desactivado por defecto, solo recorta procesos de la sesión interactiva y ya no purga la lista

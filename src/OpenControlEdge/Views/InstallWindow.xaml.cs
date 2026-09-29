@@ -43,6 +43,9 @@ public partial class InstallWindow : Window
         _dots = new[] { DotStop, DotCopy, DotData, DotTask, DotStart };
         if (mode == Mode.Install)
         {
+#if !DEBUG
+            if (UnelevatedLauncher.IsElevated) SecondaryButton.Visibility = Visibility.Collapsed;
+#endif
             bool pawnIo = false;
             try { pawnIo = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
             if (!pawnIo) PawnIoButton.Visibility = Visibility.Visible;
