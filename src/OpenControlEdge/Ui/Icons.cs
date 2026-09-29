@@ -22,6 +22,10 @@ public static class Icons
     public static DrawingGroup ChevronRight { get; } = CreateChevron(left: false);
     public static DrawingGroup Gear { get; } = CreateGear();
     public static DrawingGroup Close { get; } = CreateClose();
+    public static DrawingGroup Swatch { get; } = CreateSwatch();
+    public static DrawingGroup Bot { get; } = CreateBot();
+    public static DrawingGroup Info { get; } = CreateInfo();
+    public static DrawingGroup Message { get; } = CreateMessage();
 
     public static DrawingImage ClaudeSparkImage { get; } = ToImage(ClaudeSpark);
     public static DrawingImage CodexImage { get; } = ToImage(Codex);
@@ -312,6 +316,73 @@ public static class Icons
             Line(ctx, new Point(17.5, 6.5), new Point(6.5, 17.5));
         }
         group.Children.Add(new GeometryDrawing(null, RoundPen(2.2), geometry));
+        group.Freeze();
+        return group;
+    }
+
+    /// Settings "Appearance": a round palette with four paint dots.
+    private static DrawingGroup CreateSwatch()
+    {
+        var group = NewGroup();
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), new EllipseGeometry(new Point(12, 12), 8.6, 8.6)));
+        foreach (Point dot in new[] { new Point(7.4, 13), new Point(8.4, 8.9), new Point(12, 7), new Point(15.6, 8.9) })
+            group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(dot, 1.35, 1.35)));
+        group.Freeze();
+        return group;
+    }
+
+    /// Settings "Agents": a robot head with an antenna.
+    private static DrawingGroup CreateBot()
+    {
+        var group = NewGroup();
+        var pen = RoundPen(1.8);
+        group.Children.Add(new GeometryDrawing(null, pen, new RectangleGeometry(new Rect(4.5, 8, 15, 11.5), 3, 3)));
+        var lines = new StreamGeometry();
+        using (var ctx = lines.Open())
+        {
+            Line(ctx, new Point(12, 4.2), new Point(12, 8));
+            Line(ctx, new Point(9.3, 12.6), new Point(9.3, 14.6));
+            Line(ctx, new Point(14.7, 12.6), new Point(14.7, 14.6));
+        }
+        group.Children.Add(new GeometryDrawing(null, pen, lines));
+        group.Freeze();
+        return group;
+    }
+
+    /// Settings "About": an i in a circle.
+    private static DrawingGroup CreateInfo()
+    {
+        var group = NewGroup();
+        var pen = RoundPen(1.8);
+        group.Children.Add(new GeometryDrawing(null, pen, new EllipseGeometry(new Point(12, 12), 8.8, 8.8)));
+        var stem = new StreamGeometry();
+        using (var ctx = stem.Open()) Line(ctx, new Point(12, 11.2), new Point(12, 16.2));
+        group.Children.Add(new GeometryDrawing(null, pen, stem));
+        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(12, 7.9), 1.15, 1.15)));
+        group.Freeze();
+        return group;
+    }
+
+    /// Settings "Feedback": a speech bubble.
+    private static DrawingGroup CreateMessage()
+    {
+        var group = NewGroup();
+        var bubble = new StreamGeometry();
+        using (var ctx = bubble.Open())
+        {
+            ctx.BeginFigure(new Point(7, 4.5), false, true);
+            ctx.LineTo(new Point(17, 4.5), true, true);
+            ctx.ArcTo(new Point(20, 7.5), new Size(3, 3), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(20, 13.5), true, true);
+            ctx.ArcTo(new Point(17, 16.5), new Size(3, 3), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(10, 16.5), true, true);
+            ctx.LineTo(new Point(6, 19.8), true, true);
+            ctx.LineTo(new Point(6, 16.4), true, true);
+            ctx.ArcTo(new Point(4, 13.5), new Size(3, 3), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(4, 7.5), true, true);
+            ctx.ArcTo(new Point(7, 4.5), new Size(3, 3), 0, false, SweepDirection.Clockwise, true, true);
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), bubble));
         group.Freeze();
         return group;
     }
