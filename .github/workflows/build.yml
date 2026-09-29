@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
-    branches: [main]
+    branches: [main, v2]
   workflow_dispatch:
 
 permissions:
@@ -21,13 +21,19 @@ jobs:
         with:
           global-json-file: global.json
 
-      # SelfContained, PublishSingleFile and DebugType=none come from the Release csproj.
+      # Native dependencies stay beside the executable, avoiding extraction to a user-writable temp folder.
       - name: Publish
         run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
-      - name: Upload OpenControlEdge.exe
+      - name: Include installer
+        run: Copy-Item tools/instalar.ps1 dist/instalar.ps1
+
+      - name: Package application folder
+        run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
+
+      - name: Upload OpenControlEdge bundle
         uses: actions/upload-artifact@v4
         with:
-          name: OpenControlEdge.exe
-          path: dist/OpenControlEdge.exe
+          name: OpenControlEdge-win-x64.zip
+          path: OpenControlEdge-win-x64.zip
           if-no-files-found: error

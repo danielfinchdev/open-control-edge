@@ -24,12 +24,18 @@ jobs:
       - name: Publish
         run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
+      - name: Include installer
+        run: Copy-Item tools/instalar.ps1 dist/instalar.ps1
+
+      - name: Package application folder
+        run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
+
       - name: Attest OpenControlEdge.exe
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/OpenControlEdge.exe
 
-      - name: Attach OpenControlEdge.exe to GitHub Release
+      - name: Attach application bundle to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -37,7 +43,7 @@ jobs:
           $title = "Open Control Edge $($tag.Substring(1))"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag dist/OpenControlEdge.exe --clobber
+            gh release upload $tag OpenControlEdge-win-x64.zip --clobber
           } else {
-            gh release create $tag dist/OpenControlEdge.exe --title $title --generate-notes
+            gh release create $tag OpenControlEdge-win-x64.zip --title $title --generate-notes
           }
