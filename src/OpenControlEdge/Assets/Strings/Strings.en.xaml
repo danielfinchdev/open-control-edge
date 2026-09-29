@@ -104,8 +104,6 @@
     <sys:String x:Key="Install.Intro">Open Control Edge will be installed in Program Files, where only an administrator can change it, and will start by itself when you sign in, without asking for permission again.</sys:String>
     <sys:String x:Key="Install.PawnIo">Download and install PawnIO</sys:String>
     <sys:String x:Key="Install.PawnIoDone">PawnIO is installed and available.</sys:String>
-    <sys:String x:Key="Install.PawnIo">Download and install PawnIO</sys:String>
-    <sys:String x:Key="Install.PawnIoDone">PawnIO is installed and available.</sys:String>
     <sys:String x:Key="Install.Step.Stop">Close the running version (EdgeWidget too)</sys:String>
     <sys:String x:Key="Install.Step.Copy">Copy the app to C:\Program Files\OpenControlEdge and verify it</sys:String>
     <sys:String x:Key="Install.Step.Data">Protect your settings and keep the ones of earlier versions</sys:String>
