@@ -45,8 +45,13 @@ internal static class DataFolder
         if (!UnelevatedLauncher.IsElevated) return true;
         try
         {
+            string? parent = System.IO.Path.GetDirectoryName(Path);
             var info = new DirectoryInfo(Path);
-            return info.Exists && (info.Attributes & FileAttributes.ReparsePoint) == 0 && !NonAdminsCanWrite(Path, directory: true);
+            var parentInfo = parent is null ? null : new DirectoryInfo(parent);
+            return info.Exists && (info.Attributes & FileAttributes.ReparsePoint) == 0
+                && !NonAdminsCanWrite(Path, directory: true)
+                && parentInfo is { Exists: true } && (parentInfo.Attributes & FileAttributes.ReparsePoint) == 0
+                && !NonAdminsCanWrite(parent!, directory: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -123,6 +128,10 @@ internal static class DataFolder
     /// or reparse point is found, or an object cannot be protected; the caller stops the installation then.
     public static void Harden()
     {
+        string parent = System.IO.Path.GetDirectoryName(Path)
+            ?? throw new InvalidOperationException("La carpeta de datos no tiene padre.");
+        Directory.CreateDirectory(parent);
+        Protect(parent, directory: true);
         Directory.CreateDirectory(Path);
         Protect(Path, directory: true);
 

@@ -255,8 +255,12 @@ internal static class ProcessNative
     /// This process runs with a full administrator token.
     public static bool IsCurrentProcessElevated()
     {
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr token)) return false;
-        try { return IsTokenElevated(token); }
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr token)) return true;
+        try
+        {
+            if (!GetTokenInformation(token, TokenElevation, out int elevated, sizeof(int), out _)) return true;
+            return elevated != 0;
+        }
         finally { CloseHandle(token); }
     }
 

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
-using Microsoft.Win32.SafeHandles;
 using static OpenControlEdge.Interop.ProcessNative;
 using static OpenControlEdge.Interop.SecurityNative;
 
@@ -57,15 +56,6 @@ internal static class Installer
             if (!UnelevatedLauncher.ShellBelongsToThisAccount())
                 return Fail("La instalación debe aceptarse con la misma cuenta que tiene la sesión abierta.");
 
-            // Settings of earlier versions, looked up before the old install folder is replaced.
-            string? oldSettings = new[]
-            {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EdgeWidget", "EdgeWidget.settings.json"),
-                Path.Combine(sourceDir, SettingsFileName),
-                Path.Combine(InstallDir, SettingsFileName),
-            }.FirstOrDefault(File.Exists);
-            byte[]? oldSettingsBytes = oldSettings is null ? null : File.ReadAllBytes(oldSettings);
-
             progress.Report(InstallStep.Stop);
             AutoStartService.Stop(AutoStartService.TaskName);
             AutoStartService.Stop(AutoStartService.LegacyTaskName);
@@ -79,7 +69,7 @@ internal static class Installer
                 warnings.Add("Usuarios sin privilegios pueden escribir en la carpeta de instalación.");
 
             progress.Report(InstallStep.Data);
-            PrepareDataFolder(oldSettingsBytes, warnings);
+            PrepareDataFolder();
 
             progress.Report(InstallStep.Task);
             if (AutoStartService.Register() is string taskError) return Fail(taskError);
@@ -114,8 +104,6 @@ internal static class Installer
             return new InstallResult(false, message, warnings);
         }
     }
-
-    private const string SettingsFileName = "OpenControlEdge.settings.json";
 
     /// Ends every other Open Control Edge and EdgeWidget process and waits up to 5 s for them to go.
     internal static void StopOtherInstances()
@@ -169,6 +157,8 @@ internal static class Installer
             if (!Hash(file).AsSpan().SequenceEqual(Hash(copy)))
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");
         }
+        if (!AuthenticodeVerifier.IsValidSignPathSignature(Path.Combine(staging, "OpenControlEdge.exe")))
+            throw new InvalidOperationException("El ejecutable no tiene una firma Authenticode válida de SignPath Foundation.");
 
         string backup = $"{InstallDir}.previous-{Guid.NewGuid():N}";
         bool hadPrevious = Directory.Exists(InstallDir);
@@ -195,27 +185,10 @@ internal static class Installer
     /// point anywhere stops the installation: the folder is supposed to be a plain unzipped copy.
     private static List<string> SourceFiles(string sourceDir)
     {
-        var files = new List<string>();
-        var pending = new Stack<string>();
-        pending.Push(sourceDir);
-        while (pending.Count > 0)
-        {
-            foreach (string entry in Directory.EnumerateFileSystemEntries(pending.Pop()))
-            {
-                FileAttributes attributes = File.GetAttributes(entry);
-                if ((attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new InvalidOperationException($"{entry} es un enlace; descomprime el ZIP en una carpeta normal.");
-                if ((attributes & FileAttributes.Directory) != 0) { pending.Push(entry); continue; }
-                string name = Path.GetFileName(entry);
-                if (name.EndsWith(".settings.json", StringComparison.OrdinalIgnoreCase)
-                    || name.EndsWith(".log", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("cache.json", StringComparison.OrdinalIgnoreCase)) continue;
-                files.Add(entry);
-            }
-        }
-        if (!files.Any(f => Path.GetFileName(f).Equals("OpenControlEdge.exe", StringComparison.OrdinalIgnoreCase)))
+        string executable = Path.Combine(sourceDir, "OpenControlEdge.exe");
+        if (!File.Exists(executable) || (File.GetAttributes(executable) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("No se encuentra OpenControlEdge.exe en la carpeta de origen.");
-        return files;
+        return new List<string> { executable };
     }
 
     private static byte[] Hash(string path)
@@ -227,37 +200,14 @@ internal static class Installer
     /// Protects the data folder and brings older settings over. A file with several hard links (widget.log once
     /// ended up shared with the Claude app's container) loses this name before the folder is protected — its data
     /// survives under the other name — so the elevated widget never writes through it.
-    private static void PrepareDataFolder(byte[]? oldSettings, List<string> warnings)
+    private static void PrepareDataFolder()
     {
         string dir = DataFolder.Path;
         var info = new DirectoryInfo(dir);
         if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("La carpeta de datos es un enlace o punto de reanálisis; se cancela para evitar escrituras elevadas fuera de ella.");
 
-        if (info.Exists)
-        {
-            foreach (string file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-            {
-                if (LinkCount(file) <= 1) continue;
-                File.Delete(file);
-                warnings.Add($"{Path.GetFileName(file)} estaba enlazado con otro archivo y se ha empezado uno nuevo.");
-            }
-        }
-
         DataFolder.Harden();
-
-        string settings = Path.Combine(dir, SettingsFileName);
-        if (oldSettings is not null && !File.Exists(settings))
-        {
-            DataFolder.WriteAtomic(SettingsFileName, oldSettings);
-            Log.Info("Install", "ajustes anteriores migrados");
-        }
-    }
-
-    private static uint LinkCount(string path)
-    {
-        using SafeFileHandle handle = CreateFileW(path, 0, FILE_SHARE_ALL, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
-        return !handle.IsInvalid && GetFileInformationByHandle(handle, out BY_HANDLE_FILE_INFORMATION info) ? info.NumberOfLinks : 1;
     }
 
     /// Marks a folder and everything in it for deletion at the next restart (files first, deepest folders first).

@@ -24,7 +24,8 @@ internal static class MemoryService
     private static readonly HashSet<string> Excluded = new(StringComparer.OrdinalIgnoreCase)
     {
         "Idle", "System", "Registry", "Memory Compression", "Secure System", "smss", "csrss", "wininit", "winlogon",
-        "services", "lsass", "LsaIso", "fontdrvhost", "dwm", "MsMpEng", "audiodg",
+        "services", "lsass", "LsaIso", "fontdrvhost", "dwm", "MsMpEng", "audiodg", "explorer",
+        "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost", "TextInputHost",
     };
 
     public static RamSnapshot Read()
@@ -66,6 +67,7 @@ internal static class MemoryService
         int trimmed = 0;
         bool partial = false;
         int self = Environment.ProcessId;
+        int session = Process.GetCurrentProcess().SessionId;
 
         foreach (Process process in Process.GetProcesses())
         {
@@ -73,7 +75,9 @@ internal static class MemoryService
             {
                 try
                 {
-                    if (process.Id == self || process.Id <= 4 || Excluded.Contains(process.ProcessName)) continue;
+                    if (process.Id == self || process.Id <= 4 || process.SessionId != session || Excluded.Contains(process.ProcessName)
+                        || process.ProcessName.StartsWith("vmmem", StringComparison.OrdinalIgnoreCase)
+                        || process.ProcessName.Equals("vmwp", StringComparison.OrdinalIgnoreCase)) continue;
                     IntPtr handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SET_QUOTA, false, (uint)process.Id);
                     if (handle == IntPtr.Zero) continue;  // other users' or protected processes: skipped
                     try
@@ -87,19 +91,8 @@ internal static class MemoryService
             }
         }
 
-        // Needs SeProfileSingleProcessPrivilege, which only an elevated administrator token holds.
-        bool purged = false;
-        if (EnablePrivilege("SeProfileSingleProcessPrivilege"))
-        {
-            int command = MemoryPurgeStandbyList;
-            int status = NtSetSystemInformation(SystemMemoryListInformation, ref command, sizeof(int));
-            purged = status == 0;
-            if (!purged) Log.Warn("RAM", $"purga de la lista standby: NTSTATUS 0x{status:X8}");
-        }
-        else
-        {
-            partial = true;
-        }
+        // Trimming only affects the current interactive session. The global standby list is never purged.
+        const bool purged = false;
 
         ulong after = Available();
         ulong cacheAfter = Cache();

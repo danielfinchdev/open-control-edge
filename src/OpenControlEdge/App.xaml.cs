@@ -78,7 +78,9 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private readonly Dictionary<AiProviderId, (string Message, DateTimeOffset At)> _agentFailures = new();
     private DateTimeOffset? _lastUsageRefresh;
+#if DEBUG
     private bool _startupException;
+#endif
     private bool _agentsProbed;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -88,18 +90,27 @@ public partial class App : Application
         DispatcherUnhandledException += (_, args) =>
         {
             Log.Error("Dispatcher", args.Exception);
+#if DEBUG
             _startupException = true;
+#endif
             args.Handled = true;
         };
 
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            if (args.ExceptionObject is Exception ex) { _startupException = true; Log.Error("AppDomain", ex); }
+            if (args.ExceptionObject is Exception ex) {
+#if DEBUG
+                _startupException = true;
+#endif
+                Log.Error("AppDomain", ex);
+            }
         };
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
+#if DEBUG
             _startupException = true;
+#endif
             Log.Error("Task", args.Exception);
             args.SetObserved();
         };
@@ -113,6 +124,7 @@ public partial class App : Application
             return;
         }
 
+#if DEBUG
         int snapshotArg = Array.IndexOf(e.Args, "--snapshot");
         if (snapshotArg >= 0 && snapshotArg + 1 < e.Args.Length)
         {
@@ -121,7 +133,9 @@ public partial class App : Application
             catch (Exception) { Environment.ExitCode = 1; Shutdown(1); }
             return;
         }
+#endif
 
+#if DEBUG
         int fixtureArg = Array.IndexOf(e.Args, "--test-update-fixture");
         if (fixtureArg >= 0 && fixtureArg + 2 < e.Args.Length)
         {
@@ -130,6 +144,7 @@ public partial class App : Application
             Shutdown(Environment.ExitCode);
             return;
         }
+#endif
 
         // Theme, ring colours and language before any window exists, so nothing paints twice.
         Settings appearance = SettingsStore.Load();
@@ -216,6 +231,7 @@ public partial class App : Application
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.ContentRendered += (_, _) =>
         {
+#if DEBUG
             if (Array.IndexOf(e.Args, "--smoke-test") < 0) return;
             OpenSettings();
             var smokeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
@@ -228,6 +244,7 @@ public partial class App : Application
                 Shutdown(Environment.ExitCode);
             };
             smokeTimer.Start();
+#endif
         };
         _edge.Show();
 
@@ -266,6 +283,7 @@ public partial class App : Application
             else _settingsWindow.Activate();
             return;
         }
+        Settings previousSettings = SettingsStore.Load();
         _settingsWindow = new SettingsWindow(() => RefreshUsageAsync(), settings =>
         {
             _edge?.ApplyScale(settings.UiScale);
@@ -273,8 +291,12 @@ public partial class App : Application
             SetInterval(_refreshTimer, TimeSpan.FromMinutes(settings.UsageRefreshMinutes));
             ApplyCurrentSettings(settings);
             ConfigureAutoUpdateTimer(settings);
-            if (settings.AutoCheckUpdates) StartAutomaticUpdateCheck();
-            _ = RefreshUsageAsync();
+            bool updateCheckEnabled = !previousSettings.AutoCheckUpdates && settings.AutoCheckUpdates;
+            if (updateCheckEnabled) StartAutomaticUpdateCheck();
+            bool providersChanged = !previousSettings.Providers.OrderBy(x => x.Key).SequenceEqual(settings.Providers.OrderBy(x => x.Key));
+            bool refreshChanged = previousSettings.UsageRefreshMinutes != settings.UsageRefreshMinutes;
+            previousSettings = settings;
+            if (providersChanged || refreshChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release, () => _lastUsageRefresh,
             () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Owner = _edge };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
@@ -424,6 +446,7 @@ public partial class App : Application
         {
             _mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
             if (createdNew) return true;
+            Log.Warn("App", "no se inició porque otra instancia ya ocupa el mutex de instancia única");
             _mutex.Dispose();
             _mutex = null;
             return false;
@@ -431,6 +454,7 @@ public partial class App : Application
         catch (UnauthorizedAccessException)
         {
             // The mutex exists and belongs to an elevated instance.
+            Log.Warn("App", "no se pudo adquirir el mutex de instancia única");
             return false;
         }
     }
@@ -535,7 +559,13 @@ public partial class App : Application
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)) return ClaudeSnapshot.Absent();
         if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.Claude, settings))
             return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
-        return await _claude.FetchAsync();
+        ClaudeSnapshot current = await _claude.FetchAsync();
+        if (current.Message is string error && error.StartsWith("Error HTTP ", StringComparison.Ordinal)
+            && int.TryParse(error.AsSpan("Error HTTP ".Length), out int status)
+            && (status == 429 || status >= 500)
+            && _lastClaude is { Hidden: false, Session: not null } previous)
+            return previous with { Plan = current.Plan ?? previous.Plan, TokenExpiresAt = current.TokenExpiresAt };
+        return current;
     }
 
     private async Task<CodexSnapshot> RefreshCodexAsync(Settings settings)
@@ -770,12 +800,12 @@ public partial class App : Application
     /// --portable skips it (a copy run on purpose from its own folder, and the start-up measurements).
     private static bool ShouldOfferInstall(string[] args)
     {
-        if (Array.IndexOf(args, "--welcome") >= 0) return true;
-        if (Array.IndexOf(args, "--no-elevate") >= 0) return false;
-        if (Array.IndexOf(args, "--portable") >= 0) return false;
 #if DEBUG
         return false;
 #else
+        bool portableRequest = Array.IndexOf(args, "--no-elevate") >= 0 || Array.IndexOf(args, "--portable") >= 0;
+        if (portableRequest && !UnelevatedLauncher.IsElevated) return false;
+        if (Array.IndexOf(args, "--welcome") >= 0) return true;
         return !Installer.IsInstalledCopy;
 #endif
     }

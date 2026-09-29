@@ -49,6 +49,7 @@ internal static class ProviderKeyStore
     {
         try
         {
+            if (!DataFolder.IsSafeForWrites()) return false;
             string path = PathFor(provider);
             if (File.Exists(path)) File.Delete(path);
             return true;

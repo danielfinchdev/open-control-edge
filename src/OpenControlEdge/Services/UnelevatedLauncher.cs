@@ -43,7 +43,17 @@ internal static class UnelevatedLauncher
         IntPtr token = IntPtr.Zero, environment = IntPtr.Zero;
         try
         {
-            if (IsElevated)
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr currentToken))
+                return Result.Fail($"sin token propio (error {Marshal.GetLastWin32Error()}); no se lanza nada");
+            bool elevated;
+            try
+            {
+                if (!GetTokenInformation(currentToken, TokenElevation, out int level, sizeof(int), out _))
+                    return Result.Fail($"no se pudo comprobar el nivel del token (error {Marshal.GetLastWin32Error()}); no se lanza nada");
+                elevated = level != 0;
+            }
+            finally { CloseHandle(currentToken); }
+            if (elevated)
             {
                 string? error = ShellToken(out token);
                 if (error is not null) return Result.Fail(error);
@@ -73,7 +83,13 @@ internal static class UnelevatedLauncher
     /// Fire-and-forget: let it run and drop our handles.
     private static Result Release(PROCESS_INFORMATION info)
     {
-        ResumeThread(info.hThread);
+        if (ResumeThread(info.hThread) == uint.MaxValue)
+        {
+            TerminateProcess(info.hProcess, 1);
+            CloseHandle(info.hThread);
+            CloseHandle(info.hProcess);
+            return Result.Fail($"no se pudo reanudar el proceso (error {Marshal.GetLastWin32Error()})");
+        }
         CloseHandle(info.hThread);
         CloseHandle(info.hProcess);
         return new Result(true, null, false, null);
@@ -93,7 +109,11 @@ internal static class UnelevatedLauncher
                          && AssignProcessToJobObject(job, info.hProcess);
             if (!inJob) Log.Warn("Launcher", $"sin job (error {Marshal.GetLastWin32Error()}); solo se podrá cerrar el proceso principal");
 
-            ResumeThread(info.hThread);
+            if (ResumeThread(info.hThread) == uint.MaxValue)
+            {
+                TerminateProcess(info.hProcess, 1);
+                return Result.Fail($"no se pudo reanudar el proceso (error {Marshal.GetLastWin32Error()})");
+            }
             uint waited = WaitForSingleObject(info.hProcess, (uint)Math.Min(limit.TotalMilliseconds, uint.MaxValue - 1));
             if (waited == WAIT_TIMEOUT)
             {

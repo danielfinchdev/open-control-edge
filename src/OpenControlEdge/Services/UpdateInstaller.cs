@@ -80,10 +80,14 @@ internal static class UpdateInstaller
 
             bool hadInstall = Directory.Exists(install);
             if (!SwapDirectory(fullPayload, install, backup))
-                throw new IOException("No se pudo intercambiar la carpeta de instalación.");
+            {
+                TryDelete(stage);
+                return false;
+            }
 
             string executable = Path.Combine(install, "OpenControlEdge.exe");
-            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, Verb = "runas", WorkingDirectory = install })?.Dispose();
+            try { Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, Verb = "runas", WorkingDirectory = install })?.Dispose(); }
+            catch (Exception ex) { Log.Warn("Updates apply", "no se pudo reiniciar la nueva versión: " + ex.GetType().Name); }
             if (hadInstall) Installer.DeleteAtRestart(backup);
             TryDelete(stage);
             Log.Info("Updates", "updated installation swapped and relaunched");
@@ -92,15 +96,6 @@ internal static class UpdateInstaller
         catch (Exception ex)
         {
             Log.Error("Updates apply", ex);
-            try
-            {
-                if (Directory.Exists(backup))
-                {
-                    if (Directory.Exists(install)) Directory.Delete(install, recursive: true);
-                    Directory.Move(backup, install);
-                }
-            }
-            catch (Exception rollback) { Log.Error("Updates rollback", rollback); }
             TryDelete(stage);
             return false;
         }
