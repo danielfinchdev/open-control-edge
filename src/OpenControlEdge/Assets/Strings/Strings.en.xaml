@@ -94,7 +94,7 @@
 
     <!-- Tray menu -->
     <sys:String x:Key="Menu.Refresh">Refresh now</sys:String>
-    <sys:String x:Key="Menu.ApiKeys">API keys…</sys:String>
+    <sys:String x:Key="Menu.ApiKeys">Agents &amp; API keys…</sys:String>
     <sys:String x:Key="Menu.Exit">Quit</sys:String>
     <sys:String x:Key="Menu.AutoStart">Start with Windows</sys:String>
     <sys:String x:Key="Menu.Uninstall">Uninstall…</sys:String>

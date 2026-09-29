@@ -8,6 +8,7 @@
             <!-- Interface texts; Loc swaps this dictionary for Strings.en.xaml in place. -->
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/Assets/Strings/Strings.es.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/Ui/Controls/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Edge widget sizes are the original design scaled to 85 %; EdgeWindow scales the whole canvas on top. -->

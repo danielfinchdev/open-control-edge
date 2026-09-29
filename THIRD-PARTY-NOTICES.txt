@@ -1,0 +1,22 @@
+Third-party components
+======================
+
+LibreHardwareMonitorLib 0.9.6
+Mozilla Public License 2.0
+https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LICENSE
+
+Microsoft.Data.Sqlite 8.0.11 and Microsoft.Data.Sqlite.Core
+MIT License
+https://github.com/dotnet/efcore/blob/main/LICENSE.txt
+
+System.Security.Cryptography.ProtectedData 8.0.0
+MIT License
+https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+
+SQLite native library (SQLitePCLRaw / e_sqlite3)
+Public domain
+https://www.sqlite.org/copyright.html
+
+Google Sans Flex font files in Assets/Fonts
+SIL Open Font License 1.1
+See Assets/Fonts/OFL.txt.

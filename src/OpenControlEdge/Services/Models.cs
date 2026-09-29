@@ -1,5 +1,7 @@
 namespace OpenControlEdge.Services;
 
+internal sealed record AgentStatus(string Kind, string? Plan, string? Message, DateTimeOffset? FailedAt);
+
 internal sealed record UsageWindow(double Percent, DateTimeOffset? ResetsAt);
 
 /// An amount in the currency's major unit (10.53 EUR), built from the API's minor units and exponent.

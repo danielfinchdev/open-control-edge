@@ -9,6 +9,22 @@ namespace OpenControlEdge.Services;
 internal static class PawnIoInstaller
 {
     private const string Releases = "https://api.github.com/repos/namazso/PawnIO.Setup/releases/latest";
+    internal static bool ServiceRunning
+    {
+        get
+        {
+            try
+            {
+                string sc = Path.Combine(Environment.SystemDirectory, "sc.exe");
+                using var process = Process.Start(new ProcessStartInfo(sc, "query PawnIO")
+                { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true });
+                if (process is null || !process.WaitForExit(3000)) { try { process?.Kill(); } catch { } return false; }
+                return process.StandardOutput.ReadToEnd().Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+    }
+
     internal static async Task<string?> InstallAsync(CancellationToken cancellationToken = default)
     {
         string? file = null;

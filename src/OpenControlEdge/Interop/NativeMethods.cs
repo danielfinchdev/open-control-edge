@@ -90,6 +90,9 @@ internal static class NativeMethods
     public static extern IntPtr MonitorFromPoint(POINT point, uint flags);
 
     [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+
+    [DllImport("user32.dll")]
     public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
 
     [DllImport("user32.dll", SetLastError = true)]

@@ -241,12 +241,7 @@ exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventar
 
 ### Cómo guardar o borrar claves
 
-En el menú de la bandeja, selecciona **Claves de API…**. El diálogo tiene un `PasswordBox` para DeepSeek y otro para OpenRouter, con botones **Guardar** y **Borrar**. También se abre desde consola con:
-
-```powershell
-OpenControlEdge.exe --set-key deepseek
-OpenControlEdge.exe --set-key openrouter
-```
+En el engranaje del widget, abre **Ajustes → Agentes**. DeepSeek y OpenRouter tienen un campo protegido para su clave con botones **Guardar** y **Borrar**.
 
 Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en `%LOCALAPPDATA%\OpenControlEdge\keys\deepseek.bin` y `openrouter.bin`. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
 

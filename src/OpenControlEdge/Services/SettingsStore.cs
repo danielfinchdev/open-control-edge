@@ -62,6 +62,9 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 
     /// Clicking the RAM ring frees memory (MemoryService.CleanAsync). Off: the click only shows the card.
     public bool RamCleanup { get; init; } = true;
+    public int UsageRefreshMinutes { get; init; } = 2;
+    public bool AutoCheckUpdates { get; init; }
+    public DateTimeOffset? LastAutoUpdateCheck { get; init; }
 
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
@@ -150,6 +153,9 @@ internal static class SettingsStore
                 UiScale = ParseScale(root),
                 AutoRenewClaude = GetBool(root, "autoRenewClaude") ?? true,
                 RamCleanup = GetBool(root, "ramCleanup") ?? true,
+                UsageRefreshMinutes = GetInt(root, "usageRefreshMinutes") is int minutes && minutes is 2 or 5 or 10 or 15 ? minutes : 2,
+                AutoCheckUpdates = GetBool(root, "autoCheckUpdates") ?? false,
+                LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
             };
         }
         catch (Exception ex)
@@ -222,6 +228,9 @@ internal static class SettingsStore
                 else writer.WriteString("uiScale", "auto");
                 writer.WriteBoolean("autoRenewClaude", settings.AutoRenewClaude);
                 writer.WriteBoolean("ramCleanup", settings.RamCleanup);
+                writer.WriteNumber("usageRefreshMinutes", settings.UsageRefreshMinutes);
+                writer.WriteBoolean("autoCheckUpdates", settings.AutoCheckUpdates);
+                if (settings.LastAutoUpdateCheck is DateTimeOffset checkedAt) writer.WriteString("lastAutoUpdateCheck", checkedAt.ToString("o"));
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -301,6 +310,13 @@ internal static class SettingsStore
     private static bool? GetBool(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? value.GetBoolean() : null;
+
+    private static int? GetInt(JsonElement obj, string key) =>
+        obj.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number) ? number : null;
+
+    private static DateTimeOffset? GetDate(JsonElement obj, string key) =>
+        obj.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.String
+        && DateTimeOffset.TryParse(value.GetString(), out DateTimeOffset date) ? date : null;
 
     private static string? GetString(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

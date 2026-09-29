@@ -331,12 +331,6 @@ internal static class Snapshot
             Path.Combine(directory, "60_install_error.png"));
         SaveInstallWindow(InstallWindow.Mode.Uninstall, null, null, Path.Combine(directory, "61_uninstall.png"));
 
-        var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
-        keys.Show();
-        keys.UpdateLayout();
-        SaveElement((FrameworkElement)keys.Content, Path.Combine(directory, "28_api_key_window.png"));
-        keys.Close();
-
         window.Close();
 
         var menu = new TrayMenuWindow { ShowActivated = false, Left = -32000, Top = -32000 };

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using OpenControlEdge.Interop;
@@ -28,8 +29,6 @@ public partial class App : Application
     // Two cadences for each source: the fast one only while the pinned panel is actually on screen, the slow
     // one the rest of the time. The sensors never stop, so "Máxima de la sesión" also catches the peaks
     // nobody was watching — the boot spike above all.
-    private static readonly TimeSpan UsageVisibleInterval = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan UsageHiddenInterval = TimeSpan.FromMinutes(6);
     private static readonly TimeSpan SensorVisibleInterval = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan SensorHiddenInterval = TimeSpan.FromMinutes(1);
 
@@ -52,6 +51,7 @@ public partial class App : Application
     private DispatcherTimer? _refreshTimer;
     private DispatcherTimer? _sensorTimer;
     private DispatcherTimer? _warmupTimer;
+    private DispatcherTimer? _autoUpdateTimer;
     private bool _warmingUp = true;
     private Task? _usageRefresh;
     private Task? _sensorRefresh;
@@ -76,6 +76,10 @@ public partial class App : Application
     private bool _cleaningRam;
     private bool _firstDataLogged;
     private SettingsWindow? _settingsWindow;
+    private readonly Dictionary<AiProviderId, (string Message, DateTimeOffset At)> _agentFailures = new();
+    private DateTimeOffset? _lastUsageRefresh;
+    private bool _startupException;
+    private bool _agentsProbed;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -84,19 +88,30 @@ public partial class App : Application
         DispatcherUnhandledException += (_, args) =>
         {
             Log.Error("Dispatcher", args.Exception);
+            _startupException = true;
             args.Handled = true;
         };
 
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            if (args.ExceptionObject is Exception ex) Log.Error("AppDomain", ex);
+            if (args.ExceptionObject is Exception ex) { _startupException = true; Log.Error("AppDomain", ex); }
         };
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
+            _startupException = true;
             Log.Error("Task", args.Exception);
             args.SetObserved();
         };
+
+        int updateHelperArg = Array.IndexOf(e.Args, "--apply-update");
+        if (updateHelperArg >= 0 && updateHelperArg + 2 < e.Args.Length)
+        {
+            int.TryParse(e.Args[updateHelperArg + 2], out int parentPid);
+            Environment.ExitCode = UpdateInstaller.ApplyAfterParentExit(e.Args[updateHelperArg + 1], parentPid) ? 0 : 1;
+            Shutdown(Environment.ExitCode);
+            return;
+        }
 
         int snapshotArg = Array.IndexOf(e.Args, "--snapshot");
         if (snapshotArg >= 0 && snapshotArg + 1 < e.Args.Length)
@@ -104,6 +119,15 @@ public partial class App : Application
             Log.Suppress();
             try { Snapshot.Run(e.Args[snapshotArg + 1]); Shutdown(0); }
             catch (Exception) { Environment.ExitCode = 1; Shutdown(1); }
+            return;
+        }
+
+        int fixtureArg = Array.IndexOf(e.Args, "--test-update-fixture");
+        if (fixtureArg >= 0 && fixtureArg + 2 < e.Args.Length)
+        {
+            try { Environment.ExitCode = RunUpdateFixtureAsync(e.Args[fixtureArg + 1], e.Args[fixtureArg + 2]).GetAwaiter().GetResult() ? 0 : 1; }
+            catch (Exception ex) { Environment.ExitCode = 1; Log.Error("Update fixture", ex); }
+            Shutdown(Environment.ExitCode);
             return;
         }
 
@@ -122,18 +146,6 @@ public partial class App : Application
             return;
         }
 
-        int setKeyArg = Array.IndexOf(e.Args, "--set-key");
-        if (setKeyArg >= 0)
-        {
-            string? provider = setKeyArg + 1 < e.Args.Length ? e.Args[setKeyArg + 1].ToLowerInvariant() : null;
-            if (provider is "deepseek" or "openrouter")
-            {
-                var keyWindow = new ApiKeyWindow(provider);
-                keyWindow.ShowDialog();
-            }
-            Shutdown();
-            return;
-        }
 
         // Run from anywhere but C:\Program Files\OpenControlEdge (the unzipped release): offer to install. Before the
         // single-instance check, so a copy already running can be replaced.
@@ -158,7 +170,7 @@ public partial class App : Application
         Log.Info("App", $"started (panel {_panelMode}, {(UnelevatedLauncher.IsElevated ? "elevated" : "not elevated")})");
 
         // Timers exist before the window is shown: a pinned panel expands during Show() and sets the cadence.
-        _refreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = UsageHiddenInterval };
+        _refreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(SettingsStore.Load().UsageRefreshMinutes) };
         _refreshTimer.Tick += async (_, _) => await RefreshUsageAsync();
         _sensorTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = SensorHiddenInterval };
         _sensorTimer.Tick += async (_, _) => await RefreshSensorsAsync();
@@ -202,6 +214,21 @@ public partial class App : Application
         _edge.RamClicked += () => _ = FreeRamAsync();
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
+        _edge.ContentRendered += (_, _) =>
+        {
+            if (Array.IndexOf(e.Args, "--smoke-test") < 0) return;
+            OpenSettings();
+            var smokeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            smokeTimer.Tick += (_, _) =>
+            {
+                smokeTimer.Stop();
+                bool opened = _edge.IsVisible && _settingsWindow?.IsVisible == true;
+                Log.Info("SmokeTest", $"main={_edge.IsVisible}, settings={_settingsWindow?.IsVisible}, dispatcherException={_startupException}");
+                Environment.ExitCode = opened && !_startupException ? 0 : 1;
+                Shutdown(Environment.ExitCode);
+            };
+            smokeTimer.Start();
+        };
         _edge.Show();
 
         _tray = new TrayIcon("Open Control Edge");
@@ -221,18 +248,174 @@ public partial class App : Application
         _sensorTimer.Start();
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
+        StartAutomaticUpdateCheck();
+        ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
 
     private void OpenSettings()
     {
         if (_settingsWindow is { IsVisible: true }) { _settingsWindow.Activate(); return; }
-        _settingsWindow = new SettingsWindow(() => _ = RefreshUsageAsync(), settings =>
+        OpenSettings("General");
+    }
+
+    private void OpenSettings(string category, UpdateRelease? release = null)
+    {
+        if (_settingsWindow is { IsVisible: true })
+        {
+            if (release is not null) _settingsWindow.ShowUpdateResult(release);
+            else _settingsWindow.Activate();
+            return;
+        }
+        _settingsWindow = new SettingsWindow(() => RefreshUsageAsync(), settings =>
         {
             _edge?.ApplyScale(settings.UiScale);
             if (_panelMode != settings.PanelMode) SetPanelMode(settings.PanelMode);
+            SetInterval(_refreshTimer, TimeSpan.FromMinutes(settings.UsageRefreshMinutes));
+            ApplyCurrentSettings(settings);
+            ConfigureAutoUpdateTimer(settings);
+            if (settings.AutoCheckUpdates) StartAutomaticUpdateCheck();
             _ = RefreshUsageAsync();
-        }) { Owner = _edge };
+        }, AgentStatus, RetryProviderAsync, category, release, () => _lastUsageRefresh,
+            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Owner = _edge };
+        _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
+        if (category == "Agentes" && !_agentsProbed)
+        {
+            _agentsProbed = true;
+            _ = ProbeAgentsAsync(_settingsWindow);
+        }
         _settingsWindow.Show();
+    }
+
+    private async Task ProbeAgentsAsync(SettingsWindow window)
+    {
+        await Task.WhenAll(AiDetector.All.Select(RetryProviderAsync));
+        if (window.IsVisible) window.RefreshAgents();
+    }
+
+    private async void StartAutomaticUpdateCheck()
+    {
+        Settings settings = SettingsStore.Load();
+        if (!settings.AutoCheckUpdates || settings.LastAutoUpdateCheck is DateTimeOffset previous && DateTimeOffset.Now - previous < TimeSpan.FromHours(24)) return;
+        SettingsStore.Update(s => s with { LastAutoUpdateCheck = DateTimeOffset.Now });
+        UpdateCheckResult result = await UpdateService.CheckAsync();
+        if (result.Release is not null)
+            _ = Dispatcher.BeginInvoke(() => OpenSettings("Actualizaciones", result.Release));
+        else if (result.Error is not null) Log.Warn("Updates", result.Error);
+    }
+
+    private void ConfigureAutoUpdateTimer(Settings settings)
+    {
+        if (!settings.AutoCheckUpdates)
+        {
+            _autoUpdateTimer?.Stop();
+            return;
+        }
+        _autoUpdateTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromHours(1) };
+        _autoUpdateTimer.Tick -= OnAutoUpdateTimer;
+        _autoUpdateTimer.Tick += OnAutoUpdateTimer;
+        if (!_autoUpdateTimer.IsEnabled) _autoUpdateTimer.Start();
+    }
+
+    private void OnAutoUpdateTimer(object? sender, EventArgs e) => StartAutomaticUpdateCheck();
+
+    private async Task<bool> RunUpdateFixtureAsync(string endpoint, string resultPath)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? uri) || !uri.IsLoopback || uri.Scheme != "http") return false;
+        UpdateCheckResult result = await UpdateService.CheckAsync(endpoint).ConfigureAwait(false);
+        if (result.Release is null) throw new InvalidDataException(result.Error ?? "fixture returned no newer release");
+        string stage = Path.Combine(AppContext.BaseDirectory, "update-fixture-stage");
+        var tampered = result.Release with { Digest = new string('0', 64) };
+        try
+        {
+            await UpdateService.DownloadAndStageAsync(tampered, stage).ConfigureAwait(false);
+            throw new InvalidOperationException("tampered archive digest was accepted");
+        }
+        catch (InvalidDataException ex) when (ex.Message.Contains("digest", StringComparison.OrdinalIgnoreCase)) { }
+        if (Directory.Exists(stage)) throw new InvalidDataException("tampered archive created a staging folder");
+        var endpointUri = new Uri(endpoint);
+        string noDigestApi = endpointUri.GetLeftPart(UriPartial.Authority) + "/nodigest";
+        UpdateCheckResult noDigest = await UpdateService.CheckAsync(noDigestApi).ConfigureAwait(false);
+        if (noDigest.Release is not null || noDigest.Error is null) throw new InvalidDataException("a release without digest was accepted");
+        string payload = await UpdateService.DownloadAndStageAsync(result.Release, stage).ConfigureAwait(false);
+        string marker = Path.Combine(payload, "fixture.marker");
+        if (!File.Exists(Path.Combine(payload, "OpenControlEdge.exe")) || !File.Exists(marker))
+            throw new InvalidDataException("fixture archive contents were not staged");
+        string target = Path.Combine(AppContext.BaseDirectory, "update-fixture-target");
+        string old = Path.Combine(target, "old.marker");
+        string backup = target + ".fixture-backup";
+        try
+        {
+            if (Directory.Exists(target)) Directory.Delete(target, true);
+            if (Directory.Exists(backup)) Directory.Delete(backup, true);
+            Directory.CreateDirectory(target); await File.WriteAllTextAsync(old, "old");
+            UpdateInstaller.SwapDirectory(payload, target, backup);
+            if (!File.Exists(Path.Combine(target, "fixture.marker"))) throw new InvalidDataException("fixture directory swap failed");
+            // Force the failure branch with a missing payload and ensure rollback restores the previous directory.
+            string missing = Path.Combine(stage, "missing-payload");
+            bool rolledBack = !UpdateInstaller.SwapDirectory(missing, target, backup, failAfterBackup: true)
+                && File.Exists(Path.Combine(target, "fixture.marker"));
+            if (!rolledBack) throw new InvalidDataException("fixture rollback failed");
+            await File.WriteAllTextAsync(resultPath, $"OK {result.Release.Tag}; digest verified; missing and invalid digests rejected; extraction, swap and rollback verified").ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            try { if (Directory.Exists(target)) Directory.Delete(target, true); } catch { }
+            try { if (Directory.Exists(backup)) Directory.Delete(backup, true); } catch { }
+            try { if (Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
+        }
+    }
+
+    private void ApplyCurrentSettings(Settings settings)
+    {
+        _edge?.ApplyUsageView(settings.UsageView);
+        _edge?.ApplyScale(settings.UiScale);
+        _panelMode = settings.PanelMode;
+        UpdateCadence();
+    }
+
+    private async Task RetryProviderAsync(AiProviderId id)
+    {
+        if (!AiDetector.IsInstalled(id)) return;
+        Settings settings = SettingsStore.Load();
+        switch (id)
+        {
+            case AiProviderId.Claude: _lastClaude = await _claude.FetchAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetClaude(_lastClaude); break;
+            case AiProviderId.Codex: _lastCodex = await _codex.FetchAsync(); TrackAgent(id, _lastCodex.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCodex(_lastCodex); break;
+            case AiProviderId.Cursor: _lastCursor = await _cursor.FetchAsync(); TrackAgent(id, _lastCursor.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCursor(_lastCursor); break;
+            case AiProviderId.OpenCode: _lastOpenCode = await _openCode.FetchAsync(); TrackAgent(id, _lastOpenCode.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetOpenCode(_lastOpenCode); break;
+            case AiProviderId.DeepSeek: _lastDeepSeek = await _deepSeek.FetchAsync(); TrackAgent(id, _lastDeepSeek.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetDeepSeek(_lastDeepSeek); break;
+            case AiProviderId.OpenRouter: _lastOpenRouter = await _openRouter.FetchAsync(); TrackAgent(id, _lastOpenRouter.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetOpenRouter(_lastOpenRouter); break;
+        }
+        UpdateTooltip();
+    }
+
+    private AgentStatus AgentStatus(AiProviderId id)
+    {
+        if (!AiDetector.IsInstalled(id)) return new("missing", null, null, null);
+        (string? message, string? plan) = id switch
+        {
+            AiProviderId.Claude => (_lastClaude?.Message, _lastClaude?.Plan),
+            AiProviderId.Codex => (_lastCodex?.Message, _lastCodex?.Plan),
+            AiProviderId.Cursor => (_lastCursor?.Message, _lastCursor?.Plan),
+            AiProviderId.OpenCode => (_lastOpenCode?.Message, null),
+            AiProviderId.DeepSeek => (_lastDeepSeek?.Message, null),
+            AiProviderId.OpenRouter => (_lastOpenRouter?.Message, null),
+            _ => (null, null),
+        };
+        if (id == AiProviderId.Claude && _lastClaude?.Session is not null
+            || id == AiProviderId.Codex && _lastCodex?.Primary is not null
+            || id == AiProviderId.Cursor && _lastCursor?.Cycle is not null
+            || id == AiProviderId.OpenCode && _lastOpenCode is { Message: null }
+            || id == AiProviderId.DeepSeek && _lastDeepSeek is { Balance: not null }
+            || id == AiProviderId.OpenRouter && _lastOpenRouter is { Message: null })
+            return new("connected", plan, null, null);
+        bool noSession = message is not null && (message.Contains("sesi", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("sign in", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("inicia", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("clave API", StringComparison.OrdinalIgnoreCase));
+        return new(noSession ? "session" : "error", plan, message ?? "Sin respuesta",
+            _agentFailures.TryGetValue(id, out var failure) ? failure.At : null);
     }
 
     private bool AcquireSingleInstance()
@@ -279,6 +462,7 @@ public partial class App : Application
                 LogStartup("primera lectura de red pintada");
             }
             UsageCache.Save(_lastClaude, _lastCodex, _lastCursor, DateTimeOffset.Now);
+            _lastUsageRefresh = DateTimeOffset.Now;
             ArmAutoRenew();
             Log.Trace("Usage", "refresh finished");
         }
@@ -296,12 +480,18 @@ public partial class App : Application
                             + $"{process.WorkingSet64 / (1024 * 1024)} MB de memoria");
     }
 
-    private async Task ApplyClaudeAsync(Settings s) { if (_renewing) return; _lastClaude = await RefreshClaudeAsync(s); _edge?.SetClaude(_lastClaude); }
-    private async Task ApplyCodexAsync(Settings s) { _lastCodex = await RefreshCodexAsync(s); _edge?.SetCodex(_lastCodex); }
-    private async Task ApplyCursorAsync(Settings s) { _lastCursor = await RefreshCursorAsync(s); _edge?.SetCursor(_lastCursor); }
-    private async Task ApplyOpenCodeAsync(Settings s) { _lastOpenCode = await RefreshOpenCodeAsync(s); _edge?.SetOpenCode(_lastOpenCode); }
-    private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); _edge?.SetDeepSeek(_lastDeepSeek); }
-    private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); _edge?.SetOpenRouter(_lastOpenRouter); }
+    private void TrackAgent(AiProviderId id, string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) { _agentFailures.Remove(id); return; }
+        if (!_agentFailures.TryGetValue(id, out var existing) || existing.Message != message)
+            _agentFailures[id] = (message, DateTimeOffset.Now);
+    }
+    private async Task ApplyClaudeAsync(Settings s) { if (_renewing) return; _lastClaude = await RefreshClaudeAsync(s); TrackAgent(AiProviderId.Claude, _lastClaude.Message); _edge?.SetClaude(_lastClaude); }
+    private async Task ApplyCodexAsync(Settings s) { _lastCodex = await RefreshCodexAsync(s); TrackAgent(AiProviderId.Codex, _lastCodex.Message); _edge?.SetCodex(_lastCodex); }
+    private async Task ApplyCursorAsync(Settings s) { _lastCursor = await RefreshCursorAsync(s); TrackAgent(AiProviderId.Cursor, _lastCursor.Message); _edge?.SetCursor(_lastCursor); }
+    private async Task ApplyOpenCodeAsync(Settings s) { _lastOpenCode = await RefreshOpenCodeAsync(s); TrackAgent(AiProviderId.OpenCode, _lastOpenCode.Message); _edge?.SetOpenCode(_lastOpenCode); }
+    private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); TrackAgent(AiProviderId.DeepSeek, _lastDeepSeek.Message); _edge?.SetDeepSeek(_lastDeepSeek); }
+    private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); TrackAgent(AiProviderId.OpenRouter, _lastOpenRouter.Message); _edge?.SetOpenRouter(_lastOpenRouter); }
 
     /// The cached reading when there is a usable login (no network), otherwise what Initial says.
     private CodexSnapshot InitialCodex(Settings settings, CodexSnapshot? cached)
@@ -581,6 +771,7 @@ public partial class App : Application
     private static bool ShouldOfferInstall(string[] args)
     {
         if (Array.IndexOf(args, "--welcome") >= 0) return true;
+        if (Array.IndexOf(args, "--no-elevate") >= 0) return false;
         if (Array.IndexOf(args, "--portable") >= 0) return false;
 #if DEBUG
         return false;
@@ -604,7 +795,7 @@ public partial class App : Application
         bool visible = _panelMode == PanelMode.Pinned && _panelExpanded;
         SetInterval(_sensorTimer, _warmingUp ? SensorWarmupInterval
             : visible ? SensorVisibleInterval : SensorHiddenInterval);
-        SetInterval(_refreshTimer, visible ? UsageVisibleInterval : UsageHiddenInterval);
+        SetInterval(_refreshTimer, TimeSpan.FromMinutes(SettingsStore.Load().UsageRefreshMinutes));
     }
 
     /// Writing Interval restarts a running timer, so only write it when the cadence actually changes.
@@ -680,7 +871,7 @@ public partial class App : Application
 
         var menu = new TrayMenuWindow();
         menu.RefreshRequested += () => _ = RefreshEverythingAsync();
-        menu.ApiKeysRequested += ShowApiKeysWindow;
+        menu.ApiKeysRequested += () => OpenSettings("Agentes");
         menu.ExitRequested += Shutdown;
         menu.AutoStartToggled += SetAutoStart;
         menu.UninstallRequested += ShowUninstallWindow;
@@ -719,13 +910,6 @@ public partial class App : Application
         var window = new InstallWindow(InstallWindow.Mode.Uninstall);
         window.ShowDialog();
         if (window.Result == InstallWindow.Outcome.Uninstalled) Shutdown();
-    }
-
-    private void ShowApiKeysWindow()
-    {
-        var window = new ApiKeyWindow();
-        window.Closed += (_, _) => _ = RefreshUsageAsync();
-        window.ShowDialog();
     }
 
     protected override void OnExit(ExitEventArgs e)
