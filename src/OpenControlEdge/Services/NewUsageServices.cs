@@ -20,7 +20,7 @@ internal sealed class OpenCodeUsageService
     internal async Task<OpenCodeSnapshot> FetchAsync()
     {
         try { return await Task.Run(ReadLocal).WaitAsync(Timeout).ConfigureAwait(false); }
-        catch (TimeoutException) { return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
+        catch (TimeoutException) { Log.Warn("OpenCode", "timeout"); return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
         catch (Exception ex) { Log.Warn("OpenCode", ex.GetType().Name + ": " + ex.Message); return OpenCodeSnapshot.Failed("No se pudo leer el uso local"); }
     }
 
