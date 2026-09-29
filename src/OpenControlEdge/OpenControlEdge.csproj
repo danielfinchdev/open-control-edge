@@ -11,7 +11,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>OpenControlEdge</AssemblyName>
     <RootNamespace>OpenControlEdge</RootNamespace>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -26,7 +26,11 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Start-up measured 2026-09-29 (see CHANGELOG 2.1.0): uncompressed + ReadyToRun paints in ~0.8 s warm and
+         ~1.5 s on the first run with ~150 MB working set, against ~1.4 s / 2.2 s and ~260 MB compressed (the compressed
+         bundle is inflated into memory at every start). The ZIP grows from 60 to 67 MB. -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <PublishReadyToRun>true</PublishReadyToRun>
     <DebugType>none</DebugType>
   </PropertyGroup>
 
@@ -35,6 +39,8 @@
   <ItemGroup>
     <Resource Include="Assets\Fonts\GoogleSansFlex-Regular.ttf" />
     <Resource Include="Assets\Fonts\GoogleSansFlex-SemiBold.ttf" />
+    <!-- Shown in the welcome / install window. -->
+    <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>

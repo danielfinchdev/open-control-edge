@@ -1,0 +1,132 @@
+<Window x:Class="OpenControlEdge.Views.InstallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:OpenControlEdge.Ui"
+        Title="{DynamicResource Install.Title}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Width="480"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{DynamicResource Theme.Text}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Grayscale">
+
+    <Window.Resources>
+        <!-- Pill buttons: the primary one is a light disc with dark text (like the Claude app), the other a dark one. -->
+        <Style x:Key="PillButton" TargetType="Button">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
+            <Setter Property="Background" Value="{DynamicResource Theme.Button}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="19"
+                                BorderBrush="{DynamicResource Theme.Border}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="False" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.88" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PrimaryPill" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="Background" Value="{DynamicResource Theme.Text}" />
+            <Setter Property="Foreground" Value="{DynamicResource Theme.Background}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="StepDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="Stroke" Value="{DynamicResource Theme.TextSecondary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StepText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="12,0,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <!-- 20 px around for the shadow. -->
+    <Grid Margin="20">
+        <Border CornerRadius="20" Background="{DynamicResource Theme.Menu}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.5" />
+            </Border.Effect>
+        </Border>
+
+        <Border x:Name="Body" CornerRadius="20" Background="{DynamicResource Theme.Menu}" BorderBrush="{DynamicResource Theme.Border}"
+                BorderThickness="1" Padding="26,24,26,22" MouseLeftButtonDown="OnDrag">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="pack://application:,,,/Assets/app.ico" Width="30" Height="30" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock x:Name="TitleText" Text="{DynamicResource Install.Title}" FontSize="20" FontWeight="SemiBold"
+                               Margin="12,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock x:Name="IntroText" Text="{DynamicResource Install.Intro}" FontSize="13" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Theme.TextSecondary}" Margin="0,14,0,0" LineHeight="19" />
+
+                <!-- What the installation does, one dot per step: pending (ring), running, done, failed. -->
+                <StackPanel x:Name="Steps" Margin="0,18,0,0">
+                    <DockPanel Margin="0,0,0,10">
+                        <Ellipse x:Name="DotStop" Style="{StaticResource StepDot}" />
+                        <TextBlock Text="{DynamicResource Install.Step.Stop}" Style="{StaticResource StepText}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Ellipse x:Name="DotCopy" Style="{StaticResource StepDot}" />
+                        <TextBlock Text="{DynamicResource Install.Step.Copy}" Style="{StaticResource StepText}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Ellipse x:Name="DotData" Style="{StaticResource StepDot}" />
+                        <TextBlock Text="{DynamicResource Install.Step.Data}" Style="{StaticResource StepText}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Ellipse x:Name="DotTask" Style="{StaticResource StepDot}" />
+                        <TextBlock Text="{DynamicResource Install.Step.Task}" Style="{StaticResource StepText}" />
+                    </DockPanel>
+                    <DockPanel>
+                        <Ellipse x:Name="DotStart" Style="{StaticResource StepDot}" />
+                        <TextBlock Text="{DynamicResource Install.Step.Start}" Style="{StaticResource StepText}" />
+                    </DockPanel>
+                </StackPanel>
+
+                <TextBlock x:Name="StatusText" FontSize="13" TextWrapping="Wrap" Margin="0,18,0,0" Visibility="Collapsed" />
+                <TextBlock x:Name="WarningsText" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Foreground="{DynamicResource Theme.TextSecondary}" Visibility="Collapsed" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                    <Button x:Name="SecondaryButton" Style="{StaticResource PillButton}" Click="OnSecondaryClick"
+                            Content="{DynamicResource Install.Portable}" AutomationProperties.AutomationId="SecondaryButton" />
+                    <Button x:Name="PrimaryButton" Style="{StaticResource PrimaryPill}" Click="OnPrimaryClick" Margin="10,0,0,0"
+                            Content="{DynamicResource Install.Button}" IsDefault="True" AutomationProperties.AutomationId="PrimaryButton" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

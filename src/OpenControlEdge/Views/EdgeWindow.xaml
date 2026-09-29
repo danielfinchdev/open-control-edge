@@ -79,7 +79,7 @@
                                 <TextBlock x:Name="WeeklyValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                             </StackPanel>
 
-                            <!-- Usage credits spent (spend.used). The endpoint carries no remaining balance. -->
+                            <!-- Usage credits spent (spend.used), only above zero. The endpoint carries no remaining balance. -->
                             <DockPanel x:Name="ClaudeSpendRow" Margin="0,11,0,0" Visibility="Collapsed">
                                 <TextBlock x:Name="ClaudeSpendValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
                                 <TextBlock Text="{DynamicResource Row.Spent}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
@@ -87,6 +87,10 @@
                         </StackPanel>
 
                         <TextBlock x:Name="ClaudeMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
+                                   Margin="0,11,0,0" Visibility="Collapsed" />
+
+                        <!-- Outcome of the last renewal (App.RenewClaudeSessionAsync); cleared after a while. -->
+                        <TextBlock x:Name="ClaudeNote" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
@@ -116,6 +120,12 @@
                             </DockPanel>
                             <ui:LinearBar x:Name="CodexBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="CodexValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+
+                            <!-- credits of wham/usage, only when has_credits is true. -->
+                            <DockPanel x:Name="CodexCreditsRow" Margin="0,11,0,0" Visibility="Collapsed">
+                                <TextBlock x:Name="CodexCreditsValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource Row.Credits}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
+                            </DockPanel>
                         </StackPanel>
 
                         <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
@@ -138,6 +148,7 @@
                             </DockPanel>
                             <ui:LinearBar x:Name="CursorCycleBar" Height="4" Margin="0,6,0,0" />
                             <TextBlock x:Name="CursorCycleValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            <!-- On-demand spend (paid beyond the plan), only when enabled and used; the bar needs a limit. -->
                             <StackPanel x:Name="CursorOnDemandRow" Visibility="Collapsed">
                                 <TextBlock Text="{DynamicResource Row.OnDemand}" Style="{StaticResource RowLabel}" Margin="0,11,0,0" />
                                 <ui:LinearBar x:Name="CursorOnDemandBar" Height="4" Margin="0,6,0,0" />
@@ -250,6 +261,34 @@
                                    Margin="0,14,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
+                    <!-- RAM: physical memory in use, cache and committed memory. -->
+                    <StackPanel x:Name="RamCard" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:IconView Icon="{x:Static ui:Icons.Ram}" Style="{StaticResource CardIcon}" />
+                            <TextBlock Text="{DynamicResource Card.Ram}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="RamMetrics" Margin="0,11,0,0">
+                            <TextBlock Text="{DynamicResource Row.RamInUse}" Style="{StaticResource RowLabel}" />
+                            <ui:LinearBar x:Name="RamBar" Height="4" Margin="0,6,0,0" />
+                            <TextBlock x:Name="RamUsedValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+
+                            <DockPanel Margin="0,11,0,0">
+                                <TextBlock x:Name="RamCachedValue" DockPanel.Dock="Right" Text="--" Style="{StaticResource ValueText}" />
+                                <TextBlock Text="{DynamicResource Row.RamCached}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <DockPanel Margin="0,7,0,0">
+                                <TextBlock x:Name="RamCommittedValue" DockPanel.Dock="Right" Text="--" Style="{StaticResource ValueText}" />
+                                <TextBlock Text="{DynamicResource Row.RamCommitted}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="RamMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- The "Liberar RAM" hint, then its outcome ("Liberados 812 MB"). -->
+                        <TextBlock x:Name="RamNote" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" />
+                    </StackPanel>
+
                 </Grid>
             </Border>
         </Grid>
@@ -264,7 +303,7 @@
 
             <Grid x:Name="PanelRoot" Margin="0,38,0,38">
                 <StackPanel x:Name="PanelStack" Margin="0,20,0,14">
-                    <!-- Un clic renueva la sesión de Claude y abre Claude Code (ver App.RenewClaudeSession). -->
+                    <!-- Un clic renueva la sesión de Claude sin abrir ventanas (ver App.RenewClaudeSessionAsync). -->
                     <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
                           ToolTip="{DynamicResource Tip.ClaudeRing}"
                           MouseLeftButtonUp="OnClaudeClick">
@@ -323,7 +362,9 @@
                             <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0">
+                    <!-- Un clic abre Configuración > Sistema > Información, sin privilegios de administrador. -->
+                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
+                          ToolTip="{DynamicResource Tip.CpuRing}" MouseLeftButtonUp="OnCpuClick">
                         <StackPanel>
                             <ui:RingGauge x:Name="CpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cpu}">
                                 <ui:RingGauge.RenderTransform>
@@ -343,6 +384,17 @@
                                 </ui:RingGauge.RenderTransform>
                             </ui:RingGauge>
                             <TextBlock x:Name="GpuLabel" Text="--" Style="{StaticResource RingLabel}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Physical memory in use; a click frees RAM (App.FreeRamAsync). -->
+                    <Grid x:Name="RamItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
+                          ToolTip="{DynamicResource Tip.RamRing}" MouseLeftButtonUp="OnRamClick">
+                        <StackPanel>
+                            <ui:RingGauge x:Name="RamRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Ram}">
+                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                            </ui:RingGauge>
+                            <TextBlock x:Name="RamLabel" Text="--" Style="{StaticResource RingLabel}" />
                         </StackPanel>
                     </Grid>
 

@@ -12,13 +12,18 @@ public partial class App : Application
 {
     private const string MutexName = @"Local\OpenControlEdge.SingleInstance.7F3C2A1E";
 
-    /// Scheduled task installed by tools\claude-sesion.ps1. It renews the OAuth token that this widget
-    /// reads and opens Claude Code. It runs as the plain user, never with this process's rights.
-    private const string RenewTaskName = "Claude - Mantener sesion";
+    /// Background renewal of the Claude session: considered once the token has less than AutoRenewWindow left,
+    /// run AutoRenewLead before the expiry (inside the CLI's own 5-minute refresh window, so one run is enough) and
+    /// at most once every AutoRenewInterval.
+    private static readonly TimeSpan AutoRenewWindow = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan AutoRenewLead = TimeSpan.FromMinutes(4);
+    private static readonly TimeSpan AutoRenewInterval = TimeSpan.FromMinutes(30);
 
-    /// Shown on the Claude card when the ring is clicked and that task is not installed.
-    internal const string RenewTaskMissingMessage =
-        $"No se puede renovar: falta la tarea «{RenewTaskName}». Se instala con claude-sesion.ps1 -Instalar.";
+    /// How long the outcome of a renewal stays on the Claude card.
+    private static readonly TimeSpan ClaudeNoteDuration = TimeSpan.FromMinutes(2);
+
+    /// "Liberar RAM" at most once a minute.
+    private static readonly TimeSpan RamCleanInterval = TimeSpan.FromMinutes(1);
 
     // Two cadences for each source: the fast one only while the pinned panel is actually on screen, the slow
     // one the rest of the time. The sensors never stop, so "Máxima de la sesión" also catches the peaks
@@ -58,11 +63,18 @@ public partial class App : Application
     private OpenRouterSnapshot? _lastOpenRouter;
     private CpuSnapshot? _lastCpu;
     private GpuSnapshot? _lastGpu;
+    private RamSnapshot? _lastRam;
     private string? _lastStatus;
     private PanelMode _panelMode;
     private bool _panelExpanded;
     private bool _manualRefresh;
     private bool _renewing;
+    private DispatcherTimer? _autoRenewTimer;
+    private DispatcherTimer? _claudeNoteTimer;
+    private DateTime _lastAutoRenew = DateTime.MinValue;
+    private DateTime _lastRamClean = DateTime.MinValue;
+    private bool _cleaningRam;
+    private bool _firstDataLogged;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -122,6 +134,19 @@ public partial class App : Application
             return;
         }
 
+        // Run from anywhere but C:\Program Files\OpenControlEdge (the unzipped release): offer to install. Before the
+        // single-instance check, so a copy already running can be replaced.
+        if (ShouldOfferInstall(e.Args))
+        {
+            var welcome = new InstallWindow(InstallWindow.Mode.Install);
+            welcome.ShowDialog();
+            if (welcome.Result != InstallWindow.Outcome.Portable)
+            {
+                Shutdown();
+                return;
+            }
+        }
+
         if (!AcquireSingleInstance())
         {
             Shutdown();
@@ -129,7 +154,7 @@ public partial class App : Application
         }
 
         _panelMode = SettingsStore.Load().PanelMode;
-        Log.Info("App", $"started (panel {_panelMode})");
+        Log.Info("App", $"started (panel {_panelMode}, {(UnelevatedLauncher.IsElevated ? "elevated" : "not elevated")})");
 
         // Timers exist before the window is shown: a pinned panel expands during Show() and sets the cadence.
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = UsageHiddenInterval };
@@ -141,14 +166,19 @@ public partial class App : Application
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
         Settings settings = SettingsStore.Load();
         _edge.ApplyScale(settings.UiScale);
+
+        // The last reading, painted before any network request (UsageCache); the first refresh replaces it.
+        UsageCache.Cached cached = UsageCache.Load(DateTimeOffset.Now);
         _lastClaude = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)
-            ? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
+            ? cached.Claude ?? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
         _edge.SetClaude(_lastClaude);
         _edge.ApplyUsageView(settings.UsageView);
-        _lastCodex = InitialCodex(settings);
+        _lastCodex = InitialCodex(settings, cached.Codex);
         _edge.SetCodex(_lastCodex);
-        _lastCursor = InitialCursor(settings);
+        _lastCursor = InitialCursor(settings, cached.Cursor);
         _edge.SetCursor(_lastCursor);
+        _lastRam = MemoryService.Read();
+        _edge.SetRam(_lastRam);
         _lastOpenCode = InitialOpenCode(settings);
         _edge.SetOpenCode(_lastOpenCode);
         _lastDeepSeek = InitialDeepSeek(settings);
@@ -167,7 +197,11 @@ public partial class App : Application
         // The settings window comes with a later task; for now the request is only logged.
         _edge.SettingsRequested += () => Log.Info("App", "settings requested from the panel");
         _edge.CloseRequested += Shutdown;
-        _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync();
+        _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync(automatic: false);
+        _edge.CpuClicked += OpenSystemInformation;
+        _edge.RamClicked += () => _ = FreeRamAsync();
+        bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
+        _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.Show();
 
         _tray = new TrayIcon("Open Control Edge");
@@ -227,12 +261,27 @@ public partial class App : Application
 
             _edge.ReassertTopmost();
             UpdateTooltip();
+            if (!_firstDataLogged)
+            {
+                _firstDataLogged = true;
+                LogStartup("primera lectura de red pintada");
+            }
+            UsageCache.Save(_lastClaude, _lastCodex, _lastCursor, DateTimeOffset.Now);
+            ArmAutoRenew();
             Log.Trace("Usage", "refresh finished");
         }
         catch (Exception ex)
         {
             Log.Error("Usage refresh", ex);
         }
+    }
+
+    /// Time since the process started, in the log: how fast the widget shows data (cold and warm start measurements).
+    private static void LogStartup(string what)
+    {
+        using var process = Process.GetCurrentProcess();
+        Log.Info("Startup", $"{what}: {(DateTime.Now - process.StartTime).TotalMilliseconds:0} ms desde el inicio del proceso, "
+                            + $"{process.WorkingSet64 / (1024 * 1024)} MB de memoria");
     }
 
     private async Task ApplyClaudeAsync(Settings s) { if (_renewing) return; _lastClaude = await RefreshClaudeAsync(s); _edge?.SetClaude(_lastClaude); }
@@ -242,18 +291,20 @@ public partial class App : Application
     private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); _edge?.SetDeepSeek(_lastDeepSeek); }
     private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); _edge?.SetOpenRouter(_lastOpenRouter); }
 
-    private CodexSnapshot InitialCodex(Settings settings)
+    /// The cached reading when there is a usable login (no network), otherwise what Initial says.
+    private CodexSnapshot InitialCodex(Settings settings, CodexSnapshot? cached)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Codex, settings)) return CodexSnapshot.Absent();
         if (!AiDetector.IsInstalled(AiProviderId.Codex)) return CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage);
-        return _codex.Initial();
+        CodexSnapshot initial = _codex.Initial();
+        return initial.Message == "Cargando…" && cached is not null ? cached : initial;
     }
 
-    private CursorSnapshot InitialCursor(Settings settings)
+    private CursorSnapshot InitialCursor(Settings settings, CursorSnapshot? cached)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.Cursor, settings)) return CursorSnapshot.Absent();
         if (!AiDetector.IsInstalled(AiProviderId.Cursor)) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
-        return _cursor.Initial();
+        return cached ?? _cursor.Initial();
     }
 
     private OpenCodeSnapshot InitialOpenCode(Settings settings)
@@ -340,6 +391,8 @@ public partial class App : Application
             _lastGpu = snapshot.Gpu;
             _edge.SetCpu(snapshot.Cpu);
             _edge.SetGpu(snapshot.Gpu);
+            _lastRam = MemoryService.Read();
+            _edge.SetRam(_lastRam);
             UpdateTooltip();
         }
         catch (Exception ex)
@@ -369,42 +422,34 @@ public partial class App : Application
         }
     }
 
-    /// Clicking the Claude ring. The widget never touches the credentials file itself: it asks the scheduled
-    /// task to do it, which runs as the plain user, refreshes the token and opens Claude Code. When that task
-    /// is not installed (or will not start), the card explains how to fix it. Usage is read again after the
-    /// refresh has had time to finish.
-    private async Task RenewClaudeSessionAsync()
+    /// Renews the Claude session with no window at all: the Claude Code CLI runs once, hidden, as the plain user
+    /// (ClaudeSessionRenewer, UnelevatedLauncher), then Claude usage is read again. Clicked: the card goes
+    /// "Renovando sesión…" → the new reading → a line with the outcome. Automatic: nothing on screen but the new
+    /// reading. The widget itself never writes the credentials file.
+    private async Task RenewClaudeSessionAsync(bool automatic)
     {
         if (_renewing || _edge is null) return;
         _renewing = true;
         try
         {
-            _edge.SetClaudeRenewing();
-            Log.Info("Claude", "renovación de sesión pedida desde el anillo");
+            if (!automatic) _edge.SetClaudeRenewing();
+            Log.Info("Claude", automatic ? "renovación automática de la sesión" : "renovación de sesión pedida desde el anillo");
 
-            RenewResult result = await Task.Run(RunRenewTask);
-            if (result != RenewResult.Started)
-            {
-                Log.Warn("Claude", result == RenewResult.Missing
-                    ? $"la tarea «{RenewTaskName}» no está instalada; se abre Claude Code sin renovar"
-                    : $"la tarea «{RenewTaskName}» no se ha podido lanzar; se abre Claude Code sin renovar");
-                _edge.SetClaudeRenewFailed(result == RenewResult.Missing
-                    ? RenewTaskMissingMessage
-                    : $"No se puede renovar: la tarea «{RenewTaskName}» no ha arrancado");
-                return;
-            }
+            RenewResult result = await ClaudeSessionRenewer.RenewAsync();
+            Log.Info("Claude", $"renovación: {result.Outcome}");
 
-            // The CLI needs a while to refresh the token and rewrite the credentials file: 13–17 s per
-            // tools\claude-sesion.log, so 15 s often read the old, still expired file.
-            await Task.Delay(TimeSpan.FromSeconds(25));
             _renewing = false;
-            _usageRefresh = null;
-            await RefreshUsageAsync();
+            await ApplyClaudeAsync(SettingsStore.Load());
+            UpdateTooltip();
+            ArmAutoRenew();
+            if (!automatic) ShowClaudeNote(result);
         }
         catch (Exception ex)
         {
             Log.Error("Claude renew", ex);
-            _edge.SetClaudeRenewFailed("No se pudo renovar la sesión");
+            _renewing = false;
+            if (_lastClaude is not null) _edge.SetClaude(_lastClaude);
+            _edge.SetClaudeNote(Loc.Message("No se pudo renovar la sesión"));
         }
         finally
         {
@@ -412,32 +457,125 @@ public partial class App : Application
         }
     }
 
-    private enum RenewResult { Started, Missing, Failed }
-
-    /// Asks schtasks whether the renewal task exists, then starts it. Runs on a worker thread.
-    private static RenewResult RunRenewTask()
+    /// The outcome of a clicked renewal under the Claude card, for ClaudeNoteDuration.
+    private void ShowClaudeNote(RenewResult result)
     {
+        if (_edge is null) return;
+        DateTime? until = result.ExpiresAt?.LocalDateTime;
+        string note = result.Outcome switch
+        {
+            RenewOutcome.Renewed when until is DateTime at => Loc.Format("Claude.Renewed", at),
+            RenewOutcome.StillValid when until is DateTime at => Loc.Format("Claude.StillValid", at),
+            RenewOutcome.CliMissing => Loc.Message(ClaudeSessionRenewer.CliMissingMessage)!,
+            RenewOutcome.TimedOut => Loc.Message(ClaudeSessionRenewer.TimedOutMessage)!,
+            RenewOutcome.Failed => Loc.Message(ClaudeSessionRenewer.StartFailedMessage)!,
+            _ => Loc.Message(ClaudeSessionRenewer.NotRenewedMessage)!,
+        };
+        _edge.SetClaudeNote(note);
+
+        _claudeNoteTimer ??= CreateOneShot(() => _edge?.SetClaudeNote(null));
+        _claudeNoteTimer.Stop();
+        _claudeNoteTimer.Interval = ClaudeNoteDuration;
+        _claudeNoteTimer.Start();
+    }
+
+    /// Schedules the background renewal for AutoRenewLead before the token expires (right away if that moment has
+    /// passed). Re-armed after every Claude reading, so a token renewed elsewhere simply moves the time.
+    private void ArmAutoRenew()
+    {
+        _autoRenewTimer?.Stop();
+        if (_lastClaude is not { Hidden: false, TokenExpiresAt: DateTimeOffset expiry }) return;
+        if (!SettingsStore.Load().AutoRenewClaude) return;
+
+        TimeSpan due = expiry - AutoRenewLead - DateTimeOffset.UtcNow;
+        _autoRenewTimer ??= CreateOneShot(() => _ = AutoRenewAsync());
+        _autoRenewTimer.Interval = due > TimeSpan.FromSeconds(1) ? due : TimeSpan.FromSeconds(1);
+        _autoRenewTimer.Start();
+    }
+
+    private async Task AutoRenewAsync()
+    {
+        if (!SettingsStore.Load().AutoRenewClaude) return;
+        if (ClaudeSessionRenewer.ReadExpiry() is not DateTimeOffset expiry || expiry - DateTimeOffset.UtcNow >= AutoRenewWindow) return;
+        if (DateTime.UtcNow - _lastAutoRenew < AutoRenewInterval || !ClaudeSessionRenewer.IsAvailable) return;
+        _lastAutoRenew = DateTime.UtcNow;
+        await RenewClaudeSessionAsync(automatic: true);
+    }
+
+    private static DispatcherTimer CreateOneShot(Action action)
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Background);
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            action();
+        };
+        return timer;
+    }
+
+    /// Clicking the CPU ring: Settings > System > About, opened as the plain user (never with this process's rights).
+    private static void OpenSystemInformation()
+    {
+        string explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+        Task.Run(() =>
+        {
+            UnelevatedLauncher.Result result = UnelevatedLauncher.Run(explorer, "ms-settings:about", null, hidden: false, wait: null);
+            if (!result.Started) Log.Warn("CPU", "no se pudo abrir Información del sistema: " + result.Error);
+        });
+    }
+
+    /// Clicking the RAM ring: a one-off clean-up, at most once a minute, unless turned off in the settings.
+    private async Task FreeRamAsync()
+    {
+        if (_edge is null || _cleaningRam) return;
+        if (!SettingsStore.Load().RamCleanup)
+        {
+            _edge.SetRamNote(Loc.Get("Ram.Disabled"));
+            return;
+        }
+        TimeSpan since = DateTime.UtcNow - _lastRamClean;
+        if (since < RamCleanInterval)
+        {
+            _edge.SetRamNote(Loc.Format("Ram.Wait", (int)Math.Ceiling((RamCleanInterval - since).TotalSeconds)));
+            return;
+        }
+
+        _cleaningRam = true;
+        _lastRamClean = DateTime.UtcNow;
         try
         {
-            if (!RunSchtasks($"/query /tn \"{RenewTaskName}\"")) return RenewResult.Missing;
-            return RunSchtasks($"/run /tn \"{RenewTaskName}\"") ? RenewResult.Started : RenewResult.Failed;
+            _edge.SetRamNote(Loc.Get("Value.RamFreeing"));
+            RamCleanResult result = await MemoryService.CleanAsync();
+            _lastRam = MemoryService.Read();
+            _edge.SetRam(_lastRam);
+            string freed = (result.FreedBytes / (1024 * 1024)).ToString("N0", Loc.Culture);
+            string cache = (result.CacheFreedBytes / (1024 * 1024)).ToString("N0", Loc.Culture);
+            _edge.SetRamNote(result.StandbyPurged ? Loc.Format("Ram.Freed", freed, cache) : Loc.Format("Ram.FreedNoCache", freed));
+            UpdateTooltip();
         }
         catch (Exception ex)
         {
-            Log.Warn("Claude", "schtasks: " + ex.Message);
-            return RenewResult.Failed;
+            Log.Error("RAM", ex);
+            _edge.SetRamNote(null);
+        }
+        finally
+        {
+            _cleaningRam = false;
         }
     }
 
-    /// True when schtasks finished within 10 s with exit code 0.
-    private static bool RunSchtasks(string arguments)
+    /// The welcome window: only for a release build running outside the install folder, or with --welcome.
+    /// --portable skips it (a copy run on purpose from its own folder, and the start-up measurements).
+    private static bool ShouldOfferInstall(string[] args)
     {
-        using Process? process = Start("schtasks.exe", arguments);
-        return process is not null && process.WaitForExit(10_000) && process.ExitCode == 0;
+        if (Array.IndexOf(args, "--welcome") >= 0) return true;
+        if (Array.IndexOf(args, "--portable") >= 0) return false;
+#if DEBUG
+        return false;
+#else
+        return !Installer.IsInstalledCopy;
+#endif
     }
-
-    private static Process? Start(string fileName, string arguments) =>
-        Process.Start(new ProcessStartInfo(fileName, arguments) { UseShellExecute = false, CreateNoWindow = true });
 
     private static void RestartIfRunning(DispatcherTimer? timer)
     {
@@ -476,6 +614,7 @@ public partial class App : Application
             : $" · Cursor {(_lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
+        gpu += _lastRam is { Message: null } ram ? $" · RAM {Fmt.Percent(ram.Percent)}" : string.Empty;
         string openCode = _lastOpenCode is { Hidden: false, Message: null } oc
             ? $" · OpenCode {CompactTokens((decimal)oc.TokensIn + oc.TokensOut + oc.TokensReasoning + oc.TokensCacheRead + oc.TokensCacheWrite)}" : string.Empty;
         string deepSeek = _lastDeepSeek is { Hidden: false, Balance: Money balance } ? $" · DeepSeek {Fmt.Amount(balance)}" : string.Empty;
@@ -531,12 +670,43 @@ public partial class App : Application
         menu.RefreshRequested += () => _ = RefreshEverythingAsync();
         menu.ApiKeysRequested += ShowApiKeysWindow;
         menu.ExitRequested += Shutdown;
+        menu.AutoStartToggled += SetAutoStart;
+        menu.UninstallRequested += ShowUninstallWindow;
         menu.Closed += (_, _) =>
         {
             if (ReferenceEquals(_menu, menu)) _menu = null;
         };
         _menu = menu;
+
+        // "Iniciar con Windows" and "Desinstalar…" belong to the installed copy only; the switch state comes from
+        // schtasks, off the UI thread.
+        bool installed = Installer.IsInstalledCopy;
+        menu.ShowInstallEntries(installed);
+        if (installed)
+        {
+            Task.Run(AutoStartService.IsEnabled).ContinueWith(t =>
+            {
+                if (t.IsCompletedSuccessfully) menu.SetAutoStart(t.Result);
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
         menu.ShowAtCursor();
+    }
+
+    private static void SetAutoStart(bool enabled)
+    {
+        Task.Run(() =>
+        {
+            string? error = enabled ? AutoStartService.Enable() : AutoStartService.Disable();
+            if (error is null) Log.Info("AutoStart", enabled ? "activado" : "desactivado");
+            else Log.Warn("AutoStart", error);
+        });
+    }
+
+    private void ShowUninstallWindow()
+    {
+        var window = new InstallWindow(InstallWindow.Mode.Uninstall);
+        window.ShowDialog();
+        if (window.Result == InstallWindow.Outcome.Uninstalled) Shutdown();
     }
 
     private void ShowApiKeysWindow()
@@ -551,6 +721,8 @@ public partial class App : Application
         _refreshTimer?.Stop();
         _sensorTimer?.Stop();
         _warmupTimer?.Stop();
+        _autoRenewTimer?.Stop();
+        _claudeNoteTimer?.Stop();
         _tray?.Dispose();
         _sensors?.Dispose();
         ThemeManager.Shutdown();

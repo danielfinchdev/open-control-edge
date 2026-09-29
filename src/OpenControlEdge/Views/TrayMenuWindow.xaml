@@ -44,6 +44,34 @@
                     </StackPanel>
                 </Button>
 
+                <!-- Installed copy only, until the settings window takes them over (see AutoStartService). -->
+                <StackPanel x:Name="InstallEntries">
+                    <Button x:Name="AutoStartButton" Style="{StaticResource MenuButton}" Click="OnAutoStartClick"
+                            HorizontalContentAlignment="Stretch"
+                            AutomationProperties.AutomationId="AutoStartButton" AutomationProperties.Name="{DynamicResource Menu.AutoStart}">
+                        <DockPanel>
+                            <!-- On / off switch. -->
+                            <Border x:Name="AutoStartSwitch" DockPanel.Dock="Right" Width="28" Height="16" CornerRadius="8"
+                                    Background="{DynamicResource Theme.Raised}" Margin="14,0,0,0" VerticalAlignment="Center">
+                                <Ellipse x:Name="AutoStartKnob" Width="12" Height="12" Margin="2,0" Fill="{DynamicResource Theme.TextSecondary}"
+                                         HorizontalAlignment="Left" />
+                            </Border>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.Gear}" Style="{StaticResource MenuIcon}" />
+                                <TextBlock Text="{DynamicResource Menu.AutoStart}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Button>
+
+                    <Button x:Name="UninstallButton" Style="{StaticResource MenuButton}" Click="OnUninstallClick"
+                            AutomationProperties.AutomationId="UninstallButton" AutomationProperties.Name="{DynamicResource Menu.Uninstall}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:IconView Icon="{x:Static ui:Icons.Close}" Style="{StaticResource MenuIcon}" />
+                            <TextBlock Text="{DynamicResource Menu.Uninstall}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
                 <Border Height="1" Background="{DynamicResource Theme.Border}" Margin="10,4" />
 
                 <Button x:Name="ExitButton" Style="{StaticResource MenuButton}" Click="OnExitClick"

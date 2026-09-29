@@ -25,9 +25,6 @@ jobs:
       - name: Publish
         run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
-      - name: Include installer
-        run: Copy-Item tools/instalar.ps1 dist/instalar.ps1
-
       - name: Package application folder
         run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
 

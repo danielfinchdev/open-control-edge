@@ -14,6 +14,7 @@ public static class Icons
     public static DrawingGroup OpenRouter { get; } = CreateOpenRouter();
     public static DrawingGroup Cpu { get; } = CreateCpu();
     public static DrawingGroup Gpu { get; } = CreateGpu();
+    public static DrawingGroup Ram { get; } = CreateRam();
     public static DrawingGroup Refresh { get; } = CreateRefresh();
     public static DrawingGroup Power { get; } = CreatePower();
     public static DrawingGroup Key { get; } = CreateKey();
@@ -30,6 +31,7 @@ public static class Icons
     public static DrawingImage OpenRouterImage { get; } = ToImage(OpenRouter);
     public static DrawingImage CpuImage { get; } = ToImage(Cpu);
     public static DrawingImage GpuImage { get; } = ToImage(Gpu);
+    public static DrawingImage RamImage { get; } = ToImage(Ram);
     public static DrawingImage RefreshImage { get; } = ToImage(Refresh);
     public static DrawingImage PowerImage { get; } = ToImage(Power);
     public static DrawingImage KeyImage { get; } = ToImage(Key);
@@ -213,6 +215,24 @@ public static class Icons
             Line(ctx, new Point(6, 19.6), new Point(13.5, 19.6));
         }
         group.Children.Add(new GeometryDrawing(null, pen, details));
+        group.Freeze();
+        return group;
+    }
+
+    /// A memory module: board with three chips, the notch and the contacts underneath.
+    private static DrawingGroup CreateRam()
+    {
+        var group = NewGroup();
+        var pen = RoundPen(1.8);
+        group.Children.Add(new GeometryDrawing(null, pen, new RectangleGeometry(new Rect(2.8, 6, 18.4, 10), 2, 2)));
+        foreach (double x in new[] { 5.6, 10.1, 14.6 })
+            group.Children.Add(new GeometryDrawing(Brushes.White, null, new RectangleGeometry(new Rect(x, 8.6, 3.8, 4.8), 0.8, 0.8)));
+        var contacts = new StreamGeometry();
+        using (var ctx = contacts.Open())
+        {
+            foreach (double x in new[] { 5.5, 8.5, 15.5, 18.5 }) Line(ctx, new Point(x, 16), new Point(x, 19.4));
+        }
+        group.Children.Add(new GeometryDrawing(null, pen, contacts));
         group.Freeze();
         return group;
     }

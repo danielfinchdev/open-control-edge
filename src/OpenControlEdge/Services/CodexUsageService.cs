@@ -58,7 +58,11 @@ internal sealed class CodexUsageService
                 Log.Warn("Codex", "200 response without rate_limit.primary_window");
                 return CodexSnapshot.Failed("Respuesta sin datos de uso") with { Plan = credentials.PlanType };
             }
-            return new CodexSnapshot(false, primary, secondary, null) { Plan = credentials.PlanType };
+            return new CodexSnapshot(false, primary, secondary, null)
+            {
+                Plan = credentials.PlanType,
+                Credits = CodexUsageParser.ParseCredits(body),
+            };
         }
         catch (HttpRequestException ex)
         {

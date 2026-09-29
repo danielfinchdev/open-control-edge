@@ -22,6 +22,45 @@ public partial class TrayMenuWindow : Window
     internal event Action? ExitRequested;
     internal event Action? ApiKeysRequested;
 
+    /// "Iniciar con Windows" was clicked; the argument is the new state asked for.
+    internal event Action<bool>? AutoStartToggled;
+    internal event Action? UninstallRequested;
+
+    private bool _autoStart;
+
+    /// Shows or hides the install entries ("Iniciar con Windows", "Desinstalar…").
+    internal void ShowInstallEntries(bool visible) =>
+        InstallEntries.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    /// Paints the "Iniciar con Windows" switch.
+    internal void SetAutoStart(bool enabled)
+    {
+        _autoStart = enabled;
+        AutoStartKnob.HorizontalAlignment = enabled ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        if (enabled)
+        {
+            AutoStartSwitch.Background = Ui.Palette.Low;
+            AutoStartKnob.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "Theme.Background");
+        }
+        else
+        {
+            AutoStartSwitch.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Theme.Raised");
+            AutoStartKnob.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "Theme.TextSecondary");
+        }
+    }
+
+    private void OnAutoStartClick(object sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        AutoStartToggled?.Invoke(!_autoStart);
+    }
+
+    private void OnUninstallClick(object sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        UninstallRequested?.Invoke();
+    }
+
     public TrayMenuWindow()
     {
         InitializeComponent();

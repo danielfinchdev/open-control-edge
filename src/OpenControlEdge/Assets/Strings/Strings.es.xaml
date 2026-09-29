@@ -11,6 +11,7 @@
     <sys:String x:Key="Card.OpenCode">Uso de OpenCode</sys:String>
     <sys:String x:Key="Card.DeepSeek">Uso de DeepSeek</sys:String>
     <sys:String x:Key="Card.OpenRouter">Uso de OpenRouter</sys:String>
+    <sys:String x:Key="Card.Ram">Memoria</sys:String>
     <sys:String x:Key="Card.Since">desde las {0:HH:mm}</sys:String>
 
     <!-- Tabs inside the card -->
@@ -38,13 +39,29 @@
     <sys:String x:Key="Row.CpuLoad">Carga de CPU</sys:String>
     <sys:String x:Key="Row.GpuLoad">Uso</sys:String>
     <sys:String x:Key="Row.MemoryUsed">Memoria usada</sys:String>
+    <sys:String x:Key="Row.Credits">Créditos</sys:String>
+    <sys:String x:Key="Row.RamInUse">En uso</sys:String>
+    <sys:String x:Key="Row.RamCached">En caché</sys:String>
+    <sys:String x:Key="Row.RamCommitted">Confirmada</sys:String>
 
     <!-- Values -->
     <sys:String x:Key="Value.Used">{0} usado</sys:String>
     <sys:String x:Key="Value.InUse">{0} en uso</sys:String>
     <sys:String x:Key="Value.Of">{0} de {1}</sys:String>
     <sys:String x:Key="Value.NoData">Sin datos</sys:String>
-    <sys:String x:Key="Value.Renewing">Renovando la sesión…</sys:String>
+    <sys:String x:Key="Value.Renewing">Renovando sesión…</sys:String>
+    <sys:String x:Key="Value.Credits">{0} créditos</sys:String>
+    <sys:String x:Key="Value.Unlimited">Ilimitados</sys:String>
+    <sys:String x:Key="Value.RamHint">Pulsa el anillo para liberar RAM.</sys:String>
+    <sys:String x:Key="Value.RamFreeing">Liberando RAM…</sys:String>
+
+    <!-- Outcomes of the Claude renewal and of "Liberar RAM"; {0} time, or MB -->
+    <sys:String x:Key="Claude.Renewed">Sesión renovada: vale hasta las {0:HH:mm}.</sys:String>
+    <sys:String x:Key="Claude.StillValid">Sesión vigente hasta las {0:HH:mm}. Claude Code la renueva en sus últimos 5 minutos.</sys:String>
+    <sys:String x:Key="Ram.Freed">Liberados {0} MB en uso y {1} MB de caché.</sys:String>
+    <sys:String x:Key="Ram.FreedNoCache">Liberados {0} MB en uso. La caché solo se vacía como administrador.</sys:String>
+    <sys:String x:Key="Ram.Wait">Espera un minuto entre limpiezas (faltan {0} s).</sys:String>
+    <sys:String x:Key="Ram.Disabled">Liberar RAM está desactivado en los ajustes.</sys:String>
     <sys:String x:Key="Ring.InstallPawnIo">Instala PawnIO para ver la temperatura</sys:String>
 
     <!-- Usage windows (Codex) and plans -->
@@ -67,7 +84,9 @@
     <sys:String x:Key="Reset.TimeFormat">HH:mm</sys:String>
 
     <!-- Panel buttons and tooltips -->
-    <sys:String x:Key="Tip.ClaudeRing">Renovar la sesión de Claude y abrir Claude Code</sys:String>
+    <sys:String x:Key="Tip.ClaudeRing">Renovar la sesión de Claude Code (sin abrir ninguna ventana)</sys:String>
+    <sys:String x:Key="Tip.CpuRing">Abrir Información del sistema</sys:String>
+    <sys:String x:Key="Tip.RamRing">Liberar RAM: recorta la memoria que los programas no están usando y vacía la caché en espera. Es una limpieza puntual, como en los móviles: Windows vuelve a llenar la caché en cuanto la necesita.</sys:String>
     <sys:String x:Key="Tip.Hide">Ocultar en el borde</sys:String>
     <sys:String x:Key="Tip.Pin">Fijar el panel</sys:String>
     <sys:String x:Key="Tip.Settings">Ajustes</sys:String>
@@ -77,6 +96,31 @@
     <sys:String x:Key="Menu.Refresh">Actualizar ahora</sys:String>
     <sys:String x:Key="Menu.ApiKeys">Claves de API…</sys:String>
     <sys:String x:Key="Menu.Exit">Salir</sys:String>
+    <sys:String x:Key="Menu.AutoStart">Iniciar con Windows</sys:String>
+    <sys:String x:Key="Menu.Uninstall">Desinstalar…</sys:String>
+
+    <!-- Welcome / install and uninstall window -->
+    <sys:String x:Key="Install.Title">Instalar Open Control Edge</sys:String>
+    <sys:String x:Key="Install.Intro">Open Control Edge se instalará en Archivos de programa, donde solo un administrador puede modificarlo, y arrancará solo al iniciar sesión, sin volver a pedir permiso.</sys:String>
+    <sys:String x:Key="Install.Step.Stop">Cerrar la versión en marcha (también EdgeWidget)</sys:String>
+    <sys:String x:Key="Install.Step.Copy">Copiar la aplicación a C:\Program Files\OpenControlEdge y comprobarla</sys:String>
+    <sys:String x:Key="Install.Step.Data">Proteger tus ajustes y conservar los de versiones anteriores</sys:String>
+    <sys:String x:Key="Install.Step.Task">Iniciar con Windows y quitar las tareas antiguas</sys:String>
+    <sys:String x:Key="Install.Step.Start">Abrir la copia instalada</sys:String>
+    <sys:String x:Key="Install.Button">Instalar</sys:String>
+    <sys:String x:Key="Install.Portable">Usar sin instalar</sys:String>
+    <sys:String x:Key="Install.Cancel">Cancelar</sys:String>
+    <sys:String x:Key="Install.Retry">Reintentar</sys:String>
+    <sys:String x:Key="Install.Close">Cerrar</sys:String>
+    <sys:String x:Key="Install.Working">Instalando…</sys:String>
+    <sys:String x:Key="Install.Done">Instalado. Open Control Edge ya está en marcha desde Archivos de programa.</sys:String>
+    <sys:String x:Key="Install.Failed">No se ha podido instalar: {0}</sys:String>
+    <sys:String x:Key="Uninstall.Title">Desinstalar Open Control Edge</sys:String>
+    <sys:String x:Key="Uninstall.Intro">Dejará de iniciarse con Windows y se cerrará. La carpeta del programa se borra al reiniciar; tus ajustes se quedan en %LOCALAPPDATA%\OpenControlEdge.</sys:String>
+    <sys:String x:Key="Uninstall.Button">Desinstalar</sys:String>
+    <sys:String x:Key="Uninstall.Working">Desinstalando…</sys:String>
+    <sys:String x:Key="Uninstall.Done">Desinstalado. La carpeta del programa se borrará al reiniciar.</sys:String>
+    <sys:String x:Key="Uninstall.Failed">No se ha podido desinstalar: {0}</sys:String>
 
     <!-- API keys window -->
     <sys:String x:Key="Keys.Title">Claves de API</sys:String>
@@ -115,12 +159,15 @@
     <sys:String x:Key="Msg.ClaudeLogin">Inicia sesión en Claude Code</sys:String>
     <sys:String x:Key="Msg.CodexLogin">Inicia sesión en ChatGPT o Codex</sys:String>
     <sys:String x:Key="Msg.CursorLogin">Inicia sesión en Cursor</sys:String>
-    <sys:String x:Key="Msg.ClaudeRenew">Abre Claude Code para renovar</sys:String>
+    <sys:String x:Key="Msg.ClaudeRenew">Sesión caducada: pulsa el anillo para renovarla</sys:String>
     <sys:String x:Key="Msg.CodexRenew">Abre Codex para renovar</sys:String>
     <sys:String x:Key="Msg.FreeAccount">Cuenta gratuita: sin límites de uso medibles</sys:String>
-    <sys:String x:Key="Msg.RenewTaskMissing">No se puede renovar: falta la tarea «Claude - Mantener sesion». Se instala con claude-sesion.ps1 -Instalar.</sys:String>
-    <sys:String x:Key="Msg.RenewTaskFailed">No se puede renovar: la tarea «Claude - Mantener sesion» no ha arrancado</sys:String>
     <sys:String x:Key="Msg.RenewFailed">No se pudo renovar la sesión</sys:String>
+    <sys:String x:Key="Msg.ClaudeCliMissing">No se encuentra Claude Code: instálalo para renovar desde aquí</sys:String>
+    <sys:String x:Key="Msg.ClaudeCliTimeout">Claude Code no ha respondido en 60 s</sys:String>
+    <sys:String x:Key="Msg.ClaudeCliStartFailed">No se pudo iniciar Claude Code sin privilegios de administrador</sys:String>
+    <sys:String x:Key="Msg.ClaudeNotRenewed">Claude Code no ha renovado la sesión: ábrelo e inicia sesión</sys:String>
+    <sys:String x:Key="Msg.RamUnreadable">No se pudo leer la memoria</sys:String>
     <sys:String x:Key="Msg.PawnIoMissing">PawnIO no está instalado</sys:String>
     <sys:String x:Key="Msg.SensorUnavailable">Sensor de temperatura no disponible</sys:String>
     <sys:String x:Key="Msg.NeedsAdmin">Requiere ejecutar como administrador</sys:String>

@@ -35,6 +35,7 @@ public partial class EdgeWindow : Window
     internal const int RingOpenRouter = 5;
     internal const int RingCpu = 6;
     internal const int RingGpu = 7;
+    internal const int RingRam = 8;
 
     // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs.
     private const double PanelWidth = 94;
@@ -51,7 +52,7 @@ public partial class EdgeWindow : Window
     private const double ReferenceWorkHeight = 1040;
     private const double MinAutoScale = 0.8;
     private const double MaxAutoScale = 1.4;
-    private const double MinFitScale = 0.6;       // only reached when all eight rings would not fit otherwise
+    private const double MinFitScale = 0.6;       // only reached when all nine rings would not fit otherwise
     private const double ScreenMargin = 4;        // DIPs kept free above and below the panel
 
     // Round buttons: three in a row when that gives at least MinRowButtonDip, otherwise two above and one below.
@@ -104,6 +105,8 @@ public partial class EdgeWindow : Window
     private OpenRouterSnapshot? _openRouter;
     private CpuSnapshot? _cpu;
     private GpuSnapshot? _gpu;
+    private RamSnapshot? _ram;
+    private string? _ramNote;
     private UsageView _usageView = UsageView.Session;
     private bool _syncingTabs;
 
@@ -129,16 +132,23 @@ public partial class EdgeWindow : Window
     /// The Claude ring was clicked: renew the session so the ring stops reading "--".
     internal event Action? ClaudeClicked;
 
+    /// The CPU ring was clicked: open Settings > System > About.
+    internal event Action? CpuClicked;
+
+    /// The RAM ring was clicked: free memory.
+    internal event Action? RamClicked;
+
     internal EdgeWindow(DateTime sessionStart, PanelMode mode)
     {
         _sessionStart = sessionStart;
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem };
-        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard };
         ApplyRingBrushes();
+        SetRamNote(null);
 
         Left = -32000;
         Top = -32000;
@@ -275,6 +285,8 @@ public partial class EdgeWindow : Window
         if (_openRouter is not null) SetOpenRouter(_openRouter);
         if (_cpu is not null) SetCpu(_cpu);
         if (_gpu is not null) SetGpu(_gpu);
+        if (_ram is not null) SetRam(_ram);
+        SetRamNote(_ramNote);
         RefreshTimeTexts();
         CardContent.InvalidateMeasure();
         CenterPanel(animate: false);
@@ -287,13 +299,25 @@ public partial class EdgeWindow : Window
         foreach (RingGauge ring in _rings) ring.RingBrush = Palette.Other;
         ClaudeRing.RingBrush = Palette.Claude;
         CodexRing.RingBrush = Palette.OpenAi;
-        CpuRing.RingBrush = GpuRing.RingBrush = Palette.Low;
+        CpuRing.RingBrush = GpuRing.RingBrush = RamRing.RingBrush = Palette.Low;
     }
 
     private void OnClaudeClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         Log.Trace("Edge", "claude ring clicked");
         ClaudeClicked?.Invoke();
+    }
+
+    private void OnCpuClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        Log.Trace("Edge", "cpu ring clicked");
+        CpuClicked?.Invoke();
+    }
+
+    private void OnRamClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        Log.Trace("Edge", "ram ring clicked");
+        RamClicked?.Invoke();
     }
 
     /// Shown on the Claude card while the session is being renewed.
@@ -304,17 +328,16 @@ public partial class EdgeWindow : Window
         ClaudeTabs.Visibility = Visibility.Collapsed;
         ClaudeMessage.Text = Loc.Get("Value.Renewing");
         ClaudeMessage.Visibility = Visibility.Visible;
+        ClaudeNote.Visibility = Visibility.Collapsed;
         if (_cardVisible) PlaceCard(animate: true);
     }
 
-    /// The renewal could not start: puts the last reading back and says why on the card, instead of leaving
-    /// "Renovando la sesión…" behind. The next usage refresh replaces the message.
-    internal void SetClaudeRenewFailed(string message)
+    /// A line under the Claude card with the outcome of the last renewal ("Sesión renovada hasta las 18:53"), or
+    /// nothing. It is kept across usage refreshes until the owner clears it.
+    internal void SetClaudeNote(string? text)
     {
-        if (_claude is not null) SetClaude(_claude);
-        else ClearRing(ClaudeRing, ClaudeLabel);
-        ClaudeMessage.Text = Loc.Message(message);
-        ClaudeMessage.Visibility = Visibility.Visible;
+        ClaudeNote.Text = text ?? string.Empty;
+        ClaudeNote.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
         if (_cardVisible) PlaceCard(animate: true);
     }
 
@@ -455,7 +478,7 @@ public partial class EdgeWindow : Window
             ClaudeSessionRow.Visibility = total ? Visibility.Collapsed : Visibility.Visible;
             ClaudeWeeklyRow.Visibility = total ? Visibility.Visible : Visibility.Collapsed;
 
-            if (snapshot.Spent is Money spent)
+            if (snapshot.Spent is Money spent && spent.Amount > 0)
             {
                 ClaudeSpendValue.Text = Fmt.Amount(spent);
                 ClaudeSpendRow.Visibility = Visibility.Visible;
@@ -499,6 +522,17 @@ public partial class EdgeWindow : Window
             SetPercentBar(CodexBar, shown.Percent);
             CodexValue.Text = Fmt.Used(shown.Percent);
 
+            if (snapshot.Credits is CodexCredits credits)
+            {
+                CodexCreditsValue.Text = credits.Unlimited ? Loc.Get("Value.Unlimited")
+                    : Loc.Format("Value.Credits", credits.Balance!.Value.ToString("N2", Loc.Culture));
+                CodexCreditsRow.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CodexCreditsRow.Visibility = Visibility.Collapsed;
+            }
+
             CodexTabs.Visibility = snapshot.Secondary is null ? Visibility.Collapsed : Visibility.Visible;
             CodexMetrics.Visibility = Visibility.Visible;
             CodexMessage.Visibility = Visibility.Collapsed;
@@ -530,10 +564,20 @@ public partial class EdgeWindow : Window
             SetUsageRing(CursorRing, CursorLabel, Palette.Other, cycle.Percent);
             SetPercentBar(CursorCycleBar, cycle.Percent);
             CursorCycleValue.Text = Fmt.Used(cycle.Percent);
-            if (snapshot.OnDemand is UsageWindow onDemand)
+            // On-demand: what has been spent beyond the plan, "3,21 USD de 50,00 USD" with a bar when there is a limit.
+            if (snapshot.OnDemandSpent is Money onDemandSpent)
             {
-                SetPercentBar(CursorOnDemandBar, onDemand.Percent);
-                CursorOnDemandValue.Text = Fmt.Used(onDemand.Percent);
+                if (snapshot.OnDemand is UsageWindow onDemand && snapshot.OnDemandLimit is Money onDemandLimit)
+                {
+                    SetPercentBar(CursorOnDemandBar, onDemand.Percent);
+                    CursorOnDemandBar.Visibility = Visibility.Visible;
+                    CursorOnDemandValue.Text = Loc.Format("Value.Of", Fmt.Amount(onDemandSpent), Fmt.Amount(onDemandLimit));
+                }
+                else
+                {
+                    CursorOnDemandBar.Visibility = Visibility.Collapsed;
+                    CursorOnDemandValue.Text = Fmt.Amount(onDemandSpent);
+                }
                 CursorOnDemandRow.Visibility = Visibility.Visible;
             }
             else CursorOnDemandRow.Visibility = Visibility.Collapsed;
@@ -785,6 +829,42 @@ public partial class EdgeWindow : Window
             CardContent.InvalidateMeasure();
         }
 
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// Physical memory: the ring shows the load Windows reports (low / medium / high by level, red above 85 %).
+    internal void SetRam(RamSnapshot snapshot)
+    {
+        _ram = snapshot;
+        if (snapshot.Message is null)
+        {
+            RamRing.RingBrush = Palette.ForPercent(snapshot.Percent);
+            Animate(RamRing, RingGauge.ValueProperty, Fraction(snapshot.Percent), 600);
+            RamLabel.Text = Fmt.Percent(snapshot.Percent);
+            SetLabelAlert(RamLabel, Palette.IsAlert(snapshot.Percent));
+            SetPercentBar(RamBar, snapshot.Percent);
+            RamUsedValue.Text = Loc.Format("Value.Of", Fmt.Gigabytes(snapshot.UsedBytes), Fmt.Gigabytes(snapshot.TotalBytes));
+            RamCachedValue.Text = snapshot.CachedBytes is ulong cached ? Fmt.Gigabytes(cached) : "--";
+            RamCommittedValue.Text = snapshot.CommittedBytes is ulong committed && snapshot.CommitLimitBytes is ulong limit
+                ? Loc.Format("Value.Of", Fmt.Gigabytes(committed), Fmt.Gigabytes(limit)) : "--";
+            RamMetrics.Visibility = Visibility.Visible;
+            RamMessage.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ClearRing(RamRing, RamLabel);
+            RamMetrics.Visibility = Visibility.Collapsed;
+            RamMessage.Text = Loc.Message(snapshot.Message);
+            RamMessage.Visibility = Visibility.Visible;
+        }
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// Bottom line of the RAM card: the outcome of the last clean-up, or (null) the hint of what a click does.
+    internal void SetRamNote(string? text)
+    {
+        _ramNote = text;
+        RamNote.Text = text ?? Loc.Get("Value.RamHint");
         if (_cardVisible) PlaceCard(animate: true);
     }
 

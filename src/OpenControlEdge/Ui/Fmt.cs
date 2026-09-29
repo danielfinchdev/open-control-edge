@@ -18,6 +18,10 @@ internal static class Fmt
     public static string Megabytes(double value) =>
         Math.Round(value, MidpointRounding.AwayFromZero).ToString("N0", Culture) + " MB";
 
+    /// "7,9 GB" ("7.9 GB" in English), from bytes.
+    public static string Gigabytes(ulong bytes) =>
+        (bytes / (1024.0 * 1024 * 1024)).ToString("0.0", Culture) + " GB";
+
     /// "10,53 €" ("10.53 €" in English); other currencies keep their ISO code ("10,53 USD").
     public static string Amount(Money money)
     {

@@ -57,6 +57,12 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Fixed panel scale; null means "auto" (derived from the work area of the monitor).
     public double? UiScale { get; init; }
 
+    /// Renew the Claude Code session in the background shortly before the token expires (see App.ArmAutoRenew).
+    public bool AutoRenewClaude { get; init; } = true;
+
+    /// Clicking the RAM ring frees memory (MemoryService.CleanAsync). Off: the click only shows the card.
+    public bool RamCleanup { get; init; } = true;
+
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
 
@@ -69,6 +75,8 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 ///     "colorTheme": "classic" | "mono" | "ocean" | "sunset" | "neon",
 ///     "language": "es" | "en",
 ///     "uiScale": "auto" | number (0.6 – 1.6),
+///     "autoRenewClaude": true | false,
+///     "ramCleanup": true | false,
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
@@ -140,6 +148,8 @@ internal static class SettingsStore
                 },
                 Language = GetString(root, "language") == "en" ? UiLanguage.English : UiLanguage.Spanish,
                 UiScale = ParseScale(root),
+                AutoRenewClaude = GetBool(root, "autoRenewClaude") ?? true,
+                RamCleanup = GetBool(root, "ramCleanup") ?? true,
             };
         }
         catch (Exception ex)
@@ -210,6 +220,8 @@ internal static class SettingsStore
                 writer.WriteString("language", settings.Language == UiLanguage.English ? "en" : "es");
                 if (settings.UiScale is double scale) writer.WriteNumber("uiScale", Math.Round(scale, 2));
                 else writer.WriteString("uiScale", "auto");
+                writer.WriteBoolean("autoRenewClaude", settings.AutoRenewClaude);
+                writer.WriteBoolean("ramCleanup", settings.RamCleanup);
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -285,6 +297,10 @@ internal static class SettingsStore
         if (!root.TryGetProperty("uiScale", out JsonElement value) || value.ValueKind != JsonValueKind.Number) return null;
         return value.TryGetDouble(out double scale) && scale >= MinUiScale && scale <= MaxUiScale ? scale : null;
     }
+
+    private static bool? GetBool(JsonElement obj, string key) =>
+        obj.TryGetProperty(key, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean() : null;
 
     private static string? GetString(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

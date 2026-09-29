@@ -15,6 +15,9 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
 
     /// Raw plan id from the credentials ("free", "pro", "max"…); null when unknown. Shown on the card header.
     public string? Plan { get; init; }
+
+    /// Expiry of the OAuth access token (claudeAiOauth.expiresAt); null when unknown. Drives the background renewal.
+    public DateTimeOffset? TokenExpiresAt { get; init; }
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.
@@ -43,7 +46,13 @@ internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWin
 
     /// Raw plan id from the id_token ("free", "go", "plus", "pro"…); null when unknown.
     public string? Plan { get; init; }
+
+    /// Credits of the account (credits in wham/usage), only when has_credits is true; null otherwise.
+    public CodexCredits? Credits { get; init; }
 }
+
+/// Codex credits: Balance in credits (not a currency), null when the response carries none; Unlimited as reported.
+internal sealed record CodexCredits(decimal? Balance, bool Unlimited);
 
 internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWindow? OnDemand, string? Message)
 {
@@ -53,6 +62,10 @@ internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWind
 
     /// Raw membership type from the API or state.vscdb ("free", "pro", "ultra"…); null when unknown.
     public string? Plan { get; init; }
+
+    /// On-demand (paid, beyond the plan) spend this cycle and its limit; only when on-demand is enabled and used.
+    public Money? OnDemandSpent { get; init; }
+    public Money? OnDemandLimit { get; init; }
 }
 
 internal sealed record OpenCodeSnapshot(bool Hidden, long TokensIn, long TokensOut, long TokensReasoning,

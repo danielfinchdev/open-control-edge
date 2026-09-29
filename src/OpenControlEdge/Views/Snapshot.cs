@@ -22,8 +22,25 @@ internal static class Snapshot
         var claude = new ClaudeSnapshot(false, new UsageWindow(32, now.AddMinutes(125)), new UsageWindow(11, now.AddDays(3).AddHours(5)),
             new Money(10.53m, "EUR"), null) { Plan = "max" };
         var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), now.AddDays(30)), null, null) { Plan = "go" };
-        var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)),
-            new UsageWindow(18, now.AddDays(12)), null) { Plan = "pro" };
+        // Parsers against the shapes observed on 2026-09-29 (and the credits/on-demand variants they accept).
+        const string codexCreditsNone = """{"rate_limit":{"primary_window":{"used_percent":39,"limit_window_seconds":2592000,"reset_after_seconds":2559967,"reset_at":1793225265},"secondary_window":null},"credits":{"has_credits":false,"unlimited":false,"overage_limit_reached":false,"balance":null,"approx_local_messages":null,"approx_cloud_messages":null}}""";
+        const string codexCreditsSome = """{"credits":{"has_credits":true,"unlimited":false,"balance":"1250.5"}}""";
+        if (CodexUsageParser.ParseCredits(codexCreditsNone) is not null
+            || CodexUsageParser.ParseCredits(codexCreditsSome) is not { Balance: 1250.5m, Unlimited: false })
+            throw new InvalidDataException("Codex credits fixture parser check failed");
+        const string cursorFixture = """{"billingCycleStart":"2026-09-20T16:55:07.000Z","billingCycleEnd":"2026-10-20T16:55:07.000Z","membershipType":"pro","limitType":"user","isUnlimited":false,"individualUsage":{"plan":{"enabled":true,"used":1429,"limit":2000,"remaining":571,"totalPercentUsed":2.886868686868687},"onDemand":{"enabled":true,"used":900,"limit":5000,"remaining":4100}}}""";
+        CursorUsageParser.Result cursorParsed = CursorUsageParser.Parse(cursorFixture);
+        if (cursorParsed.OnDemandSpent != new Money(9m, "USD") || cursorParsed.OnDemandLimit != new Money(50m, "USD")
+            || cursorParsed.OnDemand is not { Percent: 18 })
+            throw new InvalidDataException("Cursor on-demand fixture parser check failed");
+
+        var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
+        {
+            Plan = "pro",
+            OnDemandSpent = cursorParsed.OnDemandSpent,
+            OnDemandLimit = cursorParsed.OnDemandLimit,
+        };
+        var ram = new RamSnapshot(63, 10_150_000_000, 17_020_000_000, 4_300_000_000, 12_600_000_000, 26_900_000_000, null);
         const string openCodeFixture = """{"totalTokens":{"input":12345,"output":6789,"reasoning":321,"cache":{"read":2100,"write":55}},"totalCost":1.2345,"totalSessions":7}""";
         var (fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost) = OpenCodeUsageParser.Parse(openCodeFixture);
         if (fixtureInput != 12345 || fixtureOutput != 6789 || fixtureReasoning != 321 || fixtureCacheRead != 2100
@@ -48,6 +65,7 @@ internal static class Snapshot
         window.SetDeepSeek(deepSeek);
         window.SetOpenRouter(openRouter);
         window.SetGpu(gpu);
+        window.SetRam(ram);
         window.Show();
         window.SetClaude(claude);
         window.SetCpu(cpu);
@@ -143,11 +161,46 @@ internal static class Snapshot
         window.ApplyMode(PanelMode.Auto);
         window.SaveSnapshot(Path.Combine(directory, "14_back_to_auto.png"));
 
+        // Clicking the Claude ring: "Renovando sesión…", then the new reading with the outcome, or a clear error.
         window.ApplyMode(PanelMode.Pinned);
+        window.SetClaude(ClaudeSnapshot.Failed(ClaudeUsageService.RenewMessage));
         window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "16a_card_claude_expired.png"));
         window.SetClaudeRenewing();
-        window.SetClaudeRenewFailed(App.RenewTaskMissingMessage);
-        window.SaveSnapshot(Path.Combine(directory, "16_card_claude_renew_task_missing.png"));
+        window.SaveSnapshot(Path.Combine(directory, "16b_card_claude_renewing.png"));
+        window.SetClaude(claude);
+        window.SetClaudeNote(Loc.Format("Claude.Renewed", now.AddHours(8).LocalDateTime));
+        window.SaveSnapshot(Path.Combine(directory, "16c_card_claude_renewed.png"));
+        window.SetClaudeNote(Loc.Format("Claude.StillValid", now.AddHours(3).LocalDateTime));
+        window.SaveSnapshot(Path.Combine(directory, "16d_card_claude_still_valid.png"));
+        window.SetClaude(ClaudeSnapshot.Failed(ClaudeUsageService.RenewMessage));
+        window.SetClaudeNote(Loc.Message(ClaudeSessionRenewer.NotRenewedMessage));
+        window.SaveSnapshot(Path.Combine(directory, "16e_card_claude_not_renewed.png"));
+        window.SetClaudeNote(Loc.Message(ClaudeSessionRenewer.CliMissingMessage));
+        window.SaveSnapshot(Path.Combine(directory, "16f_card_claude_cli_missing.png"));
+        window.SetClaudeNote(null);
+
+        // RAM ring and card: the hint, then the outcome of "Liberar RAM".
+        window.SetClaude(claude);
+        window.ShowCardNow(EdgeWindow.RingRam);
+        window.SaveSnapshot(Path.Combine(directory, "52_card_ram.png"));
+        window.SetRamNote(Loc.Format("Ram.Freed", "812", "1.204"));
+        window.SetRam(ram with { Percent = 58, UsedBytes = 9_300_000_000, CachedBytes = 3_050_000_000 });
+        window.SaveSnapshot(Path.Combine(directory, "53_card_ram_freed.png"));
+        window.SetRamNote(Loc.Format("Ram.Wait", 42));
+        window.SaveSnapshot(Path.Combine(directory, "54_card_ram_wait.png"));
+        window.SetRamNote(null);
+        window.SetRam(ram);
+
+        // Spend: Codex credits (only with has_credits) and Cursor on-demand; Claude's spend is 07.
+        window.SetCodex(codexMonthly with { Credits = CodexUsageParser.ParseCredits(codexCreditsSome) });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "55_card_codex_credits.png"));
+        window.SetCodex(codexMonthly);
+        window.SetCursor(cursor with { OnDemand = null, OnDemandLimit = null });
+        window.ShowCardNow(EdgeWindow.RingCursor);
+        window.SaveSnapshot(Path.Combine(directory, "56_card_cursor_on_demand_no_limit.png"));
+        window.SetCursor(cursor);
 
         // "Total" tab: Claude weekly (11 %), Codex its longer window (weekly 70 % instead of the 5 h 40 %), Cursor monthly.
         var codexTwoWindows = new CodexSnapshot(false, new CodexWindow(40, TimeSpan.FromHours(5), now.AddHours(3)),
@@ -267,6 +320,17 @@ internal static class Snapshot
         }
         window.PreviewWorkArea(ReferenceWorkArea);
 
+        // Welcome / install window: before, during, done, failed; and the uninstall confirmation.
+        SaveInstallWindow(InstallWindow.Mode.Install, null, null, Path.Combine(directory, "57_install_welcome.png"));
+        SaveInstallWindow(InstallWindow.Mode.Install, InstallStep.Copy, null, Path.Combine(directory, "58_install_progress.png"));
+        SaveInstallWindow(InstallWindow.Mode.Install, InstallStep.Start,
+            new InstallResult(true, null, new[] { "Se conserva la carpeta antigua C:\\Program Files\\EdgeWidget." }),
+            Path.Combine(directory, "59_install_done.png"));
+        SaveInstallWindow(InstallWindow.Mode.Install, InstallStep.Data,
+            new InstallResult(false, "La carpeta de datos es un enlace o punto de reanálisis; se cancela para evitar escrituras elevadas fuera de ella.", Array.Empty<string>()),
+            Path.Combine(directory, "60_install_error.png"));
+        SaveInstallWindow(InstallWindow.Mode.Uninstall, null, null, Path.Combine(directory, "61_uninstall.png"));
+
         var keys = new ApiKeyWindow(previewMode: true) { ShowActivated = false, Left = -32000, Top = -32000 };
         keys.Show();
         keys.UpdateLayout();
@@ -276,6 +340,7 @@ internal static class Snapshot
         window.Close();
 
         var menu = new TrayMenuWindow { ShowActivated = false, Left = -32000, Top = -32000 };
+        menu.SetAutoStart(true);
         menu.Show();
         menu.UpdateLayout();
         SaveElement((FrameworkElement)menu.Content, Path.Combine(directory, "15_tray_menu.png"));
@@ -303,6 +368,17 @@ internal static class Snapshot
             || !glyphs.FamilyNames.Values.Contains("Google Sans Flex")
             || glyphs.Weight != weight)
             throw new InvalidDataException($"font check failed for weight {weight}");
+    }
+
+    private static void SaveInstallWindow(InstallWindow.Mode mode, InstallStep? step, InstallResult? result, string path)
+    {
+        var window = new InstallWindow(mode) { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -32000, Top = -32000 };
+        window.Show();
+        if (step is InstallStep running) window.ShowStep(running);
+        if (result is not null) window.ShowResult(result);
+        window.UpdateLayout();
+        SaveElement((FrameworkElement)window.Content, path);
+        window.Close();
     }
 
     /// Paints the hover state of a round panel button (the triggers need a real cursor).

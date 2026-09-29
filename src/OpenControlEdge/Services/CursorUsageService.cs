@@ -42,11 +42,16 @@ internal sealed class CursorUsageService
             try
             {
                 string json = Encoding.UTF8.GetString(body);
-                var (cycle, onDemand, membership) = CursorUsageParser.Parse(json);
-                string? plan = string.IsNullOrWhiteSpace(membership) ? credentials.MembershipType : membership;
-                return cycle is null
+                CursorUsageParser.Result usage = CursorUsageParser.Parse(json);
+                string? plan = string.IsNullOrWhiteSpace(usage.Membership) ? credentials.MembershipType : usage.Membership;
+                return usage.Cycle is null
                     ? CursorSnapshot.Failed("Respuesta sin datos") with { Plan = credentials.MembershipType }
-                    : new CursorSnapshot(false, cycle, onDemand, null) { Plan = plan };
+                    : new CursorSnapshot(false, usage.Cycle, usage.OnDemand, null)
+                    {
+                        Plan = plan,
+                        OnDemandSpent = usage.OnDemandSpent,
+                        OnDemandLimit = usage.OnDemandLimit,
+                    };
             }
             finally { CryptographicOperations.ZeroMemory(body); }
         }
