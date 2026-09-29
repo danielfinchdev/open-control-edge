@@ -1,0 +1,22 @@
+name: Feedback
+description: Comparte un error o una idea sobre Open Control Edge
+title: "[Feedback]: "
+labels: [feedback]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Tipo
+      options:
+        - Error
+        - Idea
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Comentario
+      description: No incluyas tokens ni datos personales.
+    validations:
+      required: true

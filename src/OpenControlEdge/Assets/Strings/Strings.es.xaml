@@ -102,6 +102,10 @@
     <!-- Welcome / install and uninstall window -->
     <sys:String x:Key="Install.Title">Instalar Open Control Edge</sys:String>
     <sys:String x:Key="Install.Intro">Open Control Edge se instalará en Archivos de programa, donde solo un administrador puede modificarlo, y arrancará solo al iniciar sesión, sin volver a pedir permiso.</sys:String>
+    <sys:String x:Key="Install.PawnIo">Descargar e instalar PawnIO</sys:String>
+    <sys:String x:Key="Install.PawnIoDone">PawnIO está instalado y disponible.</sys:String>
+    <sys:String x:Key="Install.PawnIo">Descargar e instalar PawnIO</sys:String>
+    <sys:String x:Key="Install.PawnIoDone">PawnIO está instalado y disponible.</sys:String>
     <sys:String x:Key="Install.Step.Stop">Cerrar la versión en marcha (también EdgeWidget)</sys:String>
     <sys:String x:Key="Install.Step.Copy">Copiar la aplicación a C:\Program Files\OpenControlEdge y comprobarla</sys:String>
     <sys:String x:Key="Install.Step.Data">Proteger tus ajustes y conservar los de versiones anteriores</sys:String>

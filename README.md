@@ -514,3 +514,7 @@ Tipografía: [Google Sans Flex](https://github.com/google/fonts/tree/main/ofl/go
 
 Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
 asociado con Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter ni OpenCode.
+
+# Feedback
+
+Puedes enviar errores e ideas desde Ajustes → Feedback. Se abrirá un borrador de issue de GitHub para que lo revises antes de publicarlo; hace falta una cuenta de GitHub. GitHub envía a Dani por correo los avisos de los issues nuevos.

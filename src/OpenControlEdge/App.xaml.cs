@@ -75,6 +75,7 @@ public partial class App : Application
     private DateTime _lastRamClean = DateTime.MinValue;
     private bool _cleaningRam;
     private bool _firstDataLogged;
+    private SettingsWindow? _settingsWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -194,8 +195,7 @@ public partial class App : Application
         };
         _edge.ModeChangeRequested += SetPanelMode;
         _edge.UsageViewChanged += SettingsStore.SaveUsageView;
-        // The settings window comes with a later task; for now the request is only logged.
-        _edge.SettingsRequested += () => Log.Info("App", "settings requested from the panel");
+        _edge.SettingsRequested += OpenSettings;
         _edge.CloseRequested += Shutdown;
         _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync(automatic: false);
         _edge.CpuClicked += OpenSystemInformation;
@@ -221,6 +221,18 @@ public partial class App : Application
         _sensorTimer.Start();
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
+    }
+
+    private void OpenSettings()
+    {
+        if (_settingsWindow is { IsVisible: true }) { _settingsWindow.Activate(); return; }
+        _settingsWindow = new SettingsWindow(() => _ = RefreshUsageAsync(), settings =>
+        {
+            _edge?.ApplyScale(settings.UiScale);
+            if (_panelMode != settings.PanelMode) SetPanelMode(settings.PanelMode);
+            _ = RefreshUsageAsync();
+        }) { Owner = _edge };
+        _settingsWindow.Show();
     }
 
     private bool AcquireSingleInstance()
@@ -620,7 +632,7 @@ public partial class App : Application
         string deepSeek = _lastDeepSeek is { Hidden: false, Balance: Money balance } ? $" · DeepSeek {Fmt.Amount(balance)}" : string.Empty;
         string openRouter = _lastOpenRouter is { Hidden: false, Message: null } routerUsage
             ? $" · OpenRouter {(routerUsage.LimitUsd is decimal limit && limit > 0 && routerUsage.RemainingUsd is not null ? Fmt.Percent((double)Math.Clamp(routerUsage.UsageUsd / limit * 100, 0, 100)) : Fmt.Amount(new Money(routerUsage.UsageUsd, "USD")))}" : string.Empty;
-        string claudePart = claude.Length == 0 ? string.Empty : $"Claude {claude} · ";
+        string claudePart = claude.Length == 0 ? string.Empty : $" · Claude {claude}";
         _tray?.SetTooltip($"CPU {cpu}{gpu}{claudePart}{codex}{cursor}{openCode}{deepSeek}{openRouter}");
         LogStatusChange();
     }

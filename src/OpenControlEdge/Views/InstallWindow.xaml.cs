@@ -41,6 +41,12 @@ public partial class InstallWindow : Window
         _mode = mode;
         InitializeComponent();
         _dots = new[] { DotStop, DotCopy, DotData, DotTask, DotStart };
+        if (mode == Mode.Install)
+        {
+            bool pawnIo = false;
+            try { pawnIo = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
+            if (!pawnIo) PawnIoButton.Visibility = Visibility.Visible;
+        }
 
         if (mode == Mode.Uninstall)
         {
@@ -90,6 +96,19 @@ public partial class InstallWindow : Window
         if (_busy) return;
         if (_mode == Mode.Install && !_finished) Result = Outcome.Portable;
         Close();
+    }
+
+    private async void OnPawnIoClick(object sender, RoutedEventArgs e)
+    {
+        PawnIoButton.IsEnabled = false;
+        try
+        {
+            string? error = await PawnIoInstaller.InstallAsync();
+            MessageBox.Show(error ?? Loc.Get("Install.PawnIoDone"), "Open Control Edge", MessageBoxButton.OK,
+                error is null ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            if (error is null) PawnIoButton.Visibility = Visibility.Collapsed;
+        }
+        finally { PawnIoButton.IsEnabled = true; }
     }
 
     private async Task InstallAsync()

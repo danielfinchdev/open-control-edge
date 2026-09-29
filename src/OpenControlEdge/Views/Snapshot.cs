@@ -355,6 +355,7 @@ internal static class Snapshot
         lightMenu.CloseMenu();
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic);
         Loc.Apply(UiLanguage.Spanish);
+        SettingsWindow.SaveSnapshots(directory);
     }
 
     /// Work area of a 1080p screen at 100 % minus the taskbar: scale 1.
@@ -390,7 +391,7 @@ internal static class Snapshot
         else chrome.SetResourceReference(Shape.FillProperty, ThemeManager.Button);
     }
 
-    private static void SaveElement(FrameworkElement element, string path)
+    internal static void SaveElement(FrameworkElement element, string path)
     {
         const double scale = 2;
         double width = element.ActualWidth + element.Margin.Left + element.Margin.Right;
