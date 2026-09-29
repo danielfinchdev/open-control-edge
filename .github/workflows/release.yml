@@ -8,6 +8,8 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  # SignPath downloads the unsigned artifact of this run.
+  actions: read
 
 jobs:
   release:
@@ -20,12 +22,57 @@ jobs:
         with:
           global-json-file: global.json
 
-      # Same publish as README / build.yml. Release csproj keeps DebugType=none.
+      # Same publish as README / build.yml. Release csproj keeps DebugType=none. The executable installs itself
+      # (welcome window), so the folder carries no script.
       - name: Publish
         run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
-      - name: Include installer
-        run: Copy-Item tools/instalar.ps1 dist/instalar.ps1
+      # Code signing with SignPath Foundation (free for open source). Runs only when the secret SIGNPATH_API_TOKEN and
+      # the variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_SIGNING_POLICY_SLUG exist;
+      # otherwise the release goes out unsigned with a warning. See README, "Firma".
+      - name: Check code signing configuration
+        id: signing
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          if ($env:SIGNPATH_API_TOKEN -and $env:SIGNPATH_ORGANIZATION_ID -and $env:SIGNPATH_PROJECT_SLUG -and $env:SIGNPATH_SIGNING_POLICY_SLUG) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            Write-Output "::warning title=Firma de código::SignPath no está configurado (falta el secreto SIGNPATH_API_TOKEN o alguna variable SIGNPATH_*). Se publica sin firmar."
+          }
+
+      - name: Upload unsigned application for signing
+        id: unsigned
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenControlEdge-unsigned
+          path: dist/
+          if-no-files-found: error
+
+      # The SignPath artifact configuration signs OpenControlEdge.exe inside this artifact (Authenticode).
+      - name: Sign with SignPath
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Use the signed application
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          $signature = Get-AuthenticodeSignature signed/OpenControlEdge.exe
+          if ($signature.Status -ne 'Valid') { throw "La firma de OpenControlEdge.exe no es válida: $($signature.Status)" }
+          Copy-Item signed/* dist/ -Recurse -Force
 
       - name: Package application folder
         run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
