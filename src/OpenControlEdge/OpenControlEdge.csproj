@@ -30,10 +30,11 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
 
-  <!-- Geist Sans (SIL OFL 1.1, see Assets/Fonts/OFL.txt): only the two weights the interface uses. -->
+  <!-- Google Sans Flex (SIL OFL 1.1, see Assets/Fonts/OFL.txt): static instances of the two weights the interface
+       uses, as served by fonts.google.com (WPF cannot select weights inside the variable font). -->
   <ItemGroup>
-    <Resource Include="Assets\Fonts\Geist-Regular.ttf" />
-    <Resource Include="Assets\Fonts\Geist-SemiBold.ttf" />
+    <Resource Include="Assets\Fonts\GoogleSansFlex-Regular.ttf" />
+    <Resource Include="Assets\Fonts\GoogleSansFlex-SemiBold.ttf" />
   </ItemGroup>
 
   <ItemGroup>
