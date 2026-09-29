@@ -195,6 +195,8 @@ $dataItem = Get-Item -LiteralPath $datosDir -Force
 if ($dataItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'La carpeta de datos es un enlace o punto de reanalisis; se cancela para evitar escrituras elevadas fuera de ella.' }
 $dataLinks = Get-ChildItem -LiteralPath $datosDir -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }
 if ($dataLinks) { throw 'La carpeta de datos contiene enlaces o puntos de reanalisis; se cancela para evitar escrituras elevadas fuera de ella.' }
+& icacls.exe $datosDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /setowner '*S-1-5-32-544' /T | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo restringir la escritura de la carpeta de datos a administradores.' }
 & icacls.exe $datosDir /setintegritylevel '(OI)(CI)H' /T | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo proteger la carpeta de datos con nivel de integridad alto.' }
 $ajustesNuevo = Join-Path $datosDir 'OpenControlEdge.settings.json'
