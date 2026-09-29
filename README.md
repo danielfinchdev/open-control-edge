@@ -6,7 +6,7 @@ de cada IA y a qué temperatura está tu portátil.**
 > *A Windows 11 edge widget showing your remaining Claude / Codex / Cursor quota and your CPU & GPU
 > temperature at a glance. Interface and documentation are in Spanish.*
 
-![versión](https://img.shields.io/badge/versión-2.0.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
+![versión](https://img.shields.io/badge/versión-2.1.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-8-512BD4)
 
 <p align="center">
   <img src="docs/screenshots/tarjeta-claude.png" alt="Tarjeta de uso de Claude junto al panel" height="520">
@@ -14,8 +14,8 @@ de cada IA y a qué temperatura está tu portátil.**
   <img src="docs/screenshots/panel-real.png" alt="El panel funcionando en un escritorio real" height="520">
 </p>
 
-Con instalador PowerShell, sin servicios en segundo plano ni telemetría. Solo consulta los endpoints documentados
-abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
+Programa nativo: el propio ejecutable se instala (sin scripts), sin servicios en segundo plano ni telemetría. Solo
+consulta los endpoints documentados abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
 
 ---
 
@@ -30,11 +30,11 @@ abajo para actualizar tarjetas y lee los datos de OpenCode localmente.
 |---|---|---|
 | **PawnIO** (vital) | Leer la temperatura y la carga de la CPU | `winget install --id namazso.PawnIO -e` o el instalador oficial de [pawnio.eu](https://pawnio.eu) |
 | Windows 11 (o Windows 10 22H2) | Sistema | — |
-| Permisos de administrador | Leer los sensores (el widget arranca elevado mediante una tarea programada) | Lo configura `instalar.ps1` con un solo UAC |
+| Permisos de administrador | Leer los sensores (el widget arranca elevado mediante una tarea programada) | Lo configura la ventana de bienvenida con un solo UAC |
 | .NET 8 SDK | Solo para compilar | La versión Release ya incluye el runtime |
 
 **Comprobar que PawnIO está instalado:** `winget list --id namazso.PawnIO` debe listarlo. Después, reinicia el widget:
-el anillo de CPU debe mostrar grados en vez del aviso. `tools\instalar.ps1` también lo comprueba y ofrece instalarlo.
+el anillo de CPU debe mostrar grados en vez del aviso.
 
 ## Capturas
 
@@ -59,14 +59,17 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 
 | Anillo | Qué muestra |
 |---|---|
-| **Claude** | % de la sesión de 5 h, límite semanal y gasto acumulado en € |
-| **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) |
-| **Cursor** | % del ciclo mensual Pro y, si existe, bajo demanda |
+| **Claude** | % de la sesión de 5 h, límite semanal y, si has gastado créditos de uso, el gasto en su moneda (p. ej. €) |
+| **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) y, si la cuenta tiene créditos, el saldo de créditos |
+| **Cursor** | % del ciclo mensual Pro y, si usas el pago bajo demanda, lo gastado en USD (y su límite) |
 | **OpenCode** | Tokens de entrada / salida / razonamiento / caché y coste acumulado local |
 | **DeepSeek** | Saldo API restante en la moneda devuelta por el proveedor |
 | **OpenRouter** | % usado si la clave tiene límite; si no, gasto acumulado en USD |
 | **CPU** | Temperatura actual, máxima de la sesión y carga |
 | **GPU** | Temperatura, uso y memoria (NVIDIA) |
+| **RAM** | % de memoria física usada; en la tarjeta, GB usados / totales, en caché y confirmada |
+
+El gasto solo aparece cuando la respuesta del proveedor trae una cifra real mayor que cero; nunca se estima.
 
 Los anillos de OpenCode aparecen si se detecta su CLI o sus datos locales; DeepSeek y OpenRouter aparecen al guardar una clave.
 Claude, Codex y Cursor se detectan por sus clientes o credenciales. Puedes forzar u ocultar cada anillo en ajustes.
@@ -98,9 +101,18 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
 
 ### Detalles
 
-- **Un clic en el anillo de Claude solicita renovar la sesión** mediante la tarea de usuario y abre Claude Code,
-  para que el anillo no se quede en `--` cuando el token caduca.
-- **Icono en la bandeja** con menú propio (Actualizar / Claves de API… / Salir) e información al pasar el ratón.
+- **Un clic en el anillo de Claude renueva la sesión sin abrir ninguna ventana** (ver
+  [Mantener viva la sesión de Claude](#mantener-viva-la-sesión-de-claude)).
+- **Un clic en el anillo de CPU** abre Configuración › Sistema › Información, sin privilegios de administrador.
+- **Un clic en el anillo de RAM libera memoria** («Liberar RAM»): recorta la memoria que los programas no están
+  usando (`EmptyWorkingSet`, sin tocar el propio widget ni los procesos críticos de Windows) y vacía la caché en
+  espera (lista *standby*). La tarjeta dice cuánto se ha liberado. Como mucho una vez por minuto, y se desactiva con
+  `"ramCleanup": false`. Es una limpieza puntual, como la de los móviles: Windows vuelve a llenar la caché en cuanto
+  la necesita, porque la memoria libre no acelera nada por sí misma.
+- **Arranca con datos en 1–2 s**: la última lectura (solo porcentajes, fechas, planes e importes; ningún secreto) se
+  guarda en `%LOCALAPPDATA%\OpenControlEdge\cache.json` y se pinta nada más abrir; después se refresca.
+- **Icono en la bandeja** con menú propio (Actualizar / Claves de API… / Iniciar con Windows / Desinstalar… / Salir)
+  e información al pasar el ratón.
 - **Aviso de temperatura**: cada pico por encima de 90 °C queda anotado en el registro, incluso cuando
   el panel está recogido. Útil si tu portátil se calienta y no sabes cuándo.
 - **Instancia única**, se recoloca solo al cambiar de monitor o de escala, y sobrevive a un reinicio
@@ -116,20 +128,24 @@ Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente c
    Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
    Cuando el flujo de Release publique attestations, se pueden verificar con
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
-2. Extrae el ZIP y ejecuta el instalador incluido desde PowerShell:
+2. Extrae el ZIP y abre `OpenControlEdge.exe`. Acepta el UAC (el único) y aparece la ventana
+   **«Instalar Open Control Edge»**. Al pulsar **Instalar**:
+   - cierra la versión en marcha (también EdgeWidget) y sus tareas;
+   - copia la carpeta de la aplicación a `C:\Program Files\OpenControlEdge` a través de una carpeta temporal,
+     comprueba cada archivo con SHA-256 y la cambia de sitio (si algo falla, vuelve la copia anterior); después
+     verifica que ningún usuario sin privilegios pueda escribir en la carpeta ni en el ejecutable;
+   - protege `%LOCALAPPDATA%\OpenControlEdge` (sin enlaces ni puntos de reanálisis, escritura solo para
+     administradores y etiqueta de integridad alta) y trae los ajustes de versiones anteriores;
+   - registra el inicio con Windows (Programador de tareas: al iniciar sesión tu usuario, **sin retraso**, con
+     privilegios elevados y prioridad normal) y quita las tareas antiguas `EdgeWidget` y «Claude - Mantener sesion».
+     La carpeta `C:\Program Files\EdgeWidget` y tus ajustes se conservan;
+   - arranca la copia instalada.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\instalar.ps1
-```
+   **Usar sin instalar** abre el widget desde esa carpeta solo para esta sesión (también `OpenControlEdge.exe --portable`).
 
-Copia los archivos publicados a `C:\Program Files\OpenControlEdge`, crea una tarea programada que lo arranca al
-iniciar sesión como administrador, y lo lanza. Conserva los ajustes del usuario.
-
-Para quitar el arranque automático:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\instalar.ps1 -Desinstalar
-```
+Desde la copia instalada, el menú de la bandeja tiene **Iniciar con Windows** (activar / desactivar la tarea) y
+**Desinstalar…**, que quita la tarea, cierra el widget y deja la carpeta de Archivos de programa marcada para
+borrarse al reiniciar. Los ajustes de `%LOCALAPPDATA%\OpenControlEdge` se conservan.
 
 ### ¿Por qué necesita administrador?
 
@@ -149,6 +165,8 @@ El registro está en `%LOCALAPPDATA%\OpenControlEdge\widget.log`; los blobs DPAP
 {
   "panelMode": "auto",
   "usageView": "session",
+  "autoRenewClaude": true,
+  "ramCleanup": true,
   "providers": {
     "claude": "auto",
     "codex": "auto",
@@ -164,6 +182,8 @@ El registro está en `%LOCALAPPDATA%\OpenControlEdge\widget.log`; los blobs DPAP
 |---|---|---|
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
 | `usageView` | `"session"` \| `"total"` | Pestaña de los anillos de IA. La escriben las propias pestañas. |
+| `autoRenewClaude` | `true` (defecto) \| `false` | Renueva la sesión de Claude en segundo plano antes de que caduque. |
+| `ramCleanup` | `true` (defecto) \| `false` | Permite «Liberar RAM» con un clic en el anillo de RAM. |
 | `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
 
 Cada clave dentro de `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) admite:
@@ -193,6 +213,16 @@ los edites tú; al cambiar el modo del panel se conservan las claves que ya tuvi
 
 Los endpoints de Claude, Codex y Cursor **no están documentados** por sus proveedores. Los parsers exigen la forma
 exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventarse un número.
+
+**Gasto y créditos** (formas comprobadas con peticiones reales el 29-09-2026, sin datos personales):
+
+- Claude: `spend.used = { amount_minor, currency, exponent }` → importe en su moneda. Se muestra si es mayor que cero.
+- Codex (`wham/usage`): `"credits": { "has_credits": false, "unlimited": false, "overage_limit_reached": false,
+  "balance": null, "approx_local_messages": null, "approx_cloud_messages": null }` en una cuenta Go sin créditos.
+  El saldo (en créditos, no en dinero) solo se muestra con `has_credits: true` y un `balance` numérico.
+- Cursor (`usage-summary`): importes en **céntimos de dólar** (`individualUsage.plan = { used: 1429, limit: 2000 }`
+  frente a los 20 $ incluidos en Pro). `individualUsage.onDemand = { enabled, used, limit, remaining }`: lo gastado
+  bajo demanda se muestra si está activado y `used` es mayor que cero.
 
 ---
 
@@ -271,10 +301,16 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
 
 **Qué no hace**
 
-- No renueva tokens. Si el token de acceso está caducado, ni siquiera envía la petición: muestra que abras Claude Code o Codex para renovarlo. La renovación de Claude la hace un script aparte, como usuario normal.
+- No renueva tokens por sí mismo ni escribe los archivos de credenciales. Si el token de acceso está caducado, ni
+  siquiera envía la petición. La renovación de Claude la hace la propia CLI de Claude Code, lanzada como usuario
+  normal (ver abajo); el widget solo lee la fecha de caducidad antes y después.
+- Nada de lo que lanza hereda sus permisos de administrador: la CLI de Claude y Configuración se abren con el token
+  del Explorador de tu sesión (`CreateProcessWithTokenW`), tras comprobar que es tu misma cuenta y que no está
+  elevado. Si no se puede, no se lanza nada.
 - No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
   respuesta ni cabeceras.
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README. OpenCode no usa red.
+  Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
 - No tiene telemetría, ni analítica, ni actualizaciones automáticas, ni servicios residentes.
 
 **El ejecutable vive en `C:\Program Files`, a propósito**
@@ -283,7 +319,7 @@ La tarea programada lo arranca como administrador sin pedir UAC. Si el ejecutabl
 carpeta donde tu usuario puede escribir, cualquier programa que se ejecutase con tu cuenta —sin ser
 administrador— podría sustituirlo y heredar esos permisos en el siguiente inicio de sesión. En
 `C:\Program Files` solo un administrador puede escribir. El instalador verifica los permisos y avisa si
-no son correctos.
+no son correctos. Por lo mismo, el widget elevado solo escribe `cache.json` si la carpeta de datos está protegida.
 
 **Lo que queda, dicho claramente**
 
@@ -291,7 +327,10 @@ no son correctos.
   un programa normal. Está mitigado con lo anterior, no eliminado.
 - LibreHardwareMonitor carga un controlador de kernel (PawnIO) mientras el widget está abierto. Es el
   mecanismo estándar para leer sensores en Windows, pero es código de kernel de terceros.
-- El ejecutable no está firmado: SmartScreen puede avisar la primera vez.
+- Mientras no esté activa la firma (ver [Firma](#firma)), el ejecutable no está firmado: SmartScreen puede avisar la
+  primera vez.
+- «Liberar RAM», como administrador, recorta la memoria de otros procesos y vacía la caché del sistema. No borra
+  datos de nadie, pero durante unos segundos los programas vuelven a cargar de disco lo que necesiten.
 
 ---
 
@@ -303,23 +342,24 @@ Lo que **no** lo renueva: abrir la aplicación de escritorio de Claude (guarda s
 ni `claude auth status` (solo informa). Lo único que lo renueva es una llamada real a la API, que hace
 que la CLI use el token de refresco y reescriba el archivo.
 
-`tools\claude-sesion.ps1` automatiza eso:
+El widget lo hace él solo, sin scripts ni tareas programadas y **sin abrir ninguna ventana**:
 
-```powershell
-# Instalar (no necesita administrador)
-powershell -ExecutionPolicy Bypass -File tools\claude-sesion.ps1 -Instalar -AbrirApp
-
-# Renovar ahora mismo
-powershell -ExecutionPolicy Bypass -File tools\claude-sesion.ps1 -Forzar
-```
-
-- Se dispara al iniciar sesión **con 3 minutos de retraso** y después **cada 4 horas**.
-- Solo llama a la API si al token le quedan menos de 2 horas. Si le queda margen, no hace nada.
-- La llamada es la mínima posible: `claude -p --tools "" --no-session-persistence --model haiku ok`.
-- Deja constancia en `tools\claude-sesion.log`. **Nunca escribe ningún token**, solo fechas.
-
-El clic en el anillo de Claude lanza esta misma tarea. Si no está instalada, la tarjeta lo dice y solo se
-abre Claude Code (que no renueva el token).
+- **Clic en el anillo de Claude**: la tarjeta pasa a «Renovando sesión…», se ejecuta una vez la CLI de Claude Code,
+  se vuelve a leer el uso y la tarjeta dice el resultado («Sesión renovada: vale hasta las 18:53», «Sesión vigente
+  hasta…» o un error claro, como «No se encuentra Claude Code» o «Claude Code no ha respondido en 60 s»).
+- **En segundo plano** (`"autoRenewClaude": true`, por defecto): cuando al token le quedan menos de 30 minutos, se
+  lanza 4 minutos antes de que caduque, como mucho una vez cada 30 minutos.
+- La CLI se busca en `%USERPROFILE%\.local\bin\claude.exe` (instalador nativo), luego en el binario nativo del
+  paquete npm (`%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`) y, si no, `node` + `cli.js`
+  de paquetes npm antiguos.
+- La llamada es la mínima posible:
+  `claude -p --no-session-persistence --model haiku --tools "" --strict-mcp-config ok` (sin herramientas, sin
+  servidores MCP, sin guardar la conversación), sin ventana (`CREATE_NO_WINDOW`), dentro de un *job* que la cierra
+  entera si pasa de **60 s**, y **como tu usuario normal**, nunca como administrador.
+- Comprobado en Claude Code 2.1.284: la CLI solo refresca el token cuando le quedan **menos de 5 minutos**. Antes de
+  eso la llamada termina bien pero deja el token como estaba; por eso la tarjeta dice entonces «Sesión vigente
+  hasta…» y la renovación automática se programa dentro de esos 5 minutos.
+- En el registro solo quedan la duración, el código de salida y el resultado. **Nunca ningún token.**
 
 ---
 
@@ -331,11 +371,14 @@ Requisitos: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 git clone https://github.com/danielfinchdev/open-control-edge.git
 cd open-control-edge
 dotnet publish src\OpenControlEdge\OpenControlEdge.csproj -c Release -r win-x64 -o dist
-powershell -ExecutionPolicy Bypass -File tools\instalar.ps1
+.\dist\OpenControlEdge.exe
 ```
 
 **Release** genera una carpeta autocontenida (no hace falta tener .NET instalado) que el flujo entrega como ZIP;
-el instalador la copia completa y exige administrador. **Debug** arranca sin elevar, para iterar la interfaz sin UAC.
+al abrir su ejecutable aparece la ventana de instalación, que la copia completa (exige administrador). El ejecutable
+va sin comprimir y con ReadyToRun: medido el 29-09-2026, pinta el primer fotograma con datos en ~0,8 s en caliente y
+~1,5 s la primera vez, con ~150 MB de memoria, frente a ~1,4 s / 2,2 s y ~260 MB con compresión (ver CHANGELOG).
+**Debug** arranca sin elevar ni ofrecer la instalación, para iterar la interfaz sin UAC (`--welcome` la muestra).
 
 Cada etiqueta `v*` lanza el mismo `dotnet publish` en [Actions](../../actions) y adjunta el ZIP de la aplicación a la [Release](../../releases):
 
@@ -350,7 +393,60 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **36 PNG** con los dos modos, las pestañas, las ocho tarjetas, estados de error y sin datos, una cuenta gratuita de Claude, anillos ocultos, el requisito de PawnIO, menú de bandeja y diálogo de claves. Incluye una prueba del parser de OpenCode con JSON de ejemplo. No lee credenciales, no toca los ajustes ni abre los sensores ni escribe en el registro.
+Renderiza **66 PNG** con los dos modos, las pestañas, las nueve tarjetas (RAM incluida), los estados de la
+renovación de Claude, el gasto de Claude / Codex / Cursor, estados de error y sin datos, una cuenta gratuita de
+Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas, menú de bandeja, diálogo de claves y la
+ventana de instalación (bienvenida, progreso, hecho, error y desinstalar). Incluye pruebas de los parsers de OpenCode,
+de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales observadas. No lee credenciales, no
+toca los ajustes ni abre los sensores ni escribe en el registro.
+
+---
+
+## Firma
+
+El flujo de Release está preparado para firmar `OpenControlEdge.exe` con **[SignPath Foundation](https://signpath.org/)**,
+gratis para proyectos de código abierto: sube la carpeta publicada como artefacto, envía la petición de firma, espera
+a que termine, comprueba la firma Authenticode y adjunta a la Release el ZIP con el ejecutable firmado. Mientras no
+existan los datos de SignPath, el paso se salta con un aviso y la Release sale sin firmar.
+
+Pasos para activarla (los tiene que dar el dueño del repositorio; ninguna IA puede crear la cuenta):
+
+1. Solicitar el alta del proyecto en [signpath.org/foundation](https://signpath.org/foundation) (formulario de
+   proyectos de código abierto). Piden que el repositorio sea público, con licencia OSI (MIT vale), releases
+   construidas en GitHub Actions y la política de firma publicada (sección siguiente).
+2. Cuando lo aprueben, en SignPath: instalar la aplicación de GitHub de SignPath en el repositorio, crear el proyecto
+   (por ejemplo `open-control-edge`) con un *trusted build system* de GitHub y una **configuración de artefacto** que
+   firme el ejecutable dentro del ZIP del artefacto:
+   ```xml
+   <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+     <zip-file>
+       <pe-file path="OpenControlEdge.exe">
+         <authenticode-sign />
+       </pe-file>
+     </zip-file>
+   </artifact-configuration>
+   ```
+   y una política de firma (por ejemplo `release-signing`) con aprobación manual.
+3. En GitHub → *Settings* → *Secrets and variables* → *Actions*:
+   - secreto `SIGNPATH_API_TOKEN` (token de API de un usuario de SignPath con permiso de envío);
+   - variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` y `SIGNPATH_SIGNING_POLICY_SLUG`.
+4. Publicar una etiqueta `v*`: el flujo pedirá la firma y esperará a que se apruebe en SignPath.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- Committers and reviewers: [danielfinchdev](https://github.com/danielfinchdev)
+- Approvers: [danielfinchdev](https://github.com/danielfinchdev)
+
+Every release is built from this repository by GitHub Actions (`.github/workflows/release.yml`); only builds of tagged
+commits are submitted for signing, and each signing request is approved manually by an approver.
+
+**Privacy:** this program will not transfer any information to other networked systems unless specifically requested
+by the user or the person installing or operating it. It only sends HTTPS requests to the usage endpoints of the AI
+services the user is signed in to or has added an API key for (listed in «De dónde salen los datos»), carrying the
+user's own credentials; it has no telemetry.
 
 ---
 
@@ -381,7 +477,7 @@ src/OpenControlEdge/
 ├─ Services/     Lectura de credenciales, APIs de uso, sensores, ajustes, registro
 ├─ Ui/           Anillo, barra, iconos, paleta, formatos
 ├─ Views/        Ventana del borde, menú de bandeja, renderizador de capturas
-└─ Interop/      user32 / shell32: bandeja, posición, clic-a-través
+└─ Interop/      user32 / shell32: bandeja, posición, clic-a-través; tokens, procesos, memoria y seguridad
 ```
 
 Algunas decisiones que quizá no son obvias:
