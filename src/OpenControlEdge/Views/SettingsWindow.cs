@@ -243,12 +243,9 @@ internal sealed class SettingsWindow : Window
     private void General()
     {
         Settings s = SettingsStore.Load(); var card = Card(T("Preferencias", "Preferences")); var p = Inside(card);
-        AddToggle(p, T("Iniciar con Windows", "Start with Windows"), AutoStartService.IsEnabled(), enabled =>
-        {
-            string? error = enabled ? AutoStartService.Enable() : AutoStartService.Disable();
-            if (error != null) MessageBox.Show(DisplayError(error));
-        });
-        AddChoice(p, T("Modo del panel", "Panel mode"), ["Fijado", "Automático"], s.PanelMode == PanelMode.Auto ? 1 : 0, i => { var updated = SettingsStore.Update(x => x with { PanelMode = i == 0 ? PanelMode.Pinned : PanelMode.Auto }); if (updated != null) _apply(updated); });
+        if (Installer.IsInstalledCopy)
+            AddStartupToggle(p);
+        AddChoice(p, T("Modo del panel", "Panel mode"), [T("Fijado", "Pinned"), T("Automático", "Automatic")], s.PanelMode == PanelMode.Auto ? 1 : 0, i => { var updated = SettingsStore.Update(x => x with { PanelMode = i == 0 ? PanelMode.Pinned : PanelMode.Auto }); if (updated != null) _apply(updated); });
         int[] intervals = [2, 5, 10, 15];
         AddChoice(p, T("Intervalo de actualización", "Usage refresh interval"), intervals.Select(i => $"{i} min").ToArray(),
             Array.IndexOf(intervals, s.UsageRefreshMinutes), i => { var updated = SettingsStore.Update(x => x with { UsageRefreshMinutes = intervals[i] }); if (updated != null) _apply(updated); });
@@ -276,7 +273,13 @@ internal sealed class SettingsWindow : Window
 
         var danger = Inside(Card(T("Desinstalar", "Uninstall"), T("Quita Open Control Edge de este equipo. Se completa al reiniciar.", "Removes Open Control Edge from this PC. It completes after a restart.")));
         danger.Children.RemoveAt(danger.Children.Count - 1);
-        Actions(danger, Button(T("Desinstalar…", "Uninstall…"), (_, _) => { if (MessageBox.Show(T("¿Desinstalar Open Control Edge?", "Uninstall Open Control Edge?"), "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { string? error = AutoStartService.Uninstall(); MessageBox.Show(error ?? T("Se desinstalará al reiniciar.", "It will be uninstalled after restart.")); } }));
+        Actions(danger, Button(T("Desinstalar…", "Uninstall…"), (_, _) =>
+        {
+            if (MessageBox.Show(T("¿Desinstalar Open Control Edge?", "Uninstall Open Control Edge?"), "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            var uninstall = new InstallWindow(InstallWindow.Mode.Uninstall) { Owner = this };
+            uninstall.ShowDialog();
+            if (uninstall.Result == InstallWindow.Outcome.Uninstalled) Application.Current.Shutdown();
+        }));
     }
     private void Appearance()
     {
@@ -300,6 +303,35 @@ internal sealed class SettingsWindow : Window
         return toggle;
     }
     private void AddToggle(Panel panel, string text, bool value, Action<bool> changed) => Row(panel, text, Switch(value, changed));
+
+    private void AddStartupToggle(Panel panel)
+    {
+        ToggleButton? toggle = null;
+        bool enabled = false;
+        toggle = Switch(false, value =>
+        {
+            toggle!.IsEnabled = false;
+            _ = Task.Run(() => value ? AutoStartService.Enable() : AutoStartService.Disable()).ContinueWith(task => Dispatcher.Invoke(() =>
+            {
+                string? error = task.Result;
+                if (error is not null)
+                {
+                    toggle.IsChecked = enabled;
+                    MessageBox.Show(DisplayError(error));
+                }
+                else enabled = value;
+                toggle.IsEnabled = true;
+            }));
+        });
+        toggle.IsEnabled = false;
+        Row(panel, T("Iniciar con Windows", "Start with Windows"), toggle, T("Comprobando…", "Checking…"));
+        _ = Task.Run(AutoStartService.IsEnabled).ContinueWith(task => Dispatcher.Invoke(() =>
+        {
+            enabled = task.Result;
+            toggle.IsChecked = enabled;
+            toggle.IsEnabled = true;
+        }));
+    }
     private void AddRingThemes(Settings s)
     {
         var card = Card(T("Color de los anillos", "Ring colors"), T("Paleta de los anillos del panel.", "Palette of the panel rings."));
@@ -338,6 +370,13 @@ internal sealed class SettingsWindow : Window
     {
         var card = Card(T("Tamaño del widget", "Widget size"));
         var slider = new Slider { Style = StyleOf("Oce.ScaleSlider"), Value = s.UiScale ?? 1, IsEnabled = s.UiScale is not null, Margin = new Thickness(0, 6, 0, 0) };
+        var saveTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        saveTimer.Tick += (_, _) =>
+        {
+            saveTimer.Stop();
+            SettingsStore.Update(x => x with { UiScale = slider.IsEnabled ? slider.Value : null });
+        };
+        Closed += (_, _) => saveTimer.Stop();
         string ScaleText() => T("Escala manual: ", "Manual scale: ") + $"{slider.Value:P0}";
         var auto = new ToggleButton { Style = StyleOf("Oce.Switch"), IsChecked = s.UiScale is null };
         var row = Row(Inside(card), T("Automático", "Automatic"), auto, s.UiScale is null ? T("Escala automática", "Automatic scale") : ScaleText());
@@ -345,7 +384,14 @@ internal sealed class SettingsWindow : Window
         Inside(card).Children.Add(slider);
         auto.Checked += (_, _) => { slider.IsEnabled = false; value.Text = T("Escala automática", "Automatic scale"); var updated = SettingsStore.Update(x => x with { UiScale = null }); if (updated != null) _apply(updated); };
         auto.Unchecked += (_, _) => { slider.IsEnabled = true; value.Text = ScaleText(); var updated = SettingsStore.Update(x => x with { UiScale = slider.Value }); if (updated != null) _apply(updated); };
-        slider.ValueChanged += (_, _) => { if (!slider.IsEnabled) return; value.Text = ScaleText(); var updated = SettingsStore.Update(x => x with { UiScale = slider.Value }); if (updated != null) _apply(updated); };
+        slider.ValueChanged += (_, _) =>
+        {
+            if (!slider.IsEnabled) return;
+            value.Text = ScaleText();
+            _apply(SettingsStore.Load() with { UiScale = slider.Value });
+            saveTimer.Stop();
+            saveTimer.Start();
+        };
     }
     private void Agents()
     {
@@ -386,8 +432,17 @@ internal sealed class SettingsWindow : Window
             {
                 actions.Children.Add(SmallButton(T("Conectar", "Connect"), (_, _) =>
                 {
-                    string cli = id switch { AiProviderId.Claude => "claude", AiProviderId.Codex => "codex", _ => "cursor-agent" };
-                    var result = UnelevatedLauncher.Run(cli, "login", Environment.CurrentDirectory, hidden: false, wait: null);
+                    string name = id switch { AiProviderId.Claude => "claude", AiProviderId.Codex => "codex", _ => "cursor-agent" };
+                    string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                    string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    string[] candidates = { IOPath.Combine(profile, ".local", "bin", name + ".exe"), IOPath.Combine(appData, "npm", name + ".cmd"), IOPath.Combine(appData, "npm", name + ".exe") };
+                    string? cli = candidates.FirstOrDefault(File.Exists);
+                    if (cli is null) { MessageBox.Show(T("No se encuentra la CLI del agente.", "The agent CLI could not be found.")); return; }
+                    string login = name == "claude" ? "auth login" : "login";
+                    bool script = IOPath.GetExtension(cli).Equals(".cmd", StringComparison.OrdinalIgnoreCase);
+                    string application = script ? IOPath.Combine(Environment.SystemDirectory, "cmd.exe") : cli;
+                    string arguments = script ? $"/d /s /c \"{UnelevatedLauncher.Quote(cli)} {login}\"" : login;
+                    var result = UnelevatedLauncher.Run(application, arguments, profile, hidden: false, wait: null);
                     if (!result.Started) MessageBox.Show(DisplayError(result.Error ?? T("No se pudo iniciar el login.", "Could not start login.")));
                 }));
             }
@@ -460,7 +515,7 @@ internal sealed class SettingsWindow : Window
     }
     private void About()
     {
-        var version = typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "2.1.0";
+        var version = typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 #if DEBUG
         const string build = "Debug";
 #else
@@ -468,11 +523,19 @@ internal sealed class SettingsWindow : Window
 #endif
         var p = Inside(Card("Open Control Edge", $"{version} · {build} · .NET 8 · win-x64"));
         bool pawnInstalled = false; try { pawnInstalled = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
-        bool pawnRunning = pawnInstalled && PawnIoInstaller.ServiceRunning;
+        bool pawnRunning = false;
         var pawnState = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        pawnState.Children.Add(new Ellipse { Style = StyleOf(pawnRunning ? "Oce.Led.On" : "Oce.Led"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) });
-        pawnState.Children.Add(new TextBlock { VerticalAlignment = VerticalAlignment.Center,
-            Text = pawnRunning ? T("Instalado y en marcha", "Installed and running") : pawnInstalled ? T("Instalado, servicio detenido", "Installed, service stopped") : T("Falta", "Missing") });
+        var pawnLed = new Ellipse { Style = StyleOf(pawnRunning ? "Oce.Led.On" : "Oce.Led"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) };
+        var pawnLabel = new TextBlock { VerticalAlignment = VerticalAlignment.Center,
+            Text = pawnInstalled ? T("Comprobando…", "Checking…") : T("Falta", "Missing") };
+        pawnState.Children.Add(pawnLed);
+        pawnState.Children.Add(pawnLabel);
+        if (pawnInstalled)
+            _ = Task.Run(() => PawnIoInstaller.ServiceRunning).ContinueWith(task => Dispatcher.Invoke(() =>
+            {
+                pawnLed.Style = StyleOf(task.Result ? "Oce.Led.On" : "Oce.Led");
+                pawnLabel.Text = task.Result ? T("Instalado y en marcha", "Installed and running") : T("Instalado, servicio detenido", "Installed, service stopped");
+            }));
         UIElement pawnControl = pawnState;
         if (!pawnInstalled)
         {
@@ -484,9 +547,9 @@ internal sealed class SettingsWindow : Window
         Row(p, "PawnIO", pawnControl, T("Controlador para leer las temperaturas de CPU y GPU.", "Driver used to read CPU and GPU temperatures."));
         bool sensors = _sensorsAvailable();
         Row(p, T("Lecturas de temperatura disponibles", "Temperature readings available"), new TextBlock { Text = T(sensors ? "Sí" : "No", sensors ? "Yes" : "No"), VerticalAlignment = VerticalAlignment.Center });
-        var links = new[] { (T("Repositorio", "Repository"), "https://github.com/danielfinchdev/open-control-edge"), (T("Licencia", "License"), "https://github.com/danielfinchdev/open-control-edge/blob/v2.1/LICENSE"), (T("Licencias de terceros", "Third-party licenses"), "https://github.com/danielfinchdev/open-control-edge/blob/v2.1/THIRD-PARTY-NOTICES.txt") }
-            .Select(link => Button(link.Item1, (_, _) => Process.Start(new ProcessStartInfo(link.Item2) { UseShellExecute = true }))).ToList();
-        links.Add(Button(T("Abrir registro", "Open log"), (_, _) => { string log = IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenControlEdge", "widget.log"); Process.Start(new ProcessStartInfo("explorer.exe", "/select," + log) { UseShellExecute = true }); }));
+        var links = new[] { (T("Repositorio", "Repository"), "https://github.com/danielfinchdev/open-control-edge"), (T("Licencia", "License"), "https://github.com/danielfinchdev/open-control-edge/blob/main/LICENSE"), (T("Licencias de terceros", "Third-party licenses"), "https://github.com/danielfinchdev/open-control-edge/blob/main/THIRD-PARTY-NOTICES.txt") }
+            .Select(link => Button(link.Item1, (_, _) => OpenUnelevated(link.Item2))).ToList();
+        links.Add(Button(T("Abrir registro", "Open log"), (_, _) => { string log = IOPath.Combine(DataFolder.Path, "widget.log"); UnelevatedLauncher.Run(IOPath.Combine(Environment.SystemDirectory, "explorer.exe"), "/select," + UnelevatedLauncher.Quote(log), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), false, null); }));
         p.Children.Add(new Border { Style = StyleOf("Oce.Separator") });
         Actions(p, links.ToArray()).Margin = new Thickness(0);
     }
@@ -494,7 +557,7 @@ internal sealed class SettingsWindow : Window
     {
         var p = Inside(Card(T("Actualizaciones", "Updates")));
         var status = Muted(_release is null
-            ? _noUpdateAvailable ? T("No hay actualizaciones disponibles", "No updates available") : T("Versión actual: ", "Current version: ") + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "2.1.0")
+            ? _noUpdateAvailable ? T("No hay actualizaciones disponibles", "No updates available") : T("Versión actual: ", "Current version: ") + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown")
             : T("Actualización ", "Update ") + _release.Tag + T(" encontrada", " found"), new Thickness(0, 0, 0, 4));
         p.Children.Add(status);
         var notes = new TextBox { Style = StyleOf("Oce.Textarea"), Text = _release?.Notes ?? "", IsReadOnly = true,
@@ -526,19 +589,21 @@ internal sealed class SettingsWindow : Window
     }
     private void Feedback()
     {
-        var p = Inside(Card(T("Cuéntanos", "Tell us"), T("Enviar abre un issue de GitHub para que lo revises. Hace falta una cuenta de GitHub.", "Send opens a GitHub issue for you to review. A GitHub account is required.")));
+        var p = Inside(Card(T("Cuéntanos", "Tell us"), T("El formulario de GitHub es público. No incluyas datos personales. El navegador abrirá un borrador que podrás revisar y editar antes de enviarlo.", "GitHub issues are public. Do not include personal information. Your browser will open a draft you can review and edit before submitting.")));
         var type = new ComboBox { ItemsSource = new[] { T("Error", "Bug"), T("Idea", "Idea"), T("Otro", "Other") }, SelectedIndex = 0, Width = 180,
             Style = StyleOf("Oce.Select"), ItemContainerStyle = StyleOf("Oce.Select.Item") };
         Row(p, T("Tipo", "Type"), type);
         p.Children.Add(FieldLabel(T("Mensaje", "Message")));
         var body = new TextBox { Style = StyleOf("Oce.Textarea"), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 120, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; p.Children.Add(body);
-        p.Children.Add(FieldLabel(T("Correo para responder (opcional)", "Reply email (optional)")));
-        var email = new TextBox { Style = StyleOf("Oce.Input") }; p.Children.Add(email);
-        string Payload() => $"Version: 2.1.0\nOS: {Environment.OSVersion.VersionString}\nScale: {SettingsStore.Load().UiScale?.ToString("0.00") ?? "auto"}\n\n{body.Text}\n\nReply email (optional): {email.Text}";
+        string Payload() => $"Type: {type.Text}\nVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}\nOS: {Environment.OSVersion.VersionString}\nScale: {SettingsStore.Load().UiScale?.ToString("0.00") ?? "auto"}\n\n{body.Text}";
         Actions(p,
-            Button(T("Enviar", "Send"), (_, _) => { string url = "https://github.com/danielfinchdev/open-control-edge/issues/new?title=" + Uri.EscapeDataString(type.Text + ": " + body.Text.Split('\n').FirstOrDefault()) + "&body=" + Uri.EscapeDataString(Payload()); Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }, true),
-            Button(T("Copiar al portapapeles", "Copy to clipboard"), (_, _) => Clipboard.SetText(Payload()), variant: "Secondary")).Margin = new Thickness(0, 14, 0, 0);
+            Button(T("Abrir formulario", "Open form"), (_, _) => { Clipboard.SetText(Payload()); OpenUnelevated("https://github.com/danielfinchdev/open-control-edge/issues/new"); }, true),
+            Button(T("Copiar borrador", "Copy draft"), (_, _) => Clipboard.SetText(Payload()), variant: "Secondary")).Margin = new Thickness(0, 14, 0, 0);
     }
+
+    private static void OpenUnelevated(string url) =>
+        UnelevatedLauncher.Run(IOPath.Combine(Environment.SystemDirectory, "explorer.exe"), UnelevatedLauncher.Quote(url),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), hidden: false, wait: null);
     private static TextBlock FieldLabel(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 6) };
 
     private static string DisplayError(string message) => message switch

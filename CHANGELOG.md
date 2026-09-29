@@ -2,14 +2,27 @@
 
 ## 2.1.0 — sin publicar
 
+- **Escrituras elevadas protegidas.** Ajustes, registro, claves y caché del widget instalado se guardan en
+  `%ProgramData%\OpenControlEdge\<SID>`, con la carpeta del producto y la del usuario endurecidas. Se elimina la
+  copia automática de ajustes antiguos durante el arranque.
+- **Instalador y actualizaciones verificadas.** La instalación copia solo el ejecutable; el instalador de actualizaciones
+  exige SHA-256 y una firma Authenticode válida de SignPath Foundation. Las descargas de actualización y PawnIO usan
+  nombres de asset fijos; PawnIO exige el firmante fijado `CN=namazso.eu`.
+- Los argumentos `--snapshot`, `--smoke-test` y `--test-update-fixture` solo se procesan en Debug.
+  `--portable` y `--no-elevate` se ignoran cuando el proceso está elevado.
+- Los enlaces, el Explorador y los logins se lanzan con el token del usuario. Feedback abre un formulario público vacío
+  y copia el borrador para que se revise y edite antes de enviarlo.
+- «Liberar RAM» está desactivado por defecto, solo recorta procesos de la sesión interactiva y ya no purga la lista
+  standby.
+
 Comportamiento nativo: sin scripts de PowerShell ni tareas hechas con scripts.
 
 - **Instalación nativa.** Al abrir el ejecutable fuera de `C:\Program Files\OpenControlEdge` aparece la ventana
-  «Instalar Open Control Edge»: con el único UAC copia la aplicación (carpeta temporal, SHA-256 de cada archivo,
+  «Instalar Open Control Edge»: con el único UAC copia el ejecutable (carpeta temporal, SHA-256 y firma Authenticode,
   cambio con vuelta atrás, comprobación de permisos), protege la carpeta de datos (sin enlaces, solo administradores,
-  integridad alta), migra desde EdgeWidget (conserva su carpeta y los ajustes), registra el inicio con Windows en el
+  integridad alta), conserva la carpeta antigua EdgeWidget y registra el inicio con Windows en el
   Programador de tareas (al iniciar sesión, sin retraso, elevado, prioridad normal) y arranca la copia instalada.
-  «Usar sin instalar» o `--portable` la abren sin instalar. Menú de bandeja: «Iniciar con Windows» y «Desinstalar…».
+  `--portable` solo tiene efecto cuando el proceso ya corre sin elevar. Menú de bandeja: «Iniciar con Windows» y «Desinstalar…».
   Se eliminan `tools\instalar.ps1` y `tools\claude-sesion.ps1`.
 - **Arranque con datos en 1–2 s.** La última lectura se guarda en `cache.json` (sin secretos) y se pinta al abrir.
   Publicación sin compresión y con ReadyToRun. Medido el 29-09-2026 en este portátil (i7-8750H, 8 GB, RAM al 87 %),
@@ -30,7 +43,7 @@ Comportamiento nativo: sin scripts de PowerShell ni tareas hechas con scripts.
   (`autoRenewClaude`) dentro de los últimos minutos del token, como mucho una vez cada 30 min.
 - **Clic en el anillo de CPU:** abre Configuración › Sistema › Información, sin privilegios de administrador.
 - **Anillo de RAM** con memoria física usada, en caché y confirmada. Clic: «Liberar RAM» (recorte de memoria de los
-  procesos accesibles y purga de la lista standby), como mucho una vez por minuto; se desactiva con `ramCleanup`.
+  procesos accesibles de la sesión, sin purga standby), como mucho una vez por minuto; se activa con `ramCleanup`.
 - **Gasto en la tarjeta**: Claude (créditos de uso, si pasan de cero), Codex (saldo de créditos si la cuenta los
   tiene) y Cursor (gasto bajo demanda en USD). Solo con cifras reales de la respuesta.
 - **Firma de código en CI** con SignPath Foundation, condicional a que existan el secreto y las variables; política de

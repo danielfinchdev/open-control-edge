@@ -104,11 +104,9 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
 - **Un clic en el anillo de Claude renueva la sesión sin abrir ninguna ventana** (ver
   [Mantener viva la sesión de Claude](#mantener-viva-la-sesión-de-claude)).
 - **Un clic en el anillo de CPU** abre Configuración › Sistema › Información, sin privilegios de administrador.
-- **Un clic en el anillo de RAM libera memoria** («Liberar RAM»): recorta la memoria que los programas no están
-  usando (`EmptyWorkingSet`, sin tocar el propio widget ni los procesos críticos de Windows) y vacía la caché en
-  espera (lista *standby*). La tarjeta dice cuánto se ha liberado. Como mucho una vez por minuto, y se desactiva con
-  `"ramCleanup": false`. Es una limpieza puntual, como la de los móviles: Windows vuelve a llenar la caché en cuanto
-  la necesita, porque la memoria libre no acelera nada por sí misma.
+- **Un clic en el anillo de RAM libera memoria** («Liberar RAM»): recorta la memoria de procesos accesibles de la sesión
+  interactiva (`EmptyWorkingSet`), sin purgar la lista *standby*. Está desactivado por defecto; se activa con
+  `"ramCleanup": true`.
 - **Arranca con datos en 1–2 s**: la última lectura (solo porcentajes, fechas, planes e importes; ningún secreto) se
   guarda en `%LOCALAPPDATA%\OpenControlEdge\cache.json` y se pinta nada más abrir; después se refresca.
 - **Icono en la bandeja** con menú propio (Actualizar / Claves de API… / Iniciar con Windows / Desinstalar… / Salir)
@@ -126,26 +124,36 @@ Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente c
 
 1. Descarga el ZIP de la aplicación de la [última versión](../../releases/latest), o compílala (ver abajo).
    Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
-   Cuando el flujo de Release publique attestations, se pueden verificar con
+   El flujo publica una attestation verificable con
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
+   La aplicación verifica el SHA-256 del ZIP y exige que el ejecutable lleve una firma Authenticode válida cuyo
+   certificado identifique a SignPath Foundation. No instalará automáticamente un ZIP sin esa firma. El digest
+   autentica la descarga frente a corrupción; la firma aporta confianza independiente en el publicador y en la
+   política de firma aprobada. La attestation se puede verificar manualmente con GitHub CLI; la aplicación no ejecuta
+   `gh` en segundo plano.
 2. Extrae el ZIP y abre `OpenControlEdge.exe`. Acepta el UAC (el único) y aparece la ventana
    **«Instalar Open Control Edge»**. Al pulsar **Instalar**:
    - cierra la versión en marcha (también EdgeWidget) y sus tareas;
-   - copia la carpeta de la aplicación a `C:\Program Files\OpenControlEdge` a través de una carpeta temporal,
-     comprueba cada archivo con SHA-256 y la cambia de sitio (si algo falla, vuelve la copia anterior); después
+   - copia solo `OpenControlEdge.exe` a `C:\Program Files\OpenControlEdge`, comprueba SHA-256 y la firma
+     Authenticode de SignPath antes de cambiarla de sitio (si algo falla, vuelve la copia anterior); después
      verifica que ningún usuario sin privilegios pueda escribir en la carpeta ni en el ejecutable;
-   - protege `%LOCALAPPDATA%\OpenControlEdge` (sin enlaces ni puntos de reanálisis, escritura solo para
-     administradores y etiqueta de integridad alta) y trae los ajustes de versiones anteriores;
+   - protege `%ProgramData%\OpenControlEdge\<SID>` (sin enlaces ni puntos de reanálisis, escritura solo para
+     administradores y etiqueta de integridad alta). Los ajustes de versiones anteriores no se migran;
    - registra el inicio con Windows (Programador de tareas: al iniciar sesión tu usuario, **sin retraso**, con
      privilegios elevados y prioridad normal) y quita las tareas antiguas `EdgeWidget` y «Claude - Mantener sesion».
      La carpeta `C:\Program Files\EdgeWidget` y tus ajustes se conservan;
    - arranca la copia instalada.
 
-   **Usar sin instalar** abre el widget desde esa carpeta solo para esta sesión (también `OpenControlEdge.exe --portable`).
+   Las opciones `--portable` y `--no-elevate` solo tienen efecto en un proceso que ya se está ejecutando sin elevar.
+
+PawnIO también se puede instalar desde Ajustes → Información. Se descarga el asset oficial `PawnIO_setup.exe`;
+antes de abrirlo se comprueba la firma Authenticode, el sujeto `CN=namazso.eu` y la huella
+`F380DCC9F706E2756A5047B832FFE719E1BC35F5`. La carpeta temporal está bajo Archivos de programa y PowerShell no
+interviene en la verificación.
 
 Desde la copia instalada, el menú de la bandeja tiene **Iniciar con Windows** (activar / desactivar la tarea) y
 **Desinstalar…**, que quita la tarea, cierra el widget y deja la carpeta de Archivos de programa marcada para
-borrarse al reiniciar. Los ajustes de `%LOCALAPPDATA%\OpenControlEdge` se conservan.
+borrarse al reiniciar. Los datos de usuario en `%ProgramData%\OpenControlEdge\<SID>` se conservan.
 
 ### ¿Por qué necesita administrador?
 
@@ -157,16 +165,17 @@ Debug funciona sin elevar: verás todo menos la temperatura de la CPU.
 
 ## Configuración
 
-`%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json`
+`%ProgramData%\OpenControlEdge\<SID>\OpenControlEdge.settings.json` (copia instalada) o
+`%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json` (ejecución sin elevar).
 
-El registro está en `%LOCALAPPDATA%\OpenControlEdge\widget.log`; los blobs DPAPI de las claves están en la subcarpeta `keys\`.
+El registro está junto a los ajustes; los blobs DPAPI de las claves están en la subcarpeta `keys\`.
 
 ```json
 {
   "panelMode": "auto",
   "usageView": "session",
   "autoRenewClaude": true,
-  "ramCleanup": true,
+  "ramCleanup": false,
   "providers": {
     "claude": "auto",
     "codex": "auto",
@@ -183,7 +192,7 @@ El registro está en `%LOCALAPPDATA%\OpenControlEdge\widget.log`; los blobs DPAP
 | `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
 | `usageView` | `"session"` \| `"total"` | Pestaña de los anillos de IA. La escriben las propias pestañas. |
 | `autoRenewClaude` | `true` (defecto) \| `false` | Renueva la sesión de Claude en segundo plano antes de que caduque. |
-| `ramCleanup` | `true` (defecto) \| `false` | Permite «Liberar RAM» con un clic en el anillo de RAM. |
+| `ramCleanup` | `false` (defecto) \| `true` | Permite «Liberar RAM» con un clic en el anillo de RAM. |
 | `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
 
 Cada clave dentro de `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) admite:
@@ -243,7 +252,7 @@ exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventar
 
 En el engranaje del widget, abre **Ajustes → Agentes**. DeepSeek y OpenRouter tienen un campo protegido para su clave con botones **Guardar** y **Borrar**.
 
-Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en `%LOCALAPPDATA%\OpenControlEdge\keys\deepseek.bin` y `openrouter.bin`. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
+Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en la subcarpeta `keys\` de la carpeta de datos. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
 
 ### Datos locales de OpenCode
 
@@ -306,7 +315,8 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   respuesta ni cabeceras.
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README. OpenCode no usa red.
   Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
-- No tiene telemetría, ni analítica, ni actualizaciones automáticas, ni servicios residentes.
+- No tiene telemetría, ni analítica ni servicios residentes. La comprobación diaria de actualizaciones es opcional y
+  está desactivada por defecto; la descarga e instalación siempre requiere confirmación.
 
 **El ejecutable vive en `C:\Program Files`, a propósito**
 
@@ -314,7 +324,8 @@ La tarea programada lo arranca como administrador sin pedir UAC. Si el ejecutabl
 carpeta donde tu usuario puede escribir, cualquier programa que se ejecutase con tu cuenta —sin ser
 administrador— podría sustituirlo y heredar esos permisos en el siguiente inicio de sesión. En
 `C:\Program Files` solo un administrador puede escribir. El instalador verifica los permisos y avisa si
-no son correctos. Por lo mismo, el widget elevado solo escribe `cache.json` si la carpeta de datos está protegida.
+no son correctos. Ajustes, registro, claves y caché del proceso elevado solo se escriben en una carpeta protegida
+de `%ProgramData%\OpenControlEdge\<SID>`.
 
 **Lo que queda, dicho claramente**
 
@@ -388,7 +399,7 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **66 PNG** con los dos modos, las pestañas, las nueve tarjetas (RAM incluida), los estados de la
+Renderiza **92 PNG** con los dos modos, las pestañas, las nueve tarjetas (RAM incluida), los estados de la
 renovación de Claude, el gasto de Claude / Codex / Cursor, estados de error y sin datos, una cuenta gratuita de
 Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas, menú de bandeja, diálogo de claves y la
 ventana de instalación (bienvenida, progreso, hecho, error y desinstalar). Incluye pruebas de los parsers de OpenCode,
@@ -512,4 +523,4 @@ asociado con Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter ni OpenCode.
 
 # Feedback
 
-Puedes enviar errores e ideas desde Ajustes → Feedback. Se abrirá un borrador de issue de GitHub para que lo revises antes de publicarlo; hace falta una cuenta de GitHub. GitHub envía a Dani por correo los avisos de los issues nuevos.
+Puedes preparar errores e ideas desde Ajustes → Feedback. El texto se copia al portapapeles y se abre el formulario público vacío de GitHub para que lo pegues, revises y edites antes de enviarlo. No incluyas datos personales; hace falta una cuenta de GitHub.

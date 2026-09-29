@@ -61,7 +61,7 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     public bool AutoRenewClaude { get; init; } = true;
 
     /// Clicking the RAM ring frees memory (MemoryService.CleanAsync). Off: the click only shows the card.
-    public bool RamCleanup { get; init; } = true;
+    public bool RamCleanup { get; init; }
     public int UsageRefreshMinutes { get; init; } = 2;
     public bool AutoCheckUpdates { get; init; }
     public DateTimeOffset? LastAutoUpdateCheck { get; init; }
@@ -141,7 +141,7 @@ internal static class SettingsStore
                 Language = GetString(root, "language") == "en" ? UiLanguage.English : UiLanguage.Spanish,
                 UiScale = ParseScale(root),
                 AutoRenewClaude = GetBool(root, "autoRenewClaude") ?? true,
-                RamCleanup = GetBool(root, "ramCleanup") ?? true,
+                RamCleanup = GetBool(root, "ramCleanup") ?? false,
                 UsageRefreshMinutes = GetInt(root, "usageRefreshMinutes") is int minutes && minutes is 2 or 5 or 10 or 15 ? minutes : 2,
                 AutoCheckUpdates = GetBool(root, "autoCheckUpdates") ?? false,
                 LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
