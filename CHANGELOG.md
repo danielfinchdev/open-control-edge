@@ -2,10 +2,40 @@
 
 ## 2.1.0 — sin publicar
 
+- **Tipografía Outfit** (400, 500 y 600; SIL OFL) en toda la app en lugar de Google Sans Flex, con cifras tabulares
+  en los anillos para que no bailen.
+- **Menos CPU en reposo.** Medido el 30-09-2026 en este portátil con la build Debug sin elevar, fuera de pantalla,
+  10 min tras 4 de calentamiento (la temperatura de CPU no se lee sin elevar), CPU del proceso por minuto:
+
+  | Panel | Antes | Después | Interfaz | Render | Fondo (red, sensores) |
+  |---|---|---|---|---|---|
+  | Fijado y visible | 0,389 s | **0,081 s** | 0,192 → 0,009 | 0,100 → 0,006 | 0,097 → 0,065 |
+  | Plegado (automático) | 0,253 s | **0,111 s** | 0,117 → 0,006 | 0 → 0 | 0,136 → 0,104 |
+
+  Cada lectura animaba anillos y barras durante 500–600 ms aunque estuvieran ocultos o no cambiaran, y cada fotograma
+  repinta la ventana en capa entera: ahora solo se anima lo que está en pantalla y se mueve un 3 % o más. El sondeo
+  del puntero (cada 150 ms) se detiene con el panel fijado en reposo, y lo reanuda el propio ratón sobre el panel,
+  y con el panel plegado y el cursor quieto 2 s, y lo reanuda la entrada cruda del ratón, lápiz o pantalla táctil.
+  Los refrescos de uso reutilizan las conexiones HTTPS en vez de negociar TLS cada vez (unos 80 ms de CPU menos por
+  refresco). El icono de la bandeja no reenvía un texto que no ha cambiado. La RAM no baja: el montón gestionado
+  ocupa 3 MB y el resto es WPF, el código nativo y LibreHardwareMonitor.
+- Los textos de Ajustes pasan a los diccionarios `Strings.es.xaml` y `Strings.en.xaml`.
+- «Iniciar con Windows» ya no se queda en «Comprobando…»: la consulta al Programador de tareas tiene 5 s de límite
+  y, si falla, dice por qué.
+- Claude con HTTP 429 o 5xx: se sigue mostrando la última lectura buena de menos de 15 min con «Dato de hace X min»
+  y no se reintenta antes de 5 min. Sin sesión en Claude Code no se ejecuta la CLI: el anillo y «Conectar» abren
+  `claude auth login` en una consola visible, como usuario normal.
+- Tooltips del panel cortos («Liberar RAM»), interruptores de Ajustes sin parpadeos ni cambios solos, animación de
+  cierre del panel (la inversa de la de apertura) y Ajustes como ventana normal, no siempre encima.
+- Mensaje claro si falta el servicio Inicio de sesión secundario (seclogon); el mutex de instancia única ya no se
+  puede bloquear desde otro proceso; al desinstalar, la carpeta de datos se devuelve al usuario; mensajes de
+  servicios traducidos al inglés.
+
 - **Escrituras elevadas protegidas.** Ajustes, registro, claves y caché del widget instalado se guardan en
   `%ProgramData%\OpenControlEdge\<SID>`, con la carpeta del producto y la del usuario endurecidas. Se elimina la
   copia automática de ajustes antiguos durante el arranque.
-- **Instalador y actualizaciones verificadas.** La instalación copia solo el ejecutable; el instalador de actualizaciones
+- **Instalador y actualizaciones verificadas.** La instalación copia el ejecutable y la lista cerrada de sus 8 bibliotecas
+  nativas, nada más de la carpeta; el instalador de actualizaciones
   exige SHA-256 y una firma Authenticode válida de SignPath Foundation. Las descargas de actualización y PawnIO usan
   nombres de asset fijos; PawnIO exige el firmante fijado `CN=namazso.eu`.
 - Los argumentos `--snapshot`, `--smoke-test` y `--test-update-fixture` solo se procesan en Debug.
@@ -18,8 +48,9 @@
 Comportamiento nativo: sin scripts de PowerShell ni tareas hechas con scripts.
 
 - **Instalación nativa.** Al abrir el ejecutable fuera de `C:\Program Files\OpenControlEdge` aparece la ventana
-  «Instalar Open Control Edge»: con el único UAC copia el ejecutable (carpeta temporal, SHA-256 y firma Authenticode,
-  cambio con vuelta atrás, comprobación de permisos), protege la carpeta de datos (sin enlaces, solo administradores,
+  «Instalar Open Control Edge»: con el único UAC copia el ejecutable y sus bibliotecas nativas (carpeta temporal,
+  SHA-256 contra el original, cambio con vuelta atrás, comprobación de permisos; la firma Authenticode solo se exige
+  a las actualizaciones descargadas), protege la carpeta de datos (sin enlaces, solo administradores,
   integridad alta), conserva la carpeta antigua EdgeWidget y registra el inicio con Windows en el
   Programador de tareas (al iniciar sesión, sin retraso, elevado, prioridad normal) y arranca la copia instalada.
   `--portable` solo tiene efecto cuando el proceso ya corre sin elevar. Menú de bandeja: «Iniciar con Windows» y «Desinstalar…».

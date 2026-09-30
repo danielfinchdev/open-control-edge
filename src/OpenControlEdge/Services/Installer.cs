@@ -181,8 +181,9 @@ internal static class Installer
         Log.Info("Install", $"{files.Count} archivos copiados y comprobados en {InstallDir}");
     }
 
-    /// Every file of the application folder, except settings, logs and caches of a portable run. A link or reparse
-    /// point anywhere stops the installation: the folder is supposed to be a plain unzipped copy.
+    /// OpenControlEdge.exe plus the closed list of native libraries published next to it (NativeLibraries): nothing
+    /// else in the folder is copied, so settings, logs and caches of a portable run stay behind. A missing file, or a
+    /// link or reparse point in place of one, stops the installation.
     private static List<string> SourceFiles(string sourceDir)
     {
         string executable = Path.Combine(sourceDir, "OpenControlEdge.exe");
