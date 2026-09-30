@@ -10,7 +10,7 @@ namespace OpenControlEdge.Services;
 internal sealed class CursorUsageService
 {
     private const string UsageUrl = "https://cursor.com/api/usage-summary";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly HttpClient Http = UsageHttp.Create();
     private readonly string _databasePath;
 
     public CursorUsageService(string? databasePath = null) => _databasePath = databasePath ?? CursorCredentialReader.DefaultPath;

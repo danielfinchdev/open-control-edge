@@ -24,7 +24,9 @@ namespace OpenControlEdge.Views;
 /// The panel ends in three round buttons: pin/hide, settings and close. Provider and sensor rings can come and go.
 /// Everything is laid out in design units and scaled as a whole to the monitor's work area (ApplyScale).
 /// Hover is driven by polling the cursor position: while collapsed the window is click-through
-/// (WS_EX_TRANSPARENT) and receives no mouse input at all, so events could not detect the strip.
+/// (WS_EX_TRANSPARENT) and receives no mouse input at all, so events could not detect the strip. The poll stops
+/// while nothing can change: pinned at rest (the window's own MouseMove restarts it) and collapsed with the pointer
+/// still (raw input restarts it).
 public partial class EdgeWindow : Window
 {
     internal const int RingClaude = 0;
@@ -74,10 +76,16 @@ public partial class EdgeWindow : Window
     private const double RingHoverScale = 1.08;
     private static readonly TimeSpan CollapseGrace = TimeSpan.FromMilliseconds(300);
 
+    /// A reading that moves a ring or bar by less than this (3 % of the arc) jumps there in one frame: every animated
+    /// frame repaints the whole layered window, and a sensor sample that moved a degree is not worth 36 of them.
+    private const double MinAnimatedChange = 0.03;
+
     // Pointer polling: NearPoll only while the cursor is over this window, FarPoll the rest of the time
     // (the overwhelmingly common case), where a tick is a GetCursorPos plus four integer comparisons.
     private static readonly TimeSpan FarPoll = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan NearPoll = TimeSpan.FromMilliseconds(30);
+    // Collapsed with the pointer still this long: the poll sleeps until raw input says the pointer moves again.
+    private static readonly TimeSpan PointerRestBeforeSleep = TimeSpan.FromSeconds(2);
 
     private static readonly IEasingFunction EaseOut = CreateEase(EasingMode.EaseOut);
     private static readonly IEasingFunction EaseIn = CreateEase(EasingMode.EaseIn);
@@ -87,6 +95,9 @@ public partial class EdgeWindow : Window
     private readonly DispatcherTimer _timeTextTimer;
     private readonly Stopwatch _outside = new();
     private readonly Stopwatch _tickClock = new();
+    private readonly Stopwatch _pointerStill = new();
+    private POINT _lastCursor;
+    private bool _wakeOnInput;
     private readonly FrameworkElement[] _ringItems;
     private readonly RingGauge[] _rings;
     private readonly FrameworkElement[] _cards;
@@ -115,6 +126,12 @@ public partial class EdgeWindow : Window
 
     /// Snapshot rendering: no positioning, no topmost juggling, no pointer polling.
     internal bool PreviewMode { get; set; }
+
+#if DEBUG
+    /// --measure: laid out, rendered and polled as usual, but placed beyond every monitor, so a copy measured next to
+    /// the installed one is not in anybody's way.
+    internal bool Offscreen { get; set; }
+#endif
 
     internal event Action<bool>? ExpandedChanged;
 
@@ -166,6 +183,7 @@ public partial class EdgeWindow : Window
         _pointerWatch.Tick += OnPointerTick;
         _timeTextTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
         _timeTextTimer.Tick += (_, _) => RefreshTimeTexts();
+        MouseMove += OnWindowMouseMove;
 
         ThemeManager.Changed += Reapply;
         Loc.Changed += Reapply;
@@ -181,6 +199,7 @@ public partial class EdgeWindow : Window
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _pointerWatch.Stop();
         _timeTextTimer.Stop();
+        if (_wakeOnInput) WatchRawPointerInput(IntPtr.Zero, false);
     }
 
     // ───────────────────────────── Mode & panel buttons ─────────────────────────────
@@ -626,7 +645,7 @@ public partial class EdgeWindow : Window
             decimal total = (decimal)snapshot.TokensIn + snapshot.TokensOut + snapshot.TokensReasoning
                 + snapshot.TokensCacheRead + snapshot.TokensCacheWrite;
             OpenCodeLabel.Text = CompactCount(total);
-            Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
+            AnimateRing(OpenCodeRing, 0, 300);
             OpenCodeInput.Text = snapshot.TokensIn.ToString("N0", Loc.Culture);
             OpenCodeOutput.Text = snapshot.TokensOut.ToString("N0", Loc.Culture);
             OpenCodeReasoning.Text = snapshot.TokensReasoning.ToString("N0", Loc.Culture);
@@ -638,7 +657,7 @@ public partial class EdgeWindow : Window
         else
         {
             OpenCodeLabel.Text = "--";
-            Animate(OpenCodeRing, RingGauge.ValueProperty, 0, 300);
+            AnimateRing(OpenCodeRing, 0, 300);
             OpenCodeMetrics.Visibility = Visibility.Collapsed;
             OpenCodeMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             OpenCodeMessage.Visibility = Visibility.Visible;
@@ -654,7 +673,7 @@ public partial class EdgeWindow : Window
         if (snapshot.Balance is Money balance)
         {
             DeepSeekLabel.Text = CompactMoney(balance);
-            Animate(DeepSeekRing, RingGauge.ValueProperty, 0, 300);
+            AnimateRing(DeepSeekRing, 0, 300);
             DeepSeekBalance.Text = Fmt.Amount(balance);
             DeepSeekMetrics.Visibility = Visibility.Visible;
             DeepSeekMessage.Visibility = Visibility.Collapsed;
@@ -662,7 +681,7 @@ public partial class EdgeWindow : Window
         else
         {
             DeepSeekLabel.Text = "--";
-            Animate(DeepSeekRing, RingGauge.ValueProperty, 0, 300);
+            AnimateRing(DeepSeekRing, 0, 300);
             DeepSeekMetrics.Visibility = Visibility.Collapsed;
             DeepSeekMessage.Text = Loc.Message(snapshot.Message) ?? Loc.Get("Value.NoData");
             DeepSeekMessage.Visibility = Visibility.Visible;
@@ -841,7 +860,7 @@ public partial class EdgeWindow : Window
         if (snapshot.Message is null)
         {
             RamRing.RingBrush = Palette.ForPercent(snapshot.Percent);
-            Animate(RamRing, RingGauge.ValueProperty, Fraction(snapshot.Percent), 600);
+            AnimateRing(RamRing, Fraction(snapshot.Percent), 600);
             RamLabel.Text = Fmt.Percent(snapshot.Percent);
             SetLabelAlert(RamLabel, Palette.IsAlert(snapshot.Percent));
             SetPercentBar(RamBar, snapshot.Percent);
@@ -921,7 +940,7 @@ public partial class EdgeWindow : Window
     private void SetUsageRing(RingGauge ring, TextBlock label, SolidColorBrush brand, double percent)
     {
         ring.RingBrush = Palette.ForRing(brand, percent);
-        Animate(ring, RingGauge.ValueProperty, Fraction(percent), 600);
+        AnimateRing(ring, Fraction(percent), 600);
         label.Text = Fmt.Percent(percent);
         SetLabelAlert(label, Palette.IsAlert(percent));
     }
@@ -931,14 +950,14 @@ public partial class EdgeWindow : Window
     {
         SolidColorBrush brush = Palette.ForTemperature(celsius);
         ring.RingBrush = brush;
-        Animate(ring, RingGauge.ValueProperty, Fraction(celsius), 600);
+        AnimateRing(ring, Fraction(celsius), 600);
         label.Text = Fmt.Celsius(celsius);
         SetLabelAlert(label, brush == Palette.Red);
     }
 
     private void ClearRing(RingGauge ring, TextBlock label, string text = "--")
     {
-        Animate(ring, RingGauge.ValueProperty, 0, 300);
+        AnimateRing(ring, 0, 300);
         label.Text = text;
         SetLabelAlert(label, false);
     }
@@ -969,16 +988,31 @@ public partial class EdgeWindow : Window
     private void SetPercentBar(LinearBar bar, double percent)
     {
         bar.Fill = Palette.ForPercent(percent);
-        Animate(bar, LinearBar.ValueProperty, Fraction(percent), 500);
+        AnimateBar(bar, Fraction(percent), 500);
     }
 
     private void SetTemperatureBar(LinearBar bar, double celsius)
     {
         bar.Fill = Palette.ForTemperature(celsius);
-        Animate(bar, LinearBar.ValueProperty, Fraction(celsius), 500);
+        AnimateBar(bar, Fraction(celsius), 500);
     }
 
-    private void ClearBar(LinearBar bar) => Animate(bar, LinearBar.ValueProperty, 0, 300);
+    private void ClearBar(LinearBar bar) => AnimateBar(bar, 0, 300);
+
+    private void AnimateRing(RingGauge ring, double to, int milliseconds) =>
+        AnimateReading(ring, RingGauge.ValueProperty, to, milliseconds, ring.IsVisible);
+
+    /// Bars live in the card: only the one on screen is animated.
+    private void AnimateBar(LinearBar bar, double to, int milliseconds) =>
+        AnimateReading(bar, LinearBar.ValueProperty, to, milliseconds, _cardVisible && bar.IsVisible);
+
+    /// A new reading on a ring or bar: animated only while it is on screen and moves by MinAnimatedChange or more,
+    /// otherwise set in one step (and not repainted at all when the value is the same).
+    private void AnimateReading(UIElement target, DependencyProperty property, double to, int milliseconds, bool onScreen)
+    {
+        if (!onScreen || Math.Abs((double)target.GetValue(property) - to) < MinAnimatedChange) milliseconds = 0;
+        Animate(target, property, to, milliseconds);
+    }
 
     private static double Fraction(double percentOrCelsius) => Math.Clamp(percentOrCelsius / 100.0, 0, 1);
 
@@ -999,6 +1033,11 @@ public partial class EdgeWindow : Window
         _tickClock.Restart();
 
         if (!GetCursorPos(out POINT cursor)) return;
+        if (cursor.X != _lastCursor.X || cursor.Y != _lastCursor.Y)
+        {
+            _lastCursor = cursor;
+            _pointerStill.Restart();
+        }
 
         // Poll quickly only when the pointer is over the strip, panel or visible card; ignore the empty window area.
         bool near = !_hasWindowRect || NearInteractiveArea(cursor);
@@ -1006,6 +1045,10 @@ public partial class EdgeWindow : Window
         if (!near)
         {
             if (_expanded) HandleCursorAway();
+            // Pinned and at rest: nothing to watch until the pointer comes back, and then the window itself reports
+            // it (it takes mouse input while expanded, see OnWindowMouseMove).
+            if (_mode == PanelMode.Pinned && _expanded && !_cardVisible && _hoveredRing < 0) PausePointerWatch();
+            else if (!_expanded && _pointerStill.Elapsed >= PointerRestBeforeSleep) SleepUntilPointerMoves();
             return;
         }
 
@@ -1082,6 +1125,44 @@ public partial class EdgeWindow : Window
         _pointerWatch.Interval = interval;
     }
 
+    private void PausePointerWatch()
+    {
+        if (!_pointerWatch.IsEnabled) return;
+        _pointerWatch.Stop();
+        Log.Trace("Edge", "pointer watch paused");
+    }
+
+    /// The layered window only receives the pointer over its painted pixels (panel, visible card), and never while
+    /// click-through (collapsed), so this fires exactly when the paused poll has something to track again.
+    private void OnWindowMouseMove(object sender, System.Windows.Input.MouseEventArgs e) => ResumePointerWatch();
+
+    /// Collapsed with the pointer at rest: the window is click-through, so it gets no mouse messages, but raw input
+    /// (mouse, pen, touch) reaches it in the background; the next one restarts the poll. If raw input cannot be
+    /// registered the poll simply keeps running.
+    private void SleepUntilPointerMoves()
+    {
+        if (!_pointerWatch.IsEnabled) return;
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !WatchRawPointerInput(hwnd, true)) return;
+        _wakeOnInput = true;
+        _pointerWatch.Stop();
+        Log.Trace("Edge", "pointer watch asleep until input");
+    }
+
+    private void ResumePointerWatch()
+    {
+        if (_wakeOnInput)
+        {
+            _wakeOnInput = false;
+            WatchRawPointerInput(IntPtr.Zero, false);
+        }
+        if (PreviewMode || !_hasWindowRect || _pointerWatch.IsEnabled) return;
+        Log.Trace("Edge", "pointer watch resumed");
+        _tickClock.Restart();
+        _pointerStill.Restart();
+        _pointerWatch.Start();
+    }
+
     private static bool Contains(FrameworkElement element, Point screen)
     {
         if (PresentationSource.FromVisual(element) is null) return false;
@@ -1110,6 +1191,7 @@ public partial class EdgeWindow : Window
             SetClickThrough(false);
             ReassertTopmost();
             _outside.Reset();
+            ResumePointerWatch();
         }
 
         Animate(PanelShift, TranslateTransform.XProperty, 0, PanelMs);
@@ -1133,6 +1215,8 @@ public partial class EdgeWindow : Window
         Animate(PanelShift, TranslateTransform.XProperty, PanelWidth, PanelMs, ease: EaseIn);
         Animate(Strip, OpacityProperty, 1, PanelMs, ease: EaseIn);
         _expanded = false;
+        // Click-through from now on: only the poll can see the pointer reach the strip.
+        ResumePointerWatch();
         ExpandedChanged?.Invoke(false);
     }
 
@@ -1275,6 +1359,8 @@ public partial class EdgeWindow : Window
     /// Resolution, DPI, monitor or taskbar changes: fit the panel to the new work area.
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        // Left unhandled: DefWindowProc still has to release the raw input.
+        if (msg == WM_INPUT && _wakeOnInput) ResumePointerWatch();
         if (!PreviewMode && (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED
                              || (msg == WM_SETTINGCHANGE && wParam.ToInt64() == SPI_SETWORKAREA)))
             Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnPrimaryScreen));
@@ -1314,6 +1400,9 @@ public partial class EdgeWindow : Window
             LayOut(height / dpi);
             int width = (int)Math.Round(WindowWidthDip * _scale * dpi);
             int x = work.Right - width;
+#if DEBUG
+            if (Offscreen) x += 20_000;
+#endif
 
             SetWindowPos(hwnd, HWND_TOPMOST, x, work.Top, width, height, SWP_NOACTIVATE);
 

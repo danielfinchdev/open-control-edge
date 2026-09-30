@@ -12,7 +12,7 @@ namespace OpenControlEdge.Services;
 internal sealed class CodexUsageService
 {
     private const string UsageUrl = "https://chatgpt.com/backend-api/wham/usage";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly HttpClient Http = UsageHttp.Create();
 
     private readonly string _authPath;
 

@@ -50,6 +50,7 @@ internal sealed class TrayIcon : IDisposable
 
     public void SetTooltip(string text)
     {
+        if (_added && text == _tooltip) return;
         _tooltip = text;
         if (!_added) return;
         var data = CreateData(NIF_TIP);

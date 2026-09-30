@@ -97,7 +97,7 @@ internal sealed class OpenCodeUsageService
 
 internal sealed class DeepSeekUsageService
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly HttpClient Http = UsageHttp.Create();
     private const string BalanceUrl = "https://api.deepseek.com/user/balance";
 
     internal async Task<DeepSeekSnapshot> FetchAsync()
@@ -127,7 +127,7 @@ internal sealed class DeepSeekUsageService
 
 internal sealed class OpenRouterUsageService
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly HttpClient Http = UsageHttp.Create();
     private const string KeyUrl = "https://openrouter.ai/api/v1/key";
 
     internal async Task<OpenRouterSnapshot> FetchAsync()

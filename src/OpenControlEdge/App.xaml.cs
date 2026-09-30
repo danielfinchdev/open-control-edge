@@ -180,13 +180,22 @@ public partial class App : Application
             }
         }
 
-        if (!AcquireSingleInstance())
+        // --measure pinned|auto (Debug): runs next to the installed copy, in that panel mode, without saving it and off
+        // screen, so handoff\mediciones\medir-debug.ps1 can measure the idle cost of a build.
+        PanelMode? measureMode = null;
+#if DEBUG
+        int measureArg = Array.IndexOf(e.Args, "--measure");
+        if (measureArg >= 0 && measureArg + 1 < e.Args.Length)
+            measureMode = e.Args[measureArg + 1] == "auto" ? PanelMode.Auto : PanelMode.Pinned;
+#endif
+
+        if (measureMode is null && !AcquireSingleInstance())
         {
             Shutdown();
             return;
         }
 
-        _panelMode = SettingsStore.Load().PanelMode;
+        _panelMode = measureMode ?? SettingsStore.Load().PanelMode;
         Log.Info("App", $"started (panel {_panelMode}, {(UnelevatedLauncher.IsElevated ? "elevated" : "not elevated")})");
 
         // Timers exist before the window is shown: a pinned panel expands during Show() and sets the cadence.
@@ -197,6 +206,9 @@ public partial class App : Application
 
         _sensors = new HardwareSensorService();
         _edge = new EdgeWindow(_sensors.SessionStart, _panelMode);
+#if DEBUG
+        _edge.Offscreen = measureMode is not null;
+#endif
         Settings settings = SettingsStore.Load();
         _edge.ApplyScale(settings.UiScale);
 

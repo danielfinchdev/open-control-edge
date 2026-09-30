@@ -13,7 +13,7 @@ internal sealed class ClaudeUsageService
     public const string FreeAccountMessage = "Cuenta gratuita: sin límites de uso medibles";
 
     private const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly HttpClient Http = UsageHttp.Create();
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
 
     /// After an HTTP 429 the endpoint is not asked again before this (seen 2026-09-30: 429 every 2 minutes for

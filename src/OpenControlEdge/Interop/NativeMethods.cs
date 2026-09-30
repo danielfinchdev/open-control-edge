@@ -19,6 +19,7 @@ internal static class NativeMethods
     public const int SPI_SETWORKAREA = 0x002F;
     public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_DPICHANGED = 0x02E0;
+    public const int WM_INPUT = 0x00FF;
     public const int WM_LBUTTONUP = 0x0202;
     public const int WM_RBUTTONUP = 0x0205;
     public const int WM_APP = 0x8000;
@@ -37,6 +38,38 @@ internal static class NativeMethods
     public const int VK_LBUTTON = 0x01;
     public const int VK_RBUTTON = 0x02;
     public const int VK_MBUTTON = 0x04;
+
+    public const uint RIDEV_REMOVE = 0x00000001;
+    public const uint RIDEV_INPUTSINK = 0x00000100;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWINPUTDEVICE
+    {
+        public ushort UsagePage;
+        public ushort Usage;
+        public uint Flags;
+        public IntPtr Target;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] devices, uint count, uint size);
+
+    /// Raw input from the mouse (generic desktop page, usage 2) and, when present, pen and touch screen (digitizer
+    /// page 0x0D, usages 2 and 4) is delivered to target even in the background, or stops being delivered (target
+    /// ignored). Only the mouse is required; the digitizers are best effort.
+    public static bool WatchRawPointerInput(IntPtr target, bool watch)
+    {
+        uint flags = watch ? RIDEV_INPUTSINK : RIDEV_REMOVE;
+        IntPtr window = watch ? target : IntPtr.Zero;
+        uint size = (uint)Marshal.SizeOf<RAWINPUTDEVICE>();
+        bool mouse = RegisterRawInputDevices(new[] { new RAWINPUTDEVICE { UsagePage = 0x01, Usage = 0x02, Flags = flags, Target = window } }, 1, size);
+        RegisterRawInputDevices(new[]
+        {
+            new RAWINPUTDEVICE { UsagePage = 0x0D, Usage = 0x02, Flags = flags, Target = window },
+            new RAWINPUTDEVICE { UsagePage = 0x0D, Usage = 0x04, Flags = flags, Target = window },
+        }, 2, size);
+        return mouse;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
