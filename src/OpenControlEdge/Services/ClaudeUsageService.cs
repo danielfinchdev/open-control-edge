@@ -39,7 +39,7 @@ internal sealed class ClaudeUsageService
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
-            request.Headers.TryAddWithoutValidation("User-Agent", "OpenControlEdge/2.0");
+            request.Headers.TryAddWithoutValidation("User-Agent", UsageHttp.UserAgent);
 
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
 
@@ -65,7 +65,10 @@ internal sealed class ClaudeUsageService
                 }
                 return free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
                     ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan, TokenExpiresAt = expiry }
-                    : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = plan, TokenExpiresAt = expiry };
+                    : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with
+                    {
+                        Plan = plan, TokenExpiresAt = expiry, HttpStatus = (int)response.StatusCode,
+                    };
             }
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

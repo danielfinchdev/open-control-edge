@@ -392,7 +392,7 @@ public partial class EdgeWindow : Window
 
     /// Picks the scale for a work area of the given height (DIPs) and lays the canvas out in design units.
     /// Automatic: proportional to the work area, limited to MinAutoScale–MaxAutoScale so the vectors stay crisp.
-    /// Either way it never exceeds what fits the panel with all eight rings, so nothing is ever cut off.
+    /// Either way it never exceeds what fits the panel with all nine rings, so nothing is ever cut off.
     private void LayOut(double workHeightDip)
     {
         double preferred = _uiScale ?? Math.Clamp(workHeightDip / ReferenceWorkHeight, MinAutoScale, MaxAutoScale);
@@ -748,7 +748,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(CpuRing, CpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(CpuLabel); }
+            if (snapshot.Message == HardwareSensorService.PawnIoMissingMessage) { ClearRing(CpuRing, CpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(CpuLabel); }
             else { ResetTemperatureLabel(CpuLabel); ClearRing(CpuRing, CpuLabel); }
             ClearBar(TempBar);
             TempValue.Text = "--";
@@ -804,7 +804,7 @@ public partial class EdgeWindow : Window
         }
         else
         {
-            if (snapshot.Message == "PawnIO no está instalado") { ClearRing(GpuRing, GpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(GpuLabel); }
+            if (snapshot.Message == HardwareSensorService.PawnIoMissingMessage) { ClearRing(GpuRing, GpuLabel, Loc.Get("Ring.InstallPawnIo")); SetPawnIoLabel(GpuLabel); }
             else { ResetTemperatureLabel(GpuLabel); ClearRing(GpuRing, GpuLabel); }
             ClearBar(GpuTempBar);
             GpuTempValue.Text = "--";

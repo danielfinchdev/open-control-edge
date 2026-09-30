@@ -11,6 +11,9 @@ namespace OpenControlEdge.Services;
 /// Verified 2026-09-13: the endpoint answers 200 with the bearer token alone; ChatGPT-Account-Id is not needed.
 internal sealed class CodexUsageService
 {
+    /// The access token expired: the Codex CLI or app refreshes it the next time it runs.
+    public const string RenewMessage = "Abre Codex para renovar";
+
     private const string UsageUrl = "https://chatgpt.com/backend-api/wham/usage";
     private static readonly HttpClient Http = UsageHttp.Create();
 
@@ -23,7 +26,7 @@ internal sealed class CodexUsageService
     {
         string? reason = UnusableReason(out _);
         return reason is null ? CodexSnapshot.Failed("Cargando…")
-            : CodexSnapshot.NotAvailable(reason == "access token expired" ? "Abre Codex para renovar" : AiDetector.CodexLoginMessage);
+            : CodexSnapshot.NotAvailable(reason == "access token expired" ? RenewMessage : AiDetector.CodexLoginMessage);
     }
 
     public async Task<CodexSnapshot> FetchAsync()
@@ -33,11 +36,11 @@ internal sealed class CodexUsageService
             // Missing file, no token or expired token: hide the ring without sending the request.
             string? unusable = UnusableReason(out var credentials);
             if (unusable is not null) return CodexSnapshot.NotAvailable(unusable == "access token expired"
-                ? "Abre Codex para renovar" : AiDetector.CodexLoginMessage);
+                ? RenewMessage : AiDetector.CodexLoginMessage);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials!.AccessToken);
-            request.Headers.TryAddWithoutValidation("User-Agent", "OpenControlEdge/2.0");
+            request.Headers.TryAddWithoutValidation("User-Agent", UsageHttp.UserAgent);
             request.Headers.TryAddWithoutValidation("Accept", "application/json");
 
             using var response = await Http.SendAsync(request).ConfigureAwait(false);

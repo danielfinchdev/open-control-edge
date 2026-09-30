@@ -22,11 +22,12 @@ internal sealed record InstallResult(bool Ok, string? Error, IReadOnlyList<strin
 /// already asks for (its manifest requires administrator):
 ///
 ///   1. stops the widget (Open Control Edge and the old EdgeWidget) and their tasks;
-///   2. copies the application folder to C:\Program Files\OpenControlEdge through a staging folder, checks every file
-///      with SHA-256 and swaps it in (the previous copy comes back if the swap fails), then checks that no
-///      non-administrator can write to the folder or the executable;
-///   3. protects %LOCALAPPDATA%\OpenControlEdge (DataFolder.Harden: no links, admins-only writes, High label) and
-///      brings the settings of earlier versions over;
+///   2. copies OpenControlEdge.exe and its native libraries (NativeLibraries, nothing else) to
+///      C:\Program Files\OpenControlEdge through a staging folder, checks every copy with SHA-256 and swaps it in (the
+///      previous copy comes back if the swap fails), then checks that no non-administrator can write to the folder or
+///      the executable;
+///   3. protects the data folder %ProgramData%\OpenControlEdge\{SID} (DataFolder.Harden: no links, admins-only
+///      writes, High label);
 ///   4. registers the sign-in task (AutoStartService) and removes the old ones: EdgeWidget, and
 ///      «Claude - Mantener sesion», whose script is no longer shipped. C:\Program Files\EdgeWidget is left alone;
 ///   5. starts the installed copy through its task.
@@ -151,14 +152,19 @@ internal static class Installer
             }
         }
 
+        // The exe is the one the user just launched and approved through UAC: its copy must match it byte for byte. The
+        // libraries must be the ones this exe was published with (their SHA-256 is compiled into it), so a library
+        // swapped in the unzipped folder never reaches Program Files. The SignPath signature is required for
+        // downloaded updates (UpdateService).
         foreach (string file in files)
         {
             string copy = Path.Combine(staging, Path.GetRelativePath(sourceDir, file));
-            if (!Hash(file).AsSpan().SequenceEqual(Hash(copy)))
+            bool intact = Path.GetFileName(file).Equals("OpenControlEdge.exe", StringComparison.OrdinalIgnoreCase)
+                ? Hash(file).AsSpan().SequenceEqual(Hash(copy))
+                : NativeLibraries.IsExpected(copy);
+            if (!intact)
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");
         }
-        // A local install copies the exe the user just launched and approved through UAC, so the staged copy only has to
-        // match it byte for byte (checked above). The SignPath signature is required for downloaded updates (UpdateService).
 
         string backup = $"{InstallDir}.previous-{Guid.NewGuid():N}";
         bool hadPrevious = Directory.Exists(InstallDir);
@@ -183,16 +189,15 @@ internal static class Installer
 
     /// OpenControlEdge.exe plus the closed list of native libraries published next to it (NativeLibraries): nothing
     /// else in the folder is copied, so settings, logs and caches of a portable run stay behind. A missing file, or a
-    /// link or reparse point in place of one, stops the installation.
+    /// link or reparse point in place of one, stops the installation. The exe cannot start without those libraries:
+    /// IncludeNativeLibrariesForSelfExtract is false, so they are never extracted to a user-writable folder.
     private static List<string> SourceFiles(string sourceDir)
     {
         string executable = Path.Combine(sourceDir, "OpenControlEdge.exe");
         if (!File.Exists(executable) || (File.GetAttributes(executable) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("No se encuentra OpenControlEdge.exe en la carpeta de origen.");
-        // The exe cannot start without the native libraries published next to it (IncludeNativeLibrariesForSelfExtract
-        // is false so they are never extracted to a user-writable folder). Copy exactly this closed list, nothing else.
         var files = new List<string> { executable };
-        foreach (string name in NativeLibraries)
+        foreach (string name in NativeLibraries.Names)
         {
             string library = Path.Combine(sourceDir, name);
             if (!File.Exists(library) || (File.GetAttributes(library) & FileAttributes.ReparsePoint) != 0)
@@ -202,21 +207,15 @@ internal static class Installer
         return files;
     }
 
-    private static readonly string[] NativeLibraries =
-    {
-        "D3DCompiler_47_cor3.dll", "PenImc_cor3.dll", "PresentationNative_cor3.dll", "vcruntime140_cor3.dll",
-        "wpfgfx_cor3.dll", "e_sqlite3.dll", "MonoPosixHelper.dll", "libMonoPosixHelper.dll",
-    };
-
     private static byte[] Hash(string path)
     {
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return SHA256.HashData(stream);
     }
 
-    /// Protects the data folder and brings older settings over. A file with several hard links (widget.log once
-    /// ended up shared with the Claude app's container) loses this name before the folder is protected — its data
-    /// survives under the other name — so the elevated widget never writes through it.
+    /// Protects the data folder. A link or reparse point in place of the folder, or a file inside it with several hard
+    /// links (widget.log once ended up shared with the Claude app's container), stops the installation (DataFolder.Harden):
+    /// the elevated widget must never write through one.
     private static void PrepareDataFolder()
     {
         string dir = DataFolder.Path;

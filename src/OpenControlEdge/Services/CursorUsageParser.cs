@@ -28,8 +28,7 @@ internal static class CursorUsageParser
             || !root.TryGetProperty("isUnlimited", out var unlimited) || unlimited.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
             || !root.TryGetProperty("individualUsage", out var individual) || individual.ValueKind != JsonValueKind.Object
             || !individual.TryGetProperty("plan", out var plan) || plan.ValueKind != JsonValueKind.Object
-            || !plan.TryGetProperty("totalPercentUsed", out var percentValue) || !percentValue.TryGetDouble(out double percent)
-            || !double.IsFinite(percent)) return Empty;
+            || GetNumber(plan, "totalPercentUsed") is not double percent || !double.IsFinite(percent)) return Empty;
 
         UsageWindow? onDemand = null;
         Money? spent = null, spendLimit = null;

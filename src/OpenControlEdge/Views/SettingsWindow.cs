@@ -698,13 +698,14 @@ internal sealed class SettingsWindow : Window
         var b = new Button { Content = text, Style = StyleOf("Oce.Button.Small") };
         b.Click += click; return b;
     }
-    /// Outline badge with a coloured dot: connected (and the plan), not installed, no session or sync error.
+    /// Outline badge with a coloured dot: connected (and the plan), not installed, hidden, no session or sync error.
     private static Border StatusBadge(AgentStatus status)
     {
         (string text, string? dot) = status.Kind switch
         {
             "connected" => (Loc.Get("Settings.Connected") + (string.IsNullOrWhiteSpace(status.Plan) ? "" : " · " + status.Plan), "Oce.Success"),
             "missing" => (Loc.Get("Settings.NotInstalled"), null),
+            "hidden" => (Loc.Get("Settings.HiddenAgent"), null),
             "session" => (Loc.Get("Settings.NoSession"), "Oce.Warning"),
             _ => (Loc.Get("Settings.SyncError"), "Oce.Danger"),
         };
@@ -722,7 +723,8 @@ internal sealed class SettingsWindow : Window
         var box = new PasswordBox { Style = StyleOf("Oce.Password"), ToolTip = Loc.Format("Settings.ApiKeyFor", name) };
         var save = Button(Loc.Get("Settings.Save"), async (_, _) =>
         {
-            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(box.Password);
+            // Pasted keys often carry a space or a line break that the provider would reject.
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(box.Password.Trim());
             bool ok = ProviderKeyStore.Save(name.ToLowerInvariant(), bytes);
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
             MessageBox.Show(Loc.Get(ok ? "Settings.KeySaved" : "Settings.KeySaveFailed"));
@@ -744,9 +746,9 @@ internal sealed class SettingsWindow : Window
 #endif
         var p = Inside(Card("Open Control Edge", $"{version} · {build} · .NET 8 · win-x64"));
         bool pawnInstalled = false; try { pawnInstalled = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
-        bool pawnRunning = false;
         var pawnState = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var pawnLed = new Ellipse { Style = StyleOf(pawnRunning ? "Oce.Led.On" : "Oce.Led"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) };
+        // Off until the service answers (asked off the UI thread just below).
+        var pawnLed = new Ellipse { Style = StyleOf("Oce.Led"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) };
         var pawnLabel = new TextBlock { VerticalAlignment = VerticalAlignment.Center,
             Text = Loc.Get(pawnInstalled ? "Settings.Checking" : "Settings.PawnMissing") };
         pawnState.Children.Add(pawnLed);
@@ -839,7 +841,7 @@ internal sealed class SettingsWindow : Window
             AiProviderId.Claude => new AgentStatus("connected", "Max", null, null),
             AiProviderId.Codex => new AgentStatus("connected", "Plus", null, null),
             AiProviderId.Cursor => new AgentStatus("session", null, AiDetector.CursorLoginMessage, null),
-            AiProviderId.DeepSeek => new AgentStatus("error", null, "Clave API no válida", DateTimeOffset.Now.AddMinutes(-12)),
+            AiProviderId.DeepSeek => new AgentStatus("error", null, ProviderKeyStore.InvalidKeyMessage, DateTimeOffset.Now.AddMinutes(-12)),
             AiProviderId.OpenRouter => new AgentStatus("connected", null, null, null),
             _ => new AgentStatus("missing", null, null, null),
         };

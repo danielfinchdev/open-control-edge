@@ -15,6 +15,38 @@ namespace OpenControlEdge.Views;
 /// Never reads or writes the settings file, never touches any credentials and never opens the sensors.
 internal static class Snapshot
 {
+    /// A small opencode.db with OpenCode's session columns, read back through the real service (and so through
+    /// UntrustedSqlite), then deleted. Two sessions whose sums are the values shown on the card.
+    private static OpenCodeSnapshot ReadOpenCodeFixture(string directory)
+    {
+        string path = Path.Combine(directory, "opencode-fixture.db");
+        File.Delete(path);
+        try
+        {
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE session (id TEXT, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+                                          tokens_cache_read INTEGER, tokens_cache_write INTEGER, cost REAL);
+                    INSERT INTO session VALUES ('a', 12000, 6000, 300, 2000, 50, 1.0),
+                                               ('b', 345, 789, 21, 100, 5, 0.2345);
+                    """;
+                command.ExecuteNonQuery();
+            }
+            OpenCodeSnapshot read = new OpenCodeUsageService(path).FetchAsync().GetAwaiter().GetResult();
+            if (read is not { Message: null, TokensIn: 12345, TokensOut: 6789, TokensReasoning: 321, TokensCacheRead: 2100, TokensCacheWrite: 55 }
+                || read.CostUsd is not decimal cost || Math.Abs(cost - 1.2345m) > 0.00001m)
+                throw new InvalidDataException("OpenCode fixture database check failed: " + (read.Message ?? "wrong values"));
+            return read;
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     public static void Run(string directory)
     {
         Directory.CreateDirectory(directory);
@@ -34,6 +66,8 @@ internal static class Snapshot
         if (cursorParsed.OnDemandSpent != new Money(9m, "USD") || cursorParsed.OnDemandLimit != new Money(50m, "USD")
             || cursorParsed.OnDemand is not { Percent: 18 })
             throw new InvalidDataException("Cursor on-demand fixture parser check failed");
+        if (CursorUsageParser.Parse(cursorFixture.Replace("\"totalPercentUsed\":2.886868686868687", "\"totalPercentUsed\":null")).Cycle is not null)
+            throw new InvalidDataException("Cursor parser accepted a non-numeric percentage");
 
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
         {
@@ -42,12 +76,7 @@ internal static class Snapshot
             OnDemandLimit = cursorParsed.OnDemandLimit,
         };
         var ram = new RamSnapshot(63, 10_150_000_000, 17_020_000_000, 4_300_000_000, 12_600_000_000, 26_900_000_000, null);
-        const string openCodeFixture = """{"totalTokens":{"input":12345,"output":6789,"reasoning":321,"cache":{"read":2100,"write":55}},"totalCost":1.2345,"totalSessions":7}""";
-        var (fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost) = OpenCodeUsageParser.Parse(openCodeFixture);
-        if (fixtureInput != 12345 || fixtureOutput != 6789 || fixtureReasoning != 321 || fixtureCacheRead != 2100
-            || fixtureCacheWrite != 55 || fixtureCost != 1.2345m)
-            throw new InvalidDataException("OpenCode fixture parser check failed");
-        var openCode = new OpenCodeSnapshot(false, fixtureInput, fixtureOutput, fixtureReasoning, fixtureCacheRead, fixtureCacheWrite, fixtureCost, null);
+        OpenCodeSnapshot openCode = ReadOpenCodeFixture(directory);
         var deepSeek = new DeepSeekSnapshot(false, DeepSeekBalanceParser.Parse("""{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"110.00","granted_balance":"10.00","topped_up_balance":"100.00"},{"currency":"USD","total_balance":"4.25","granted_balance":"1.00","topped_up_balance":"3.25"}]}"""), null);
         var openRouterParsed = OpenRouterKeyParser.Parse("""{"data":{"usage":25.5,"limit":100,"limit_remaining":74.5}}""");
         var openRouter = new OpenRouterSnapshot(false, openRouterParsed.Usage, openRouterParsed.Limit, openRouterParsed.Remaining, null);
@@ -131,10 +160,10 @@ internal static class Snapshot
         window.SetOpenCode(OpenCodeSnapshot.Failed("Sin base de datos de sesiones"));
         window.ShowCardNow(EdgeWindow.RingOpenCode);
         window.SaveSnapshot(Path.Combine(directory, "25_opencode_no_local_data.png"));
-        window.SetDeepSeek(DeepSeekSnapshot.Failed("Clave API no válida"));
+        window.SetDeepSeek(DeepSeekSnapshot.Failed(ProviderKeyStore.InvalidKeyMessage));
         window.ShowCardNow(EdgeWindow.RingDeepSeek);
         window.SaveSnapshot(Path.Combine(directory, "26_deepseek_error.png"));
-        window.SetOpenRouter(OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…"));
+        window.SetOpenRouter(OpenRouterSnapshot.Failed(AiDetector.AddKeyMessage));
         window.ShowCardNow(EdgeWindow.RingOpenRouter);
         window.SaveSnapshot(Path.Combine(directory, "27_openrouter_no_key.png"));
         window.SetOpenCode(openCode);
@@ -198,7 +227,7 @@ internal static class Snapshot
         window.SetClaude(claude);
         window.ShowCardNow(EdgeWindow.RingRam);
         window.SaveSnapshot(Path.Combine(directory, "52_card_ram.png"));
-        window.SetRamNote(Loc.Format("Ram.Freed", "812", "1.204"));
+        window.SetRamNote(Loc.Format("Ram.Freed", "812"));
         window.SetRam(ram with { Percent = 58, UsedBytes = 9_300_000_000, CachedBytes = 3_050_000_000 });
         window.SaveSnapshot(Path.Combine(directory, "53_card_ram_freed.png"));
         window.SetRamNote(Loc.Format("Ram.Wait", 42));
@@ -275,8 +304,8 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(directory, "34_alert_card_cpu.png"));
 
-        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", null, null, 12, "PawnIO no está instalado"));
-        window.SetGpu(new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", null, 12, 783, 4096, "PawnIO no está instalado"));
+        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", null, null, 12, HardwareSensorService.PawnIoMissingMessage));
+        window.SetGpu(new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", null, 12, 783, 4096, HardwareSensorService.PawnIoMissingMessage));
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(directory, "35_cpu_pawnio_required.png"));
         window.ShowCardNow(EdgeWindow.RingGpu);
@@ -325,7 +354,7 @@ internal static class Snapshot
         Loc.Apply(UiLanguage.Spanish);
         window.SetClaude(claude);
 
-        // Scale: 1366×768 at 100 %, 1080p at 125 % (both small), 1440p at 100 % (large). All eight rings fit.
+        // Scale: 1366×768 at 100 %, 1080p at 125 % (both small), 1440p at 100 % (large). All nine rings fit.
         foreach ((double work, string name) in new[] { (728.0, "48_scale_1366x768"), (824.0, "49_scale_1080p_125"), (1392.0, "50_scale_1440p") })
         {
             window.PreviewWorkArea(work);

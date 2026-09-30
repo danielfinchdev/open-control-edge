@@ -58,8 +58,7 @@
     <!-- Outcomes of the Claude renewal and of "Free RAM"; {0} time, or MB -->
     <sys:String x:Key="Claude.Renewed">Session renewed: valid until {0:h:mm tt}.</sys:String>
     <sys:String x:Key="Claude.StillValid">Session valid until {0:h:mm tt}. Claude Code renews it in its last 5 minutes.</sys:String>
-    <sys:String x:Key="Ram.Freed">Freed {0} MB in use and {1} MB of cache.</sys:String>
-    <sys:String x:Key="Ram.FreedNoCache">Freed {0} MB in use. The cache is only emptied as administrator.</sys:String>
+    <sys:String x:Key="Ram.Freed">Freed {0} MB of memory in use. Programs take it back as they need it.</sys:String>
     <sys:String x:Key="Ram.Wait">Wait a minute between clean-ups ({0} s left).</sys:String>
     <sys:String x:Key="Ram.Disabled">Free RAM is turned off in the settings.</sys:String>
     <sys:String x:Key="Ring.InstallPawnIo">Install PawnIO to see the temperature</sys:String>
@@ -195,6 +194,7 @@
     <sys:String x:Key="Settings.LoginFailed">Could not start login.</sys:String>
     <sys:String x:Key="Settings.Connected">Connected</sys:String>
     <sys:String x:Key="Settings.NotInstalled">Not installed</sys:String>
+    <sys:String x:Key="Settings.HiddenAgent">Hidden: not read</sys:String>
     <sys:String x:Key="Settings.NoSession">No session</sys:String>
     <sys:String x:Key="Settings.SyncError">Sync error</sys:String>
     <sys:String x:Key="Settings.Save">Save</sys:String>
@@ -320,8 +320,10 @@
     <sys:String x:Key="Msg.UpdUnsafePath">The ZIP contains an unsafe path or link.</sys:String>
     <sys:String x:Key="Msg.UpdTooLarge">The extracted content is larger than allowed.</sys:String>
     <sys:String x:Key="Msg.UpdEscapes">The ZIP tries to leave the staging folder.</sys:String>
-    <sys:String x:Key="Msg.UpdUnsigned">The executable has no valid SignPath Foundation Authenticode signature.</sys:String>
-    <sys:String x:Key="Msg.UpdNoExe">The ZIP has no OpenControlEdge.exe at its root or in a single folder.</sys:String>
+    <sys:String x:Key="Msg.UpdUnsigned">The executable is not the official build of this version signed by SignPath Foundation; it will not be installed.</sys:String>
+    <sys:String x:Key="Msg.UpdUnexpectedFiles">The ZIP contains files that are not part of Open Control Edge; it will not be installed.</sys:String>
+    <sys:String x:Key="Msg.UpdIncomplete">The ZIP does not contain every Open Control Edge file; it will not be installed.</sys:String>
+    <sys:String x:Key="Msg.UpdLibraryUntrusted">{0} is neither the Open Control Edge one nor signed by a trusted publisher; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.UpdInstallFirst">Install Open Control Edge before updating.</sys:String>
     <sys:String x:Key="Msg.UpdNeedsAdmin">Updating requires starting the installed app with administrator rights.</sys:String>
     <sys:String x:Key="Msg.UpdUnprotected">The install folder is not protected; the update was cancelled.</sys:String>

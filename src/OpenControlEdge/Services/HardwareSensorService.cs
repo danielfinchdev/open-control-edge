@@ -16,6 +16,9 @@ internal sealed class HardwareSensorService : IDisposable
 {
     private const string CoreSensorPrefix = "CPU Core #";
 
+    /// Why a temperature is missing when the PawnIO driver is not installed; the ring then offers to install it.
+    internal const string PawnIoMissingMessage = "PawnIO no está instalado";
+
     /// Above this the package is running hot enough to be worth a line in the log.
     private const double HighTemperature = 90;
     private static readonly TimeSpan HighLogInterval = TimeSpan.FromMinutes(1);
@@ -102,7 +105,7 @@ internal sealed class HardwareSensorService : IDisposable
             double? memoryTotal = Finite(FindValue(gpu, SensorType.SmallData, "GPU Memory Total"));
 
             string? message = temperature is null
-                ? !LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled ? "PawnIO no está instalado" : "Sensor de temperatura no disponible"
+                ? !LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled ? PawnIoMissingMessage : "Sensor de temperatura no disponible"
                 : null;
             return new GpuSnapshot(true, gpu.Name, temperature, load, memoryUsed, memoryTotal, message);
         }
@@ -158,7 +161,7 @@ internal sealed class HardwareSensorService : IDisposable
 
     private static string ExplainMissingCpuTemperature()
     {
-        if (!LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled) return "PawnIO no está instalado";
+        if (!LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled) return PawnIoMissingMessage;
         using var identity = WindowsIdentity.GetCurrent();
         if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
             return "Requiere ejecutar como administrador";

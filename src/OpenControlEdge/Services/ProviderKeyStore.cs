@@ -3,9 +3,14 @@ using System.Security.Cryptography;
 
 namespace OpenControlEdge.Services;
 
-/// Stores one DPAPI CurrentUser protected blob per network-backed provider.
+/// Stores one DPAPI CurrentUser protected blob per network-backed provider (keys\{provider}.bin in the data folder).
+/// DPAPI ties the blob to this Windows account: another account cannot decrypt it, but any program running as this
+/// user can, as with any per-user secret on Windows.
 internal static class ProviderKeyStore
 {
+    /// The provider refused the stored key (HTTP 401).
+    public const string InvalidKeyMessage = "Clave API no válida";
+
     private static string KeyDirectory => Path.Combine(DataFolder.Path, "keys");
 
     internal static string PathFor(string provider) => Path.Combine(KeyDirectory, provider + ".bin");
@@ -15,19 +20,14 @@ internal static class ProviderKeyStore
     internal static bool Save(string provider, byte[] plaintext)
     {
         byte[] protectedBytes = Array.Empty<byte>();
-        string temporary = PathFor(provider) + ".tmp";
         try
         {
             if (plaintext.Length == 0 || plaintext.Length > 16 * 1024) return false;
             protectedBytes = ProtectedData.Protect(plaintext, null, DataProtectionScope.CurrentUser);
             return DataFolder.WriteAtomic(Path.Combine("keys", provider + ".bin"), protectedBytes);
         }
-        catch { return false; }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(protectedBytes);
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
-        }
+        catch (CryptographicException) { return false; }
+        finally { CryptographicOperations.ZeroMemory(protectedBytes); }
     }
 
     internal static byte[]? Read(string provider)
@@ -41,7 +41,7 @@ internal static class ProviderKeyStore
             protectedBytes = File.ReadAllBytes(path);
             return ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
         }
-        catch { return null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) { return null; }
         finally { if (protectedBytes is not null) CryptographicOperations.ZeroMemory(protectedBytes); }
     }
 
@@ -54,6 +54,6 @@ internal static class ProviderKeyStore
             if (File.Exists(path)) File.Delete(path);
             return true;
         }
-        catch { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 }

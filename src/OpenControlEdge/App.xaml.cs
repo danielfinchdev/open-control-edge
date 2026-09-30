@@ -24,9 +24,9 @@ public partial class App : Application
     /// "Liberar RAM" at most once a minute.
     private static readonly TimeSpan RamCleanInterval = TimeSpan.FromMinutes(1);
 
-    // Two cadences for each source: the fast one only while the pinned panel is actually on screen, the slow
-    // one the rest of the time. The sensors never stop, so "Máxima de la sesión" also catches the peaks
-    // nobody was watching — the boot spike above all.
+    // Two sensor cadences: the fast one only while the pinned panel is actually on screen, the slow one the rest of
+    // the time. The sensors never stop, so "Máxima de la sesión" also catches the peaks nobody was watching — the
+    // boot spike above all.
     private static readonly TimeSpan SensorVisibleInterval = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan SensorHiddenInterval = TimeSpan.FromMinutes(1);
 
@@ -373,34 +373,52 @@ public partial class App : Application
         }
         catch (InvalidDataException ex) when (ex.Message.Contains("digest", StringComparison.OrdinalIgnoreCase)) { }
         if (Directory.Exists(stage)) throw new InvalidDataException("tampered archive created a staging folder");
-        var endpointUri = new Uri(endpoint);
-        string noDigestApi = endpointUri.GetLeftPart(UriPartial.Authority) + "/nodigest";
-        UpdateCheckResult noDigest = await UpdateService.CheckAsync(noDigestApi).ConfigureAwait(false);
+        string authority = new Uri(endpoint).GetLeftPart(UriPartial.Authority);
+        UpdateCheckResult noDigest = await UpdateService.CheckAsync(authority + "/nodigest").ConfigureAwait(false);
         if (noDigest.Release is not null || noDigest.Error is null) throw new InvalidDataException("a release without digest was accepted");
+
+        // An archive with one file more than the application (a DLL the exe would load elevated) is rejected whole.
+        UpdateCheckResult extra = await UpdateService.CheckAsync(authority + "/extra").ConfigureAwait(false);
+        if (extra.Release is null) throw new InvalidDataException(extra.Error ?? "fixture /extra returned no release");
+        try
+        {
+            await UpdateService.DownloadAndStageAsync(extra.Release, stage).ConfigureAwait(false);
+            throw new InvalidOperationException("an archive with an extra file was accepted");
+        }
+        catch (InvalidDataException ex) when (ex.Message.Contains("no son de Open Control Edge", StringComparison.Ordinal)) { }
+        if (Directory.Exists(stage)) throw new InvalidDataException("the rejected archive left a staging folder");
+
         string payload = await UpdateService.DownloadAndStageAsync(result.Release, stage).ConfigureAwait(false);
-        string marker = Path.Combine(payload, "fixture.marker");
-        if (!File.Exists(Path.Combine(payload, "OpenControlEdge.exe")) || !File.Exists(marker))
+        string stagedExe = Path.Combine(payload, "OpenControlEdge.exe");
+        if (!File.Exists(stagedExe) || Directory.GetFiles(payload).Length != 1 + NativeLibraries.Sha256.Count)
             throw new InvalidDataException("fixture archive contents were not staged");
+        string stagedHash = NativeLibraries.HashHex(stagedExe);
         string target = Path.Combine(AppContext.BaseDirectory, "update-fixture-target");
         string old = Path.Combine(target, "old.marker");
         string backup = target + ".fixture-backup";
+        string previousDirectory = Environment.CurrentDirectory;
         try
         {
             if (Directory.Exists(target)) Directory.Delete(target, true);
             if (Directory.Exists(backup)) Directory.Delete(backup, true);
             Directory.CreateDirectory(target); await File.WriteAllTextAsync(old, "old");
-            UpdateInstaller.SwapDirectory(payload, target, backup);
-            if (!File.Exists(Path.Combine(target, "fixture.marker"))) throw new InvalidDataException("fixture directory swap failed");
+            // The update helper once ran with its current directory inside the payload, which Windows refuses to rename.
+            Directory.SetCurrentDirectory(payload);
+            if (!UpdateInstaller.SwapDirectory(payload, target, backup)) throw new InvalidDataException("fixture directory swap failed");
+            string swappedExe = Path.Combine(target, "OpenControlEdge.exe");
+            if (!File.Exists(swappedExe) || NativeLibraries.HashHex(swappedExe) != stagedHash || File.Exists(old))
+                throw new InvalidDataException("fixture directory swap left the wrong contents");
             // Force the failure branch with a missing payload and ensure rollback restores the previous directory.
             string missing = Path.Combine(stage, "missing-payload");
             bool rolledBack = !UpdateInstaller.SwapDirectory(missing, target, backup, failAfterBackup: true)
-                && File.Exists(Path.Combine(target, "fixture.marker"));
+                && File.Exists(swappedExe);
             if (!rolledBack) throw new InvalidDataException("fixture rollback failed");
-            await File.WriteAllTextAsync(resultPath, $"OK {result.Release.Tag}; digest verified; missing and invalid digests rejected; extraction, swap and rollback verified").ConfigureAwait(false);
+            await File.WriteAllTextAsync(resultPath, $"OK {result.Release.Tag}; digest verified; missing and invalid digests rejected; extra file rejected; extraction, swap with the current directory inside the payload and rollback verified").ConfigureAwait(false);
             return true;
         }
         finally
         {
+            try { Directory.SetCurrentDirectory(previousDirectory); } catch { }
             try { if (Directory.Exists(target)) Directory.Delete(target, true); } catch { }
             try { if (Directory.Exists(backup)) Directory.Delete(backup, true); } catch { }
             try { if (Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
@@ -415,10 +433,11 @@ public partial class App : Application
         UpdateCadence();
     }
 
+    /// A hidden provider is not read at all (not even its credentials or database), also from the Agents page.
     private async Task RetryProviderAsync(AiProviderId id)
     {
-        if (!AiDetector.IsInstalled(id)) return;
         Settings settings = SettingsStore.Load();
+        if (!AiDetector.IsInstalled(id) || !AiRingPolicy.ShouldShowRing(id, settings)) return;
         switch (id)
         {
             case AiProviderId.Claude: _lastClaude = await FetchClaudePreservingAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetClaude(_lastClaude); break;
@@ -434,6 +453,7 @@ public partial class App : Application
     private AgentStatus AgentStatus(AiProviderId id)
     {
         if (!AiDetector.IsInstalled(id)) return new("missing", null, null, null);
+        if (!AiRingPolicy.ShouldShowRing(id, SettingsStore.Load())) return new("hidden", null, null, null);
         (string? message, string? plan) = id switch
         {
             AiProviderId.Claude => (_lastClaude?.Message, _lastClaude?.Plan),
@@ -451,11 +471,7 @@ public partial class App : Application
             || id == AiProviderId.DeepSeek && _lastDeepSeek is { Balance: not null }
             || id == AiProviderId.OpenRouter && _lastOpenRouter is { Message: null })
             return new("connected", plan, null, null);
-        bool noSession = message is not null && (message.Contains("sesi", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("sign in", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("inicia", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("clave API", StringComparison.OrdinalIgnoreCase));
-        return new(noSession ? "session" : "error", plan, message ?? "Sin respuesta",
+        return new(AiDetector.NeedsSignIn(message) ? "session" : "error", plan, message ?? "Sin respuesta",
             _agentFailures.TryGetValue(id, out var failure) ? failure.At : null);
     }
 
@@ -551,14 +567,14 @@ public partial class App : Application
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Absent();
         return AiDetector.IsInstalled(AiProviderId.DeepSeek) ? DeepSeekSnapshot.Failed("Cargando…")
-            : DeepSeekSnapshot.Failed("Añade la clave API desde Claves de API…");
+            : DeepSeekSnapshot.Failed(AiDetector.AddKeyMessage);
     }
 
     private OpenRouterSnapshot InitialOpenRouter(Settings settings)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Absent();
         return AiDetector.IsInstalled(AiProviderId.OpenRouter) ? OpenRouterSnapshot.Failed("Cargando…")
-            : OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…");
+            : OpenRouterSnapshot.Failed(AiDetector.AddKeyMessage);
     }
 
     private async Task<ClaudeSnapshot> RefreshClaudeAsync(Settings settings)
@@ -587,9 +603,7 @@ public partial class App : Application
             _claudeReadAt = DateTimeOffset.Now;
             return current;
         }
-        if (current.Message is string error && error.StartsWith("Error HTTP ", StringComparison.Ordinal)
-            && int.TryParse(error.AsSpan("Error HTTP ".Length), out int status)
-            && (status == 429 || status >= 500))
+        if (current is { HttpStatus: int status, Message: string error } && (status == 429 || status >= 500))
         {
             _claudeRetryError = error;
             if (KeepClaudeReading(DateTimeOffset.Now) is ClaudeSnapshot kept)
@@ -631,14 +645,14 @@ public partial class App : Application
     private async Task<DeepSeekSnapshot> RefreshDeepSeekAsync(Settings settings)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Absent();
-        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Failed("Añade la clave API desde Claves de API…");
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.DeepSeek, settings)) return DeepSeekSnapshot.Failed(AiDetector.AddKeyMessage);
         return await _deepSeek.FetchAsync();
     }
 
     private async Task<OpenRouterSnapshot> RefreshOpenRouterAsync(Settings settings)
     {
         if (!AiRingPolicy.ShouldShowRing(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Absent();
-        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Failed("Añade la clave API desde Claves de API…");
+        if (!AiRingPolicy.ShouldFetchUsage(AiProviderId.OpenRouter, settings)) return OpenRouterSnapshot.Failed(AiDetector.AddKeyMessage);
         return await _openRouter.FetchAsync();
     }
 
@@ -854,9 +868,7 @@ public partial class App : Application
             RamCleanResult result = await MemoryService.CleanAsync();
             _lastRam = MemoryService.Read();
             _edge.SetRam(_lastRam);
-            string freed = (result.FreedBytes / (1024 * 1024)).ToString("N0", Loc.Culture);
-            string cache = (result.CacheFreedBytes / (1024 * 1024)).ToString("N0", Loc.Culture);
-            _edge.SetRamNote(result.StandbyPurged ? Loc.Format("Ram.Freed", freed, cache) : Loc.Format("Ram.FreedNoCache", freed));
+            _edge.SetRamNote(Loc.Format("Ram.Freed", (result.FreedBytes / (1024 * 1024)).ToString("N0", Loc.Culture)));
             UpdateTooltip();
         }
         catch (Exception ex)
@@ -891,9 +903,8 @@ public partial class App : Application
         timer.Start();
     }
 
-    /// Fast cadence only while the pinned panel is on screen: 20 s for the sensors, 2 min for the usage APIs.
-    /// Hidden (auto mode, or collapsed) it drops to 1 min and 6 min — the sensors keep running so the session
-    /// maximum stays honest, but neither source costs anything worth measuring while nobody is looking.
+    /// Sensors: every 20 s while the pinned panel is on screen, every minute otherwise (10 s during the warm-up); they
+    /// never stop, so the session maximum stays honest. Usage: the interval chosen in the settings, always.
     private void UpdateCadence()
     {
         bool visible = _panelMode == PanelMode.Pinned && _panelExpanded;

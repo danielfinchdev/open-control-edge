@@ -19,7 +19,6 @@ internal static class UpdateService
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(4) };
     private const long MaxArchiveBytes = 300L * 1024 * 1024;
     private const long MaxExpandedBytes = 900L * 1024 * 1024;
-    private static string UserAgent => $"OpenControlEdge/{typeof(UpdateService).Assembly.GetName().Version?.ToString(3) ?? "unknown"}";
 
     internal static async Task<UpdateCheckResult> CheckAsync(string apiUrl = LatestApi, CancellationToken cancellationToken = default)
     {
@@ -28,7 +27,7 @@ internal static class UpdateService
             if (!Uri.TryCreate(apiUrl, UriKind.Absolute, out Uri? endpoint) || !IsSecureUri(endpoint))
                 return new(null, "La dirección de releases no es segura.");
             using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-            request.Headers.UserAgent.ParseAdd(UserAgent);
+            request.Headers.UserAgent.ParseAdd(UsageHttp.UserAgent);
             using HttpResponseMessage response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
@@ -46,9 +45,7 @@ internal static class UpdateService
                 string name = RequiredString(asset, "name");
                 if (!name.Equals("OpenControlEdge-win-x64.zip", StringComparison.OrdinalIgnoreCase)) continue;
                 string download = RequiredString(asset, "browser_download_url");
-                if (!Uri.TryCreate(download, UriKind.Absolute, out Uri? uri)
-                    || !IsSecureUri(uri) || uri.Host != "github.com"
-                    || !uri.AbsolutePath.StartsWith("/danielfinchdev/open-control-edge/releases/download/", StringComparison.Ordinal))
+                if (!Uri.TryCreate(download, UriKind.Absolute, out Uri? uri) || !IsReleaseAsset(uri))
                     return new(null, "La URL del ZIP no es segura.");
                 if (!asset.TryGetProperty("digest", out JsonElement digestElement) || digestElement.ValueKind != JsonValueKind.String
                     || digestElement.GetString() is not string digest || !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
@@ -70,11 +67,9 @@ internal static class UpdateService
 
     internal static async Task<string> DownloadAndStageAsync(UpdateRelease release, string stageRoot, CancellationToken cancellationToken = default)
     {
-        if (!IsSecureUri(release.ZipUri) || !release.ZipUri.IsLoopback && (release.ZipUri.Host != "github.com"
-            || !release.ZipUri.AbsolutePath.StartsWith("/danielfinchdev/open-control-edge/releases/download/", StringComparison.Ordinal)))
-            throw new InvalidDataException("La URL del ZIP no es segura.");
+        if (!IsReleaseAsset(release.ZipUri)) throw new InvalidDataException("La URL del ZIP no es segura.");
         using var request = new HttpRequestMessage(HttpMethod.Get, release.ZipUri);
-        request.Headers.UserAgent.ParseAdd(UserAgent);
+        request.Headers.UserAgent.ParseAdd(UsageHttp.UserAgent);
         using HttpResponseMessage download = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         download.EnsureSuccessStatusCode();
         if (download.Content.Headers.ContentLength is long length && (length <= 0 || length > MaxArchiveBytes))
@@ -105,57 +100,102 @@ internal static class UpdateService
         string root = Path.GetFullPath(stageRoot);
         if (Directory.Exists(root)) throw new IOException("El directorio de staging ya existe.");
         string payload = Path.Combine(root, "payload");
-        Directory.CreateDirectory(payload);
         try
         {
             using var memory = new MemoryStream(archive, writable: false);
             using var zip = new ZipArchive(memory, ZipArchiveMode.Read);
-            long expanded = 0;
-            foreach (ZipArchiveEntry entry in zip.Entries)
+            List<(ZipArchiveEntry Entry, string Name)> files = ApplicationEntries(zip);
+            Directory.CreateDirectory(payload);
+            foreach ((ZipArchiveEntry entry, string name) in files)
             {
-                string name = entry.FullName.Replace('\\', '/');
-                if (name.StartsWith('/') || name.Split('/').Any(part => part is ".." or ".")
-                    || ((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000)
-                    throw new InvalidDataException("El ZIP contiene una ruta o enlace no seguro.");
-                expanded = checked(expanded + entry.Length);
-                if (expanded > MaxExpandedBytes) throw new InvalidDataException("El contenido extraído supera el límite permitido.");
-                string target = Path.GetFullPath(Path.Combine(payload, name.Replace('/', Path.DirectorySeparatorChar)));
-                if (!target.StartsWith(payload + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("El ZIP intenta salir de staging.");
-                if (entry.FullName.EndsWith('/')) { Directory.CreateDirectory(target); continue; }
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 await using Stream input = entry.Open();
-                await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                await using var output = new FileStream(Path.Combine(payload, name), FileMode.CreateNew, FileAccess.Write, FileShare.None);
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
-            string executable = Path.Combine(payload, "OpenControlEdge.exe");
-            if (File.Exists(executable))
-            {
-#if DEBUG
-                bool signatureValid = AuthenticodeVerifier.IsValidSignPathSignature(executable) || release.ZipUri.IsLoopback;
-#else
-                bool signatureValid = AuthenticodeVerifier.IsValidSignPathSignature(executable);
-#endif
-                if (!signatureValid)
-                    throw new InvalidDataException("El ejecutable no tiene una firma Authenticode válida de SignPath Foundation.");
-                return payload;
-            }
-            string[] roots = Directory.GetDirectories(payload);
-            if (roots.Length == 1 && File.Exists(Path.Combine(roots[0], "OpenControlEdge.exe")))
-            {
-#if DEBUG
-                bool signatureValid = AuthenticodeVerifier.IsValidSignPathSignature(Path.Combine(roots[0], "OpenControlEdge.exe")) || release.ZipUri.IsLoopback;
-#else
-                bool signatureValid = AuthenticodeVerifier.IsValidSignPathSignature(Path.Combine(roots[0], "OpenControlEdge.exe"));
-#endif
-                if (!signatureValid)
-                    throw new InvalidDataException("El ejecutable no tiene una firma Authenticode válida de SignPath Foundation.");
-                return roots[0];
-            }
-            throw new InvalidDataException("El ZIP no contiene OpenControlEdge.exe en la raíz o en un único directorio.");
+            VerifyPayload(payload, release);
+            return payload;
         }
         catch { try { Directory.Delete(root, recursive: true); } catch { } throw; }
         finally { CryptographicOperations.ZeroMemory(archive); }
+    }
+
+    /// The files of the archive, which must be exactly OpenControlEdge.exe and the native libraries this build ships
+    /// (NativeLibraries), at its root or inside one single folder. Anything else — another file (a DLL the exe would
+    /// load elevated from Program Files), a missing library, a link, a nested path — rejects the whole archive before a
+    /// byte is written. A future version that ships a different set of libraries is installed from its ZIP once.
+    private static List<(ZipArchiveEntry Entry, string Name)> ApplicationEntries(ZipArchive zip)
+    {
+        var expected = new HashSet<string>(NativeLibraries.Names, StringComparer.OrdinalIgnoreCase) { "OpenControlEdge.exe" };
+        var files = new List<(ZipArchiveEntry, string)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? folder = null;
+        bool rootFiles = false;
+        long expanded = 0;
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            string path = entry.FullName.Replace('\\', '/');
+            bool directory = path.EndsWith('/');
+            string[] parts = path.TrimEnd('/').Split('/');
+            if (path.StartsWith('/') || path.Contains(':') || parts.Any(part => part is "" or "." or "..")
+                || ((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000)
+                throw new InvalidDataException("El ZIP contiene una ruta o enlace no seguro.");
+
+            // Either every file at the root, or every file inside one and the same folder.
+            string? entryFolder = directory ? parts[0] : parts.Length == 2 ? parts[0] : null;
+            if (parts.Length > 2 || directory && parts.Length != 1) throw new InvalidDataException(UnexpectedFileMessage);
+            if (entryFolder is not null)
+            {
+                if (rootFiles || folder is not null && folder != entryFolder) throw new InvalidDataException(UnexpectedFileMessage);
+                folder = entryFolder;
+            }
+            if (directory) continue;
+            if (parts.Length == 1)
+            {
+                if (folder is not null) throw new InvalidDataException(UnexpectedFileMessage);
+                rootFiles = true;
+            }
+
+            string name = parts[^1];
+            if (!expected.Contains(name) || !seen.Add(name)) throw new InvalidDataException(UnexpectedFileMessage);
+            expanded = checked(expanded + entry.Length);
+            if (expanded > MaxExpandedBytes) throw new InvalidDataException("El contenido extraído supera el límite permitido.");
+            files.Add((entry, name));
+        }
+        if (seen.Count != expected.Count) throw new InvalidDataException(IncompleteMessage);
+        return files;
+    }
+
+    internal const string UnsignedMessage = "El ejecutable no es el oficial de esta versión firmado por SignPath Foundation; no se instalará.";
+    internal const string UnexpectedFileMessage = "El ZIP contiene archivos que no son de Open Control Edge; no se instalará.";
+    internal const string IncompleteMessage = "El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.";
+
+    /// The exe must be the official one of exactly this version (AuthenticodeVerifier.IsOfficialExecutable). Each
+    /// library must be byte for byte the one this build ships, or carry a trusted signature of its publisher
+    /// (AuthenticodeVerifier.IsTrustedLibrary) when the new version brings a different build of it.
+    private static void VerifyPayload(string payload, UpdateRelease release)
+    {
+#if DEBUG
+        // The local release fixture (--test-update-fixture) serves unsigned test archives from the loopback interface.
+        if (release.ZipUri.IsLoopback) return;
+#endif
+        if (!AuthenticodeVerifier.IsOfficialExecutable(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
+            throw new InvalidDataException(UnsignedMessage);
+        foreach (string name in NativeLibraries.Names)
+        {
+            string library = Path.Combine(payload, name);
+            if (!NativeLibraries.IsExpected(library) && !AuthenticodeVerifier.IsTrustedLibrary(library))
+                throw new InvalidDataException($"{name} no es el de Open Control Edge ni tiene una firma de confianza; no se instalará.");
+        }
+    }
+
+    /// A file of a Release of this repository, over HTTPS. Debug also accepts the local fixture over loopback HTTP.
+    private static bool IsReleaseAsset(Uri uri)
+    {
+#if DEBUG
+        if (uri.IsLoopback && uri.Scheme == Uri.UriSchemeHttp) return true;
+#endif
+        return uri.Scheme == Uri.UriSchemeHttps && uri.Host == "github.com"
+               && uri.AbsolutePath.StartsWith("/danielfinchdev/open-control-edge/releases/download/", StringComparison.Ordinal);
     }
 
     private static bool IsSecureUri(Uri uri)
@@ -167,6 +207,4 @@ internal static class UpdateService
         return false;
 #endif
     }
-
-    internal static bool IsLoopback(Uri uri) => uri.IsLoopback;
 }

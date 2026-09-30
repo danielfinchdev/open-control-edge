@@ -58,8 +58,7 @@
     <!-- Outcomes of the Claude renewal and of "Liberar RAM"; {0} time, or MB -->
     <sys:String x:Key="Claude.Renewed">Sesión renovada: vale hasta las {0:HH:mm}.</sys:String>
     <sys:String x:Key="Claude.StillValid">Sesión vigente hasta las {0:HH:mm}. Claude Code la renueva en sus últimos 5 minutos.</sys:String>
-    <sys:String x:Key="Ram.Freed">Liberados {0} MB en uso y {1} MB de caché.</sys:String>
-    <sys:String x:Key="Ram.FreedNoCache">Liberados {0} MB en uso. La caché solo se vacía como administrador.</sys:String>
+    <sys:String x:Key="Ram.Freed">Liberados {0} MB de memoria en uso. Los programas la vuelven a ocupar cuando la necesitan.</sys:String>
     <sys:String x:Key="Ram.Wait">Espera un minuto entre limpiezas (faltan {0} s).</sys:String>
     <sys:String x:Key="Ram.Disabled">Liberar RAM está desactivado en los ajustes.</sys:String>
     <sys:String x:Key="Ring.InstallPawnIo">Instala PawnIO para ver la temperatura</sys:String>
@@ -90,7 +89,7 @@
     <sys:String x:Key="Tip.Hide">Ocultar en el borde</sys:String>
     <sys:String x:Key="Tip.Pin">Fijar el panel</sys:String>
     <sys:String x:Key="Tip.Settings">Ajustes</sys:String>
-    <sys:String x:Key="Tip.Close">Cerrar Open Control Edge</sys:String>
+    <sys:String x:Key="Tip.Close">Salir de Open Control Edge</sys:String>
 
     <!-- Tray menu -->
     <sys:String x:Key="Menu.Refresh">Actualizar ahora</sys:String>
@@ -195,6 +194,7 @@
     <sys:String x:Key="Settings.LoginFailed">No se pudo iniciar el login.</sys:String>
     <sys:String x:Key="Settings.Connected">Conectado</sys:String>
     <sys:String x:Key="Settings.NotInstalled">No instalado</sys:String>
+    <sys:String x:Key="Settings.HiddenAgent">Oculto: no se lee</sys:String>
     <sys:String x:Key="Settings.NoSession">Sin sesión</sys:String>
     <sys:String x:Key="Settings.SyncError">Error de sincronización</sys:String>
     <sys:String x:Key="Settings.Save">Guardar</sys:String>
@@ -320,8 +320,10 @@
     <sys:String x:Key="Msg.UpdUnsafePath">El ZIP contiene una ruta o enlace no seguro.</sys:String>
     <sys:String x:Key="Msg.UpdTooLarge">El contenido extraído supera el límite permitido.</sys:String>
     <sys:String x:Key="Msg.UpdEscapes">El ZIP intenta salir de staging.</sys:String>
-    <sys:String x:Key="Msg.UpdUnsigned">El ejecutable no tiene una firma Authenticode válida de SignPath Foundation.</sys:String>
-    <sys:String x:Key="Msg.UpdNoExe">El ZIP no contiene OpenControlEdge.exe en la raíz o en un único directorio.</sys:String>
+    <sys:String x:Key="Msg.UpdUnsigned">El ejecutable no es el oficial de esta versión firmado por SignPath Foundation; no se instalará.</sys:String>
+    <sys:String x:Key="Msg.UpdUnexpectedFiles">El ZIP contiene archivos que no son de Open Control Edge; no se instalará.</sys:String>
+    <sys:String x:Key="Msg.UpdIncomplete">El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.</sys:String>
+    <sys:String x:Key="Msg.UpdLibraryUntrusted">{0} no es el de Open Control Edge ni tiene una firma de confianza; no se instalará.</sys:String>
     <sys:String x:Key="Msg.UpdInstallFirst">Instala Open Control Edge antes de actualizar.</sys:String>
     <sys:String x:Key="Msg.UpdNeedsAdmin">La actualización requiere iniciar la app instalada con permisos de administrador.</sys:String>
     <sys:String x:Key="Msg.UpdUnprotected">La carpeta de instalación no está protegida; se cancela la actualización.</sys:String>

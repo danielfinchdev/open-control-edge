@@ -44,6 +44,55 @@
     <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
+  <!-- Only the file generated under obj\ is compiled (see OceNativeLibraryHashes). -->
+  <ItemGroup>
+    <Compile Remove="NativeLibraries.g.cs" />
+  </ItemGroup>
+
+  <!-- The native libraries published next to the exe (IncludeNativeLibrariesForSelfExtract is false) and the SHA-256 of
+       the very files this build publishes, compiled into the exe (NativeLibraries.Sha256 in NativeLibraries.g.cs): the
+       installer copies exactly these files and only when their bytes match. A self-contained build fails if any is
+       missing. Debug is not self-contained: the table is empty there. -->
+  <PropertyGroup>
+    <OceNativeLibraries>D3DCompiler_47_cor3.dll;PenImc_cor3.dll;PresentationNative_cor3.dll;vcruntime140_cor3.dll;wpfgfx_cor3.dll;e_sqlite3.dll;MonoPosixHelper.dll;libMonoPosixHelper.dll</OceNativeLibraries>
+  </PropertyGroup>
+
+  <Target Name="OceNativeLibraryHashes" BeforeTargets="CoreCompile" DependsOnTargets="ResolvePackageAssets;ResolveRuntimePackAssets">
+    <!-- Here, not at evaluation: IntermediateOutputPath is only set once the SDK targets are imported. -->
+    <PropertyGroup>
+      <OceNativeLibrariesFile>$(ProjectDir)$(IntermediateOutputPath)NativeLibraries.g.cs</OceNativeLibrariesFile>
+    </PropertyGroup>
+    <Error Condition="'$(IntermediateOutputPath)' == ''" Text="IntermediateOutputPath vacío: no se genera NativeLibraries.g.cs." />
+    <ItemGroup>
+      <_OceExpected Include="$(OceNativeLibraries)" />
+      <_OceCandidate Include="@(NativeCopyLocalItems);@(RuntimePackAsset)" Condition="'$(SelfContained)' == 'true'" />
+      <_OceNative Include="@(_OceCandidate)" Condition="$([System.String]::Copy(';$(OceNativeLibraries);').Contains(';%(Filename)%(Extension);'))" />
+    </ItemGroup>
+    <GetFileHash Files="@(_OceNative)" Algorithm="SHA256" HashEncoding="hex" Condition="'@(_OceNative)' != ''">
+      <Output TaskParameter="Items" ItemName="_OceNativeHashed" />
+    </GetFileHash>
+    <Error Condition="'$(SelfContained)' == 'true' and '@(_OceNativeHashed->Count())' != '@(_OceExpected->Count())'"
+           Text="Se esperaban las librerías nativas $(OceNativeLibraries) y se han encontrado: @(_OceNativeHashed->'%(Filename)%(Extension)')" />
+    <ItemGroup>
+      <_OceSource Include="// &lt;auto-generated/&gt; OceNativeLibraryHashes in OpenControlEdge.csproj." />
+      <_OceSource Include="namespace OpenControlEdge.Services%3B" />
+      <_OceSource Include="internal static partial class NativeLibraries" />
+      <_OceSource Include="{" />
+      <_OceSource Include="internal static readonly System.Collections.Generic.IReadOnlyDictionary&lt;string, string&gt; Sha256 = new System.Collections.Generic.Dictionary&lt;string, string&gt;(System.StringComparer.OrdinalIgnoreCase)" />
+      <_OceSource Include="{" />
+      <_OceSource Include="@(_OceNativeHashed->'[&quot;%(Filename)%(Extension)&quot;] = &quot;%(FileHash)&quot;,')" />
+      <_OceSource Include="}%3B" />
+      <_OceSource Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(OceNativeLibrariesFile)" Lines="@(_OceSource)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <!-- WPF compiles twice (the markup pass, which already receives the file, and the real one): add it once. -->
+    <ItemGroup>
+      <_OceGenerated Include="@(Compile)" Condition="'%(Filename)%(Extension)' == 'NativeLibraries.g.cs'" />
+      <Compile Include="$(OceNativeLibrariesFile)" Condition="'@(_OceGenerated)' == ''" />
+      <FileWrites Include="$(OceNativeLibrariesFile)" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />

@@ -25,7 +25,9 @@ internal static class UpdateInstaller
             {
                 UseShellExecute = true,
                 Verb = "runas",
-                WorkingDirectory = payload,
+                // Never the payload itself: Windows does not rename a folder that is a process's current directory,
+                // and the helper renames this one into place.
+                WorkingDirectory = Environment.SystemDirectory,
                 Arguments = $"--apply-update \"{payload}\" {Environment.ProcessId}",
             };
             Process.Start(start)?.Dispose();
@@ -44,9 +46,26 @@ internal static class UpdateInstaller
         }
     }
 
-    /// Runs in the verified new binary. The parent exits before its installation folder is renamed.
+    /// Runs in the verified new binary (--apply-update), elevated, once the old app has quit: swaps the staged payload
+    /// in and starts the installed copy, the new one or — when anything fails — the previous one.
     internal static bool ApplyAfterParentExit(string payload, int parentPid)
     {
+        // First the old app has to be gone: it holds the installed files, and whatever is started below needs its
+        // single-instance lock.
+        if (parentPid > 0)
+        {
+            try
+            {
+                using Process parent = Process.GetProcessById(parentPid);
+                if (!parent.WaitForExit(60_000))
+                {
+                    Log.Warn("Updates", "la app anterior no se cerró en 60 s; no se actualiza");
+                    return false;
+                }
+            }
+            catch (ArgumentException) { }  // already gone
+        }
+
         string install = Installer.InstallDir;
         string expectedPrefix = install + ".update-";
         string fullPayload = Path.GetFullPath(payload);
@@ -62,32 +81,23 @@ internal static class UpdateInstaller
             || !File.Exists(Path.Combine(fullPayload, "OpenControlEdge.exe")))
         {
             Log.Warn("Updates", "update helper rejected staging path or permissions");
+            StartInstalled();
             return false;
         }
 
         string backup = install + ".previous-update-" + Guid.NewGuid().ToString("N");
         try
         {
-            if (parentPid > 0)
-            {
-                try
-                {
-                    using Process parent = Process.GetProcessById(parentPid);
-                    if (!parent.WaitForExit(60_000)) throw new TimeoutException("La app anterior no se cerró.");
-                }
-                catch (ArgumentException) { }
-            }
-
             bool hadInstall = Directory.Exists(install);
             if (!SwapDirectory(fullPayload, install, backup))
             {
+                Log.Warn("Updates", "no se pudo sustituir la instalación; se vuelve a abrir la versión anterior");
+                StartInstalled();
                 TryDelete(stage);
                 return false;
             }
 
-            string executable = Path.Combine(install, "OpenControlEdge.exe");
-            try { Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, Verb = "runas", WorkingDirectory = install })?.Dispose(); }
-            catch (Exception ex) { Log.Warn("Updates apply", "no se pudo reiniciar la nueva versión: " + ex.GetType().Name); }
+            StartInstalled();
             if (hadInstall) Installer.DeleteAtRestart(backup);
             TryDelete(stage);
             Log.Info("Updates", "updated installation swapped and relaunched");
@@ -96,17 +106,33 @@ internal static class UpdateInstaller
         catch (Exception ex)
         {
             Log.Error("Updates apply", ex);
+            StartInstalled();
             TryDelete(stage);
             return false;
         }
     }
 
-    /// Shared swap primitive so the local release fixture exercises both replacement and rollback behavior.
+    /// Opens whatever is installed now (the new version, or the previous one after a failed swap), so the widget never
+    /// stays closed after the app quit to be updated.
+    private static void StartInstalled()
+    {
+        if (!File.Exists(Installer.InstalledExe)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(Installer.InstalledExe) { UseShellExecute = true, Verb = "runas", WorkingDirectory = Installer.InstallDir })?.Dispose();
+        }
+        catch (Exception ex) { Log.Warn("Updates apply", "no se pudo abrir la versión instalada: " + ex.GetType().Name); }
+    }
+
+    /// Shared swap primitive so the local release fixture exercises replacement, rollback and a current directory
+    /// inside the payload. The current directory is moved out of both folders first: Windows does not rename a
+    /// folder that is a process's current directory.
     internal static bool SwapDirectory(string payload, string target, string backup, bool failAfterBackup = false)
     {
         bool hadTarget = Directory.Exists(target);
         try
         {
+            Directory.SetCurrentDirectory(Environment.SystemDirectory);
             if (hadTarget)
             {
                 if (Directory.Exists(backup)) Directory.Delete(backup, recursive: true);

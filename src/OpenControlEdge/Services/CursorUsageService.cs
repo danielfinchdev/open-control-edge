@@ -30,7 +30,7 @@ internal sealed class CursorUsageService
             string cookieValue = Uri.EscapeDataString(credentials.UserId + "::" + credentials.AccessToken);
             request.Headers.TryAddWithoutValidation("Cookie", "WorkosCursorSessionToken=" + cookieValue);
             request.Headers.TryAddWithoutValidation("Accept", "application/json");
-            request.Headers.TryAddWithoutValidation("User-Agent", "OpenControlEdge/2.0");
+            request.Headers.TryAddWithoutValidation("User-Agent", UsageHttp.UserAgent);
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.Unauthorized) return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage);
             if (!response.IsSuccessStatusCode)
@@ -45,7 +45,7 @@ internal sealed class CursorUsageService
                 CursorUsageParser.Result usage = CursorUsageParser.Parse(json);
                 string? plan = string.IsNullOrWhiteSpace(usage.Membership) ? credentials.MembershipType : usage.Membership;
                 return usage.Cycle is null
-                    ? CursorSnapshot.Failed("Respuesta sin datos") with { Plan = credentials.MembershipType }
+                    ? CursorSnapshot.Failed("Respuesta sin datos") with { Plan = plan }
                     : new CursorSnapshot(false, usage.Cycle, usage.OnDemand, null)
                     {
                         Plan = plan,

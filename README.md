@@ -108,7 +108,8 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
   interactiva (`EmptyWorkingSet`), sin purgar la lista *standby*. Está desactivado por defecto; se activa con
   `"ramCleanup": true`.
 - **Arranca con datos en 1–2 s**: la última lectura (solo porcentajes, fechas, planes e importes; ningún secreto) se
-  guarda en `%LOCALAPPDATA%\OpenControlEdge\cache.json` y se pinta nada más abrir; después se refresca.
+  guarda en `cache.json`, junto a los ajustes (ver [Configuración](#configuración)), y se pinta nada más abrir;
+  después se refresca.
 - **Icono en la bandeja** con menú propio (Actualizar / Claves de API… / Iniciar con Windows / Desinstalar… / Salir)
   e información al pasar el ratón.
 - **Aviso de temperatura**: cada pico por encima de 90 °C queda anotado en el registro, incluso cuando
@@ -126,17 +127,26 @@ Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente c
    Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
    El flujo publica una attestation verificable con
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
-   La aplicación verifica el SHA-256 del ZIP y exige que el ejecutable lleve una firma Authenticode válida cuyo
-   certificado identifique a SignPath Foundation. No instalará automáticamente un ZIP sin esa firma. El digest
-   autentica la descarga frente a corrupción; la firma aporta confianza independiente en el publicador y en la
-   política de firma aprobada. La attestation se puede verificar manualmente con GitHub CLI; la aplicación no ejecuta
-   `gh` en segundo plano.
+   Al actualizarse desde Ajustes, la aplicación solo acepta un ZIP que cumpla todo esto (si no, no instala nada):
+   - su SHA-256 coincide con el `digest` que GitHub publica para ese archivo;
+   - contiene exactamente `OpenControlEdge.exe` y sus 8 librerías nativas: ni un archivo más ni uno menos;
+   - el ejecutable tiene una firma Authenticode válida de SignPath Foundation (nombre exacto) y su recurso de versión
+     dice OpenControlEdge y la versión anunciada. SignPath Foundation firma muchos proyectos con esa misma
+     identidad, así que esta comprobación se apoya también en que la descarga solo puede venir de las Releases de
+     este repositorio;
+   - cada librería es byte a byte la que trae la versión instalada o está firmada por su editor (Microsoft para
+     las de WPF, Xamarin para las de Mono.Posix, SignPath Foundation para las que firme la Release).
+
+   La attestation se puede verificar manualmente con GitHub CLI; la aplicación no ejecuta `gh` en segundo plano.
 2. Extrae el ZIP y abre `OpenControlEdge.exe`. Acepta el UAC (el único) y aparece la ventana
    **«Instalar Open Control Edge»**. Al pulsar **Instalar**:
    - cierra la versión en marcha (también EdgeWidget) y sus tareas;
-   - copia solo `OpenControlEdge.exe` a `C:\Program Files\OpenControlEdge`, comprueba SHA-256 y la firma
-     Authenticode de SignPath antes de cambiarla de sitio (si algo falla, vuelve la copia anterior); después
-     verifica que ningún usuario sin privilegios pueda escribir en la carpeta ni en el ejecutable;
+   - copia a `C:\Program Files\OpenControlEdge` solo `OpenControlEdge.exe` y sus 8 librerías nativas. Comprueba
+     con SHA-256 que la copia del ejecutable es idéntica al que aceptaste en el UAC y que cada librería es
+     exactamente la que se publicó con él (sus SHA-256 van compilados dentro del ejecutable), antes de cambiar la
+     carpeta de sitio (si algo falla, vuelve la copia anterior); después verifica que ningún usuario sin privilegios
+     pueda escribir en la carpeta ni en el ejecutable. La instalación local no exige firma: instala el ejecutable que
+     tú mismo has abierto;
    - protege `%ProgramData%\OpenControlEdge\<SID>` (sin enlaces ni puntos de reanálisis, escritura solo para
      administradores y etiqueta de integridad alta). Los ajustes de versiones anteriores no se migran;
    - registra el inicio con Windows (Programador de tareas: al iniciar sesión tu usuario, **sin retraso**, con
@@ -297,7 +307,8 @@ Este programa lee archivos de credenciales. Merece que se explique exactamente q
   `https://api.openai.com/auth` → `chatgpt_plan_type` (el plan). El `id_token` se decodifica desde los bytes del
   archivo sin convertirlo en cadena; el resto de sus claims (correo, identificadores…) se saltan.
 - De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; el token se materializa
-  como cadena porque se envía en la cookie HTTPS; el claim `sub` se lee directamente con `Utf8JsonReader`. La base se abre en solo lectura.
+  como cadena porque se envía en la cookie HTTPS; el claim `sub` se lee directamente con `Utf8JsonReader`. La base se
+  abre en solo lectura y en modo defensivo (ver «Lo que queda» más abajo). La base de OpenCode, igual.
 - Cursor envía la sesión en la cookie de la petición HTTPS a `cursor.com`; nunca la guarda ni la registra.
 
 Todo lo demás —**incluidos los tokens de refresco, el resto del `id_token` y el `account_id`**— se salta a nivel
@@ -313,7 +324,9 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   del Explorador de tu sesión (`CreateProcessWithTokenW`), tras comprobar que es tu misma cuenta y que no está
   elevado. Si no se puede, no se lanza nada.
 - No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
-  respuesta ni cabeceras.
+  respuesta ni cabeceras. La única salida ajena que se anota es la primera línea de error de la CLI de Claude cuando
+  falla, recortada a 160 caracteres y con cualquier secuencia de 24 o más caracteres de aspecto de clave o token
+  sustituida por «…».
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README. OpenCode no usa red.
   Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
 - No tiene telemetría, ni analítica ni servicios residentes. La comprobación diaria de actualizaciones es opcional y
@@ -336,8 +349,16 @@ de `%ProgramData%\OpenControlEdge\<SID>`.
   mecanismo estándar para leer sensores en Windows, pero es código de kernel de terceros.
 - Mientras no esté activa la firma (ver [Firma](#firma)), el ejecutable no está firmado: SmartScreen puede avisar la
   primera vez.
-- «Liberar RAM», como administrador, recorta la memoria de otros procesos y vacía la caché del sistema. No borra
-  datos de nadie, pero durante unos segundos los programas vuelven a cargar de disco lo que necesiten.
+- «Liberar RAM», como administrador, recorta la memoria de los procesos de tu sesión (no vacía la caché del sistema).
+  No borra datos de nadie, pero durante unos segundos los programas vuelven a cargar de disco lo que necesiten; la
+  memoria «liberada» vuelve a ocuparse en cuanto se usa. Por eso está desactivado por defecto.
+- Las bases SQLite de Cursor y OpenCode las escribe un programa que corre con tu usuario, y el widget instalado las
+  lee con permisos de administrador. Se abren como SQLite recomienda para bases no confiables (solo lectura, modo
+  defensivo, `trusted_schema` desactivado, comprobación de celdas y sin mapear en memoria), pero SQLite sigue
+  interpretando el archivo dentro del proceso elevado. Si no usas Cursor ni OpenCode, ocúltalos en Ajustes →
+  Agentes y el widget no abrirá esas bases.
+- Las actualizaciones desde la app confían en que las Releases de este repositorio solo las publique su autor: la
+  firma de SignPath Foundation identifica al firmante, no al proyecto (ver [Instalación](#instalación)).
 
 ---
 
@@ -366,7 +387,8 @@ El widget lo hace él solo, sin scripts ni tareas programadas y **sin abrir ning
 - Comprobado en Claude Code 2.1.284: la CLI solo refresca el token cuando le quedan **menos de 5 minutos**. Antes de
   eso la llamada termina bien pero deja el token como estaba; por eso la tarjeta dice entonces «Sesión vigente
   hasta…» y la renovación automática se programa dentro de esos 5 minutos.
-- En el registro solo quedan la duración, el código de salida y el resultado. **Nunca ningún token.**
+- En el registro quedan la duración, el código de salida, el resultado y, si la CLI falla, su primera línea de error
+  saneada (ver [Privacidad y seguridad](#privacidad-y-seguridad)). **Nunca ningún token.**
 
 ---
 
@@ -400,11 +422,12 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net8.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **92 PNG** con los dos modos, las pestañas, las nueve tarjetas (RAM incluida), los estados de la
+Renderiza **170 PNG** con los dos modos, las pestañas, las nueve tarjetas (RAM incluida), los estados de la
 renovación de Claude, el gasto de Claude / Codex / Cursor, estados de error y sin datos, una cuenta gratuita de
 Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas, menú de bandeja, diálogo de claves y la
-ventana de instalación (bienvenida, progreso, hecho, error y desinstalar). Incluye pruebas de los parsers de OpenCode,
-de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales observadas. No lee credenciales, no
+ventana de instalación (bienvenida, progreso, hecho, error y desinstalar), y la ventana de Ajustes en varios tamaños
+de pantalla. Incluye pruebas de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales
+observadas, y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
 toca los ajustes ni abre los sensores ni escribe en el registro.
 
 ---
@@ -438,6 +461,11 @@ Pasos para activarla (los tiene que dar el dueño del repositorio; ninguna IA pu
    - secreto `SIGNPATH_API_TOKEN` (token de API de un usuario de SignPath con permiso de envío);
    - variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` y `SIGNPATH_SIGNING_POLICY_SLUG`.
 4. Publicar una etiqueta `v*`: el flujo pedirá la firma y esperará a que se apruebe en SignPath.
+
+Solo se firma el ejecutable: SignPath Foundation no firma componentes de terceros. Las librerías de WPF y de
+Mono.Posix ya vienen firmadas por su editor; `e_sqlite3.dll` (SQLite) no. Mientras una versión nueva traiga el mismo
+`e_sqlite3.dll`, la actualización desde la app lo acepta porque es idéntico al instalado; si una versión lo cambia
+(al actualizar SQLitePCLRaw), la app rechazará esa actualización y habrá que instalarla una vez desde su ZIP.
 
 ## Code signing policy
 
@@ -494,10 +522,11 @@ Algunas decisiones que quizá no son obvias:
 - **El hover se detecta sondeando la posición del cursor**, no con eventos: cuando el panel está
   recogido la ventana es transparente a los clics (`WS_EX_TRANSPARENT`) y no recibe ratón en absoluto.
 - **Ese sondeo va en dos velocidades.** Cada vuelta empieza con una comprobación barata; el sondeo rápido
-  solo se activa sobre las zonas interactivas del panel, franja o tarjeta. No hay una medición de CPU de v2 publicada todavía.
-- **Las cadencias dependen de si el panel está a la vista**: sensores cada 20 s / 60 s, uso cada 2 / 6
-  minutos. Los sensores nunca se paran del todo, para que «Máxima de la sesión» sea una cifra real y no
-  solo los momentos en que estabas mirando.
+  solo se activa sobre las zonas interactivas del panel, franja o tarjeta, y en reposo se duerme del todo (lo despierta
+  el propio ratón). El consumo medido está en el [CHANGELOG](CHANGELOG.md) (2.1.0).
+- **Los sensores dependen de si el panel está a la vista**: cada 20 s con el panel fijado y visible, cada 60 s si no.
+  Nunca se paran del todo, para que «Máxima de la sesión» sea una cifra real y no solo los momentos en que estabas
+  mirando. El uso de las IAs se consulta con el intervalo elegido en Ajustes (2 minutos por defecto).
 - **Los anillos y las barras son `FrameworkElement` con `OnRender`**, no plantillas de control. Menos
   árbol visual y control exacto del trazo.
 - **Los iconos están dibujados en código** en un espacio de 24×24, no son fuentes ni SVG.

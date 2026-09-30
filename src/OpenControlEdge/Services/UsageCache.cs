@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace OpenControlEdge.Services;
 
-/// The last good reading of Claude, Codex and Cursor in %LOCALAPPDATA%\OpenControlEdge\cache.json, painted the
+/// The last good reading of Claude, Codex and Cursor in cache.json in the data folder (DataFolder.Path), painted the
 /// moment the widget opens so it shows data in 2–3 s instead of "Cargando…"; the first refresh replaces it.
 ///
 ///   { "savedAt": "ISO-8601",

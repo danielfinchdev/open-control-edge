@@ -7,9 +7,10 @@ using static OpenControlEdge.Interop.SecurityNative;
 
 namespace OpenControlEdge.Services;
 
-/// Per-user data directory and the rules for writing into it from an elevated process.
+/// Per-user data directory — %ProgramData%\OpenControlEdge\{SID} for the installed (elevated) copy,
+/// %LOCALAPPDATA%\OpenControlEdge for a copy run without elevation — and the rules for writing into it elevated.
 ///
-/// The installer (Installer.HardenDataFolder, ported from tools\instalar.ps1) leaves it owned by Administrators, with a
+/// The installer (DataFolder.Harden, ported from tools\instalar.ps1) leaves it owned by Administrators, with a
 /// protected DACL — SYSTEM and Administrators full control, Users read and execute — and a High mandatory label, after
 /// refusing any link or reparse point inside it. Only then may the elevated widget write there: otherwise any program
 /// running as the user could plant a link and redirect an elevated write elsewhere.

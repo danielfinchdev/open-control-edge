@@ -1,21 +1,65 @@
 Third-party components
 ======================
 
+Open Control Edge is published self-contained: the release ZIP carries the .NET runtime
+and the components below. Each keeps its own license; the source of the MPL-2.0 ones
+is available at the addresses given.
+
+.NET 8 runtime and Windows Desktop runtime (WPF), including the native libraries
+D3DCompiler_47_cor3.dll, PenImc_cor3.dll, PresentationNative_cor3.dll,
+vcruntime140_cor3.dll and wpfgfx_cor3.dll
+Copyright (c) .NET Foundation and Contributors
+MIT License
+https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+https://github.com/dotnet/wpf/blob/main/LICENSE.TXT
+Third-party notices of the runtime:
+https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT
+https://github.com/dotnet/wpf/blob/main/THIRD-PARTY-NOTICES.TXT
+
 LibreHardwareMonitorLib 0.9.6
 Mozilla Public License 2.0
-https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LICENSE
+https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+
+BlackSharp.Core 1.0.7, DiskInfoToolkit 1.1.2 and RAMSPDToolkit-NDD 1.4.2
+(dependencies of LibreHardwareMonitorLib)
+Copyright Florian K.
+Mozilla Public License 2.0
+https://github.com/Blacktempel/BlackSharp
+https://github.com/Blacktempel/DiskInfoToolkit
+https://github.com/Blacktempel/RAMSPDToolkit
+
+HidSharp 2.6.4 (dependency of LibreHardwareMonitorLib)
+Copyright 2010-2025 James F. Bellinger
+Apache License 2.0
+https://software.seekye.com/hidsharp
+
+Mono.Posix.NETStandard 1.0.0, including MonoPosixHelper.dll and
+libMonoPosixHelper.dll (dependency of LibreHardwareMonitorLib)
+Copyright Microsoft Corporation and Xamarin Inc.
+MIT License
+https://github.com/mono/mono/blob/main/LICENSE
 
 Microsoft.Data.Sqlite 8.0.11 and Microsoft.Data.Sqlite.Core
+Copyright (c) .NET Foundation and Contributors
 MIT License
 https://github.com/dotnet/efcore/blob/main/LICENSE.txt
 
+SQLitePCLRaw 2.1.6 (core, provider, bundle and lib.e_sqlite3)
+Copyright 2014-2023 SourceGear, LLC
+Apache License 2.0
+https://github.com/ericsink/SQLitePCL.raw
+
+SQLite (e_sqlite3.dll)
+Public domain
+https://www.sqlite.org/copyright.html
+
 System.Security.Cryptography.ProtectedData 8.0.0
+Copyright (c) .NET Foundation and Contributors
 MIT License
 https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
 
-SQLite native library (SQLitePCLRaw / e_sqlite3)
-Public domain
-https://www.sqlite.org/copyright.html
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+Mozilla Public License 2.0: https://www.mozilla.org/MPL/2.0/
 
 Outfit font files in Assets/Fonts (Regular, Medium, SemiBold)
 Copyright 2021 The Outfit Project Authors (https://github.com/Outfitio/Outfit-Fonts)

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
@@ -35,7 +34,7 @@ internal static class PawnIoInstaller
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenControlEdge");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(UsageHttp.UserAgent);
             using JsonDocument release = JsonDocument.Parse(await client.GetStringAsync(Releases, cancellationToken));
             JsonElement assets = release.RootElement.GetProperty("assets");
             JsonElement asset = assets.EnumerateArray().FirstOrDefault(a =>
@@ -75,55 +74,13 @@ internal static class PawnIoInstaller
         }
     }
 
+    /// Trusted Authenticode signature by namazso's certificate: exact subject and thumbprint (a renewed certificate
+    /// needs a new release of Open Control Edge).
     private static bool VerifyPawnSignature(string file)
     {
-        var fileInfo = new WinTrustFileInfo(file);
-        IntPtr filePointer = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
-        IntPtr dataPointer = IntPtr.Zero;
-        try
-        {
-            Marshal.StructureToPtr(fileInfo, filePointer, false);
-            var data = new WinTrustData { FileInfo = filePointer };
-            dataPointer = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustData>());
-            Marshal.StructureToPtr(data, dataPointer, false);
-            Guid action = new("00AAC56B-CD44-11D0-8CC2-00C04FC295EE");
-            if (WinVerifyTrust(IntPtr.Zero, ref action, dataPointer) != 0) return false;
-            using X509Certificate2 certificate = new(X509Certificate.CreateFromSignedFile(file));
-            return string.Equals(certificate.Subject, ExpectedSubject, StringComparison.Ordinal)
-                && string.Equals(certificate.Thumbprint, ExpectedThumbprint, StringComparison.OrdinalIgnoreCase);
-        }
-        catch { return false; }
-        finally
-        {
-            if (dataPointer != IntPtr.Zero) Marshal.FreeHGlobal(dataPointer);
-            Marshal.DestroyStructure<WinTrustFileInfo>(filePointer);
-            Marshal.FreeHGlobal(filePointer);
-        }
+        using X509Certificate2? signer = AuthenticodeVerifier.TrustedSigner(file);
+        return signer is not null
+               && string.Equals(signer.Subject, ExpectedSubject, StringComparison.Ordinal)
+               && string.Equals(signer.Thumbprint, ExpectedThumbprint, StringComparison.OrdinalIgnoreCase);
     }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WinTrustFileInfo
-    {
-        internal uint Size;
-        internal string FilePath;
-        internal IntPtr FileHandle;
-        internal IntPtr KnownSubject;
-        internal WinTrustFileInfo(string path) { Size = (uint)Marshal.SizeOf<WinTrustFileInfo>(); FilePath = path; FileHandle = IntPtr.Zero; KnownSubject = IntPtr.Zero; }
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WinTrustData
-    {
-        internal uint Size;
-        internal IntPtr PolicyCallbackData, SipClientData;
-        internal uint UiChoice, RevocationChecks, UnionChoice;
-        internal IntPtr FileInfo;
-        internal uint StateAction;
-        internal IntPtr StateData, UrlReference;
-        internal uint ProviderFlags, UiContext;
-        public WinTrustData() { Size = (uint)Marshal.SizeOf<WinTrustData>(); PolicyCallbackData = SipClientData = StateData = UrlReference = IntPtr.Zero; UiChoice = 2; RevocationChecks = 0; UnionChoice = 1; FileInfo = IntPtr.Zero; StateAction = 0; ProviderFlags = 0x1000; UiContext = 0; }
-    }
-
-    [DllImport("wintrust.dll", ExactSpelling = true, PreserveSig = true)]
-    private static extern int WinVerifyTrust(IntPtr window, ref Guid action, IntPtr data);
 }

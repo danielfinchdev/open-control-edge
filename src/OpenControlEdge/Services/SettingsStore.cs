@@ -75,7 +75,8 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 /// A window rectangle in physical pixels (virtual screen coordinates) and the DPI of the monitor it was on.
 internal readonly record struct WindowBounds(int X, int Y, int Width, int Height, int Dpi);
 
-/// Preferences in %LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json:
+/// Preferences in OpenControlEdge.settings.json inside the data folder (DataFolder.Path: %ProgramData%\OpenControlEdge\{SID}
+/// for the installed copy, %LOCALAPPDATA%\OpenControlEdge for a copy run without elevation):
 ///
 ///   {
 ///     "panelMode": "pinned" | "auto",
@@ -86,19 +87,23 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "uiScale": "auto" | number (0.6 – 1.6),
 ///     "autoRenewClaude": true | false,
 ///     "ramCleanup": true | false,
+///     "usageRefreshMinutes": 2 | 5 | 10 | 15,
+///     "autoCheckUpdates": true | false,
+///     "lastAutoUpdateCheck": "ISO-8601", // optional
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
-/// Per user and always writable, so the executable itself can live in a folder only administrators can write
-/// to. A file left next to the executable by an earlier version is still read, and never written.
-/// A missing or unreadable file means defaults. Never throws.
+/// Per user and next to the log, never next to the executable, which lives in a folder only administrators can
+/// write to. A file left next to the executable by an earlier version is still read, and never written.
+/// A missing or unreadable file means defaults (and is then never overwritten). Never throws.
 internal static class SettingsStore
 {
     private const string FileName = "OpenControlEdge.settings.json";
     private static bool _unreadable;
     private static bool _warnedUnreadable;
+    private static bool _warnedProvider;
 
     public static string FilePath => Path.Combine(DataFolder.Path, FileName);
 
@@ -258,27 +263,24 @@ internal static class SettingsStore
         }
     }
 
+    /// An entry that is not "auto", "show" or "hide" is ignored (that provider is automatic) and logged once; it does
+    /// not make the whole file unreadable, which would stop every later change from being saved.
     private static FrozenDictionary<string, ProviderVisibility> ParseProviders(JsonElement root)
     {
-        if (!root.TryGetProperty("providers", out JsonElement providers))
+        if (!root.TryGetProperty("providers", out JsonElement providers) || providers.ValueKind != JsonValueKind.Object)
             return FrozenDictionary<string, ProviderVisibility>.Empty;
-        if (providers.ValueKind != JsonValueKind.Object)
-        {
-            MarkUnreadable("providers is not an object");
-            return FrozenDictionary<string, ProviderVisibility>.Empty;
-        }
 
         var map = new Dictionary<string, ProviderVisibility>(StringComparer.OrdinalIgnoreCase);
         foreach (JsonProperty property in providers.EnumerateObject())
         {
-            if (property.Value.ValueKind != JsonValueKind.String)
+            if (property.Value.ValueKind == JsonValueKind.String
+                && ParseVisibility(property.Value.GetString()) is ProviderVisibility parsed)
+                map[property.Name] = parsed;
+            else if (!_warnedProvider)
             {
-                MarkUnreadable("provider visibility is not a string");
-                continue;
+                _warnedProvider = true;
+                Log.Warn("Settings", $"visibilidad no válida para «{property.Name}»: se usa automático");
             }
-            ProviderVisibility? visibility = ParseVisibility(property.Value.GetString());
-            if (visibility is ProviderVisibility parsed) map[property.Name] = parsed;
-            else MarkUnreadable("unknown provider visibility");
         }
 
         return map.Count == 0 ? FrozenDictionary<string, ProviderVisibility>.Empty : map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);

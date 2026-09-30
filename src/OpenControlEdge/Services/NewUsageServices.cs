@@ -9,7 +9,7 @@ using Microsoft.Data.Sqlite;
 
 namespace OpenControlEdge.Services;
 
-/// Reads only OpenCode's local SQLite session aggregates; never opens a network connection.
+/// Reads only OpenCode's local SQLite session aggregates (UntrustedSqlite); never opens a network connection.
 internal sealed class OpenCodeUsageService
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
@@ -33,15 +33,7 @@ internal sealed class OpenCodeUsageService
         decimal cost = 0;
         foreach (string path in paths)
         {
-            var builder = new SqliteConnectionStringBuilder
-            {
-                DataSource = path,
-                Mode = SqliteOpenMode.ReadOnly,
-                Pooling = false,
-                DefaultTimeout = 4,
-            };
-            using var connection = new SqliteConnection(builder.ToString());
-            connection.Open();
+            using SqliteConnection connection = UntrustedSqlite.Open(path);
             using (var schema = connection.CreateCommand())
             {
                 schema.CommandText = "PRAGMA table_info(session)";
@@ -58,24 +50,21 @@ internal sealed class OpenCodeUsageService
             command.CommandText = "SELECT COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0), COALESCE(SUM(tokens_reasoning), 0), COALESCE(SUM(tokens_cache_read), 0), COALESCE(SUM(tokens_cache_write), 0), COALESCE(SUM(cost), 0) FROM session";
             using SqliteDataReader reader = command.ExecuteReader();
             if (!reader.Read()) return OpenCodeSnapshot.Failed("Respuesta local sin datos");
-            input = checked(input + reader.GetInt64(0));
-            output = checked(output + reader.GetInt64(1));
-            reasoning = checked(reasoning + reader.GetInt64(2));
-            cacheRead = checked(cacheRead + reader.GetInt64(3));
-            cacheWrite = checked(cacheWrite + reader.GetInt64(4));
-            cost += Convert.ToDecimal(reader.GetDouble(5), System.Globalization.CultureInfo.InvariantCulture);
+            input = checked(input + NonNegative(reader.GetInt64(0)));
+            output = checked(output + NonNegative(reader.GetInt64(1)));
+            reasoning = checked(reasoning + NonNegative(reader.GetInt64(2)));
+            cacheRead = checked(cacheRead + NonNegative(reader.GetInt64(3)));
+            cacheWrite = checked(cacheWrite + NonNegative(reader.GetInt64(4)));
+            double sessionCost = reader.GetDouble(5);
+            if (!double.IsFinite(sessionCost) || sessionCost < 0) return OpenCodeSnapshot.Failed("Respuesta local sin datos");
+            cost += (decimal)sessionCost;
         }
-
-        // Funnel persisted values through the same strict parser exercised by --snapshot.
-        string json = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            totalTokens = new { input, output, reasoning, cache = new { read = cacheRead, write = cacheWrite } },
-            totalCost = cost,
-        });
-        var values = OpenCodeUsageParser.Parse(json);
-        return new OpenCodeSnapshot(false, values.Input, values.Output, values.Reasoning, values.CacheRead,
-            values.CacheWrite, values.Cost, null);
+        return new OpenCodeSnapshot(false, input, output, reasoning, cacheRead, cacheWrite, cost, null);
     }
+
+    /// Token counts are never negative; a database that says otherwise is not read.
+    private static long NonNegative(long value) =>
+        value >= 0 ? value : throw new InvalidDataException("OpenCode: recuento de tokens negativo");
 
     private static string[] ResolveDatabasePaths()
     {
@@ -99,6 +88,7 @@ internal sealed class DeepSeekUsageService
 {
     private static readonly HttpClient Http = UsageHttp.Create();
     private const string BalanceUrl = "https://api.deepseek.com/user/balance";
+    public const string AddKeyMessage = "Añade la clave API de DeepSeek";
 
     internal async Task<DeepSeekSnapshot> FetchAsync()
     {
@@ -106,12 +96,12 @@ internal sealed class DeepSeekUsageService
         try
         {
             key = ProviderKeyStore.Read("deepseek");
-            if (key is null || key.Length == 0) return DeepSeekSnapshot.Failed("Añade la clave API de DeepSeek");
+            if (key is null || key.Length == 0) return DeepSeekSnapshot.Failed(AddKeyMessage);
             using var request = new HttpRequestMessage(HttpMethod.Get, BalanceUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Encoding.UTF8.GetString(key));
             request.Headers.Accept.ParseAdd("application/json");
             using HttpResponseMessage response = await Http.SendAsync(request).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("DeepSeek", "HTTP 401"); return DeepSeekSnapshot.Failed("Clave API no válida"); }
+            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("DeepSeek", "HTTP 401"); return DeepSeekSnapshot.Failed(ProviderKeyStore.InvalidKeyMessage); }
             if (!response.IsSuccessStatusCode) { Log.Warn("DeepSeek", $"HTTP {(int)response.StatusCode}"); return DeepSeekSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"); }
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try { return new DeepSeekSnapshot(false, DeepSeekBalanceParser.Parse(Encoding.UTF8.GetString(body)), null); }
@@ -129,6 +119,7 @@ internal sealed class OpenRouterUsageService
 {
     private static readonly HttpClient Http = UsageHttp.Create();
     private const string KeyUrl = "https://openrouter.ai/api/v1/key";
+    public const string AddKeyMessage = "Añade la clave API de OpenRouter";
 
     internal async Task<OpenRouterSnapshot> FetchAsync()
     {
@@ -136,12 +127,12 @@ internal sealed class OpenRouterUsageService
         try
         {
             key = ProviderKeyStore.Read("openrouter");
-            if (key is null || key.Length == 0) return OpenRouterSnapshot.Failed("Añade la clave API de OpenRouter");
+            if (key is null || key.Length == 0) return OpenRouterSnapshot.Failed(AddKeyMessage);
             using var request = new HttpRequestMessage(HttpMethod.Get, KeyUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Encoding.UTF8.GetString(key));
             request.Headers.Accept.ParseAdd("application/json");
             using HttpResponseMessage response = await Http.SendAsync(request).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("OpenRouter", "HTTP 401"); return OpenRouterSnapshot.Failed("Clave API no válida"); }
+            if (response.StatusCode == HttpStatusCode.Unauthorized) { Log.Warn("OpenRouter", "HTTP 401"); return OpenRouterSnapshot.Failed(ProviderKeyStore.InvalidKeyMessage); }
             if (!response.IsSuccessStatusCode) { Log.Warn("OpenRouter", $"HTTP {(int)response.StatusCode}"); return OpenRouterSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"); }
             byte[] body = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             try

@@ -27,6 +27,19 @@ internal static class AiDetector
     internal const string ClaudeLoginMessage = "Inicia sesión en Claude Code";
     internal const string CodexLoginMessage = "Inicia sesión en ChatGPT o Codex";
     internal const string CursorLoginMessage = "Inicia sesión en Cursor";
+    internal const string AddKeyMessage = "Añade la clave API desde Claves de API…";
+
+    /// Messages that mean "sign in (or add a key) first", not "something failed": the Agents page shows them as a
+    /// missing session instead of a sync error.
+    private static readonly HashSet<string> SignInMessages = new(StringComparer.Ordinal)
+    {
+        ClaudeLoginMessage, CodexLoginMessage, CursorLoginMessage, AddKeyMessage,
+        ClaudeUsageService.RenewMessage, ClaudeSessionRenewer.SignedOutMessage, ClaudeSessionRenewer.LoginOpenedMessage,
+        ClaudeSessionRenewer.NotRenewedMessage, CodexUsageService.RenewMessage,
+        DeepSeekUsageService.AddKeyMessage, OpenRouterUsageService.AddKeyMessage,
+    };
+
+    internal static bool NeedsSignIn(string? message) => message is not null && SignInMessages.Contains(message);
 
     public static bool IsInstalled(AiProviderId provider)
     {

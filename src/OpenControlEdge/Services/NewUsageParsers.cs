@@ -3,36 +3,7 @@ using System.Text.Json;
 
 namespace OpenControlEdge.Services;
 
-/// Strict parser for OpenCode's local session aggregate shape. It accepts no transcript or session metadata.
-internal static class OpenCodeUsageParser
-{
-    public static (long Input, long Output, long Reasoning, long CacheRead, long CacheWrite, decimal Cost) Parse(string json)
-    {
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object
-            || !root.TryGetProperty("totalTokens", out JsonElement tokens) || tokens.ValueKind != JsonValueKind.Object
-            || !ReadNonNegativeInt64(tokens, "input", out long input)
-            || !ReadNonNegativeInt64(tokens, "output", out long output)
-            || !ReadNonNegativeInt64(tokens, "reasoning", out long reasoning)
-            || !tokens.TryGetProperty("cache", out JsonElement cache) || cache.ValueKind != JsonValueKind.Object
-            || !ReadNonNegativeInt64(cache, "read", out long cacheRead)
-            || !ReadNonNegativeInt64(cache, "write", out long cacheWrite)
-            || !root.TryGetProperty("totalCost", out JsonElement costValue)
-            || costValue.ValueKind != JsonValueKind.Number || !costValue.TryGetDecimal(out decimal cost) || cost < 0)
-            throw new JsonException("OpenCode stats fields missing");
-        return (input, output, reasoning, cacheRead, cacheWrite, cost);
-    }
-
-    private static bool ReadNonNegativeInt64(JsonElement obj, string key, out long value)
-    {
-        value = 0;
-        return obj.TryGetProperty(key, out JsonElement item) && item.ValueKind == JsonValueKind.Number
-            && item.TryGetInt64(out value) && value >= 0;
-    }
-
-}
-
+/// GET https://api.deepseek.com/user/balance: the total balance in USD when the account has one, otherwise in CNY.
 internal static class DeepSeekBalanceParser
 {
     public static Money Parse(string json)
@@ -55,22 +26,16 @@ internal static class DeepSeekBalanceParser
                     CultureInfo.InvariantCulture, out decimal amount) || amount < 0)
                 throw new JsonException("DeepSeek balance entry malformed");
             string currency = currencyValue.GetString()!;
-            if (currency is not ("USD" or "CNY")) throw new JsonException("DeepSeek currency unsupported");
             if (currency == "USD") return new Money(amount, currency);
             if (currency == "CNY") cny = new Money(amount, currency);
         }
         if (cny is Money yuan) return yuan;
         throw new JsonException("DeepSeek balance unavailable");
     }
-
-    private static bool ReadNonNegativeInt64(JsonElement obj, string key, out long value)
-    {
-        value = 0;
-        return obj.TryGetProperty(key, out JsonElement item) && item.ValueKind == JsonValueKind.Number
-            && item.TryGetInt64(out value) && value >= 0;
-    }
 }
 
+/// GET https://openrouter.ai/api/v1/key: usage in USD, and the key's limit with what remains of it (both null when
+/// the key has no limit).
 internal static class OpenRouterKeyParser
 {
     public static (decimal Usage, decimal? Limit, decimal? Remaining) Parse(string json)

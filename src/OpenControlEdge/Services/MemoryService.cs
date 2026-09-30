@@ -12,10 +12,9 @@ internal sealed record RamSnapshot(double Percent, ulong UsedBytes, ulong TotalB
     public static RamSnapshot Failed(string message) => new(0, 0, 0, null, null, null, message);
 }
 
-/// Freed: how much the memory in use (what the ring shows) dropped right after the clean-up, in bytes (never negative).
-/// CacheFreed: how much the system cache (standby list included) dropped. Partial: some step could not run (the
-/// standby purge needs administrator rights).
-internal sealed record RamCleanResult(ulong FreedBytes, ulong CacheFreedBytes, int Trimmed, bool StandbyPurged, bool Partial);
+/// FreedBytes: how much the memory in use (what the ring shows) dropped right after the clean-up (never negative).
+/// Trimmed: how many processes had their working set trimmed.
+internal sealed record RamCleanResult(ulong FreedBytes, int Trimmed);
 
 /// Physical memory reading and the one-off "Liberar RAM". Never throws.
 internal static class MemoryService
@@ -55,17 +54,16 @@ internal static class MemoryService
         }
     }
 
-    /// Trims the working set of every process it may open (not this one, not the critical ones) and purges the
-    /// standby list. Windows pages back in whatever is used next and refills the cache: a one-off clean-up, like the
-    /// "clear memory" button of a phone. Runs on a worker thread.
+    /// Trims the working set of every process of this session it may open (not this one, not the critical ones), so
+    /// their idle pages leave physical memory. The standby list (the file cache) is never purged. Windows pages back
+    /// in whatever is used next: a one-off clean-up, like the "clear memory" button of a phone, not a lasting saving.
+    /// Runs on a worker thread.
     public static Task<RamCleanResult> CleanAsync() => Task.Run(Clean);
 
     private static RamCleanResult Clean()
     {
         ulong before = Available();
-        ulong cacheBefore = Cache();
         int trimmed = 0;
-        bool partial = false;
         int self = Environment.ProcessId;
         int session = Process.GetCurrentProcess().SessionId;
 
@@ -91,15 +89,9 @@ internal static class MemoryService
             }
         }
 
-        // Trimming only affects the current interactive session. The global standby list is never purged.
-        const bool purged = false;
-
         ulong after = Available();
-        ulong cacheAfter = Cache();
-        var result = new RamCleanResult(after > before ? after - before : 0,
-            cacheBefore > cacheAfter ? cacheBefore - cacheAfter : 0, trimmed, purged, partial);
-        Log.Info("RAM", $"liberar: {trimmed} procesos recortados, standby {(purged ? "purgada" : "sin purgar")}, "
-                        + $"{result.FreedBytes / (1024 * 1024)} MB en uso menos, caché {result.CacheFreedBytes / (1024 * 1024)} MB menos");
+        var result = new RamCleanResult(after > before ? after - before : 0, trimmed);
+        Log.Info("RAM", $"liberar: {trimmed} procesos recortados, {result.FreedBytes / (1024 * 1024)} MB en uso menos");
         return result;
     }
 
@@ -108,8 +100,4 @@ internal static class MemoryService
         var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         return GlobalMemoryStatusEx(ref status) ? status.ullAvailPhys : 0;
     }
-
-    private static ulong Cache() =>
-        GetPerformanceInfo(out PERFORMANCE_INFORMATION perf, Marshal.SizeOf<PERFORMANCE_INFORMATION>())
-            ? (ulong)perf.SystemCache * (ulong)perf.PageSize : 0;
 }

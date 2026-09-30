@@ -30,6 +30,28 @@
 - Mensaje claro si falta el servicio Inicio de sesión secundario (seclogon); el mutex de instancia única ya no se
   puede bloquear desde otro proceso; al desinstalar, la carpeta de datos se devuelve al usuario; mensajes de
   servicios traducidos al inglés.
+- **Actualizaciones desde la app, corregidas y endurecidas** (auditoría final antes de publicar):
+  - El auxiliar que aplica la actualización arrancaba con su directorio de trabajo dentro de la carpeta que luego
+    renombra, algo que Windows no permite: la actualización fallaba siempre y el widget se quedaba cerrado. Ahora
+    arranca fuera, espera a que la app anterior se cierre y, si algo falla, vuelve a abrir la versión instalada.
+  - El ZIP debe contener exactamente el ejecutable y sus 8 librerías nativas, ni un archivo más. Antes solo se
+    comprobaba la firma del ejecutable y cualquier otra DLL del ZIP se habría instalado y cargado como administrador.
+  - El ejecutable debe estar firmado por SignPath Foundation (nombre exacto, no «contiene») y su recurso de versión
+    decir OpenControlEdge y la versión anunciada. Cada librería debe ser la que trae la versión instalada o estar
+    firmada por su editor (Microsoft, Xamarin o SignPath Foundation).
+- **Instalación local**: el ejecutable lleva compilados los SHA-256 de sus 8 librerías nativas (se calculan al
+  compilar a partir de los archivos que se publican) y el instalador solo copia librerías idénticas.
+- Las bases SQLite de Cursor y OpenCode se abren en modo defensivo (solo lectura y consulta, `trusted_schema`
+  desactivado, comprobación de celdas, sin mapear en memoria, solo archivos normales). Un proveedor oculto en
+  Ajustes → Agentes ya no se lee nunca, tampoco al abrir esa página, que lo marca como «Oculto».
+- Pegar una clave API con espacios o saltos de línea ya no la invalida. Un valor de proveedor desconocido en el
+  archivo de ajustes se ignora en vez de impedir que se guarde cualquier cambio.
+- La X del panel dice «Salir de Open Control Edge». «Liberar RAM» informa solo de la memoria en uso liberada y ya
+  no menciona una caché que no vacía.
+- Limpieza: código muerto de la purga de la lista *standby*, textos y comentarios que ya no eran ciertos
+  (cadencia «2 / 6 minutos», rutas de `%LOCALAPPDATA%` para la copia instalada), User-Agent con la versión real,
+  verificación Authenticode unificada, lógica que dependía de comparar textos en español, y THIRD-PARTY-NOTICES
+  completo (runtime de .NET y WPF, HidSharp, Mono.Posix, SQLitePCLRaw y las dependencias de LibreHardwareMonitor).
 
 - **Escrituras elevadas protegidas.** Ajustes, registro, claves y caché del widget instalado se guardan en
   `%ProgramData%\OpenControlEdge\<SID>`, con la carpeta del producto y la del usuario endurecidas. Se elimina la

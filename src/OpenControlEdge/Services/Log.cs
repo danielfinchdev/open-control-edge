@@ -3,7 +3,7 @@ using System.IO;
 
 namespace OpenControlEdge.Services;
 
-/// Minimal file log in %LOCALAPPDATA%\OpenControlEdge\widget.log. Never throws. Never logs tokens.
+/// Minimal file log: widget.log in the data folder (DataFolder.Path). Never throws. Never logs tokens.
 internal static class Log
 {
     private const long MaxBytes = 512 * 1024;

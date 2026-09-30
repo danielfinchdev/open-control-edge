@@ -8,6 +8,10 @@ namespace OpenControlEdge.Services;
 /// replaced, and none lives more than an hour so DNS changes are still picked up.
 internal static class UsageHttp
 {
+    /// "OpenControlEdge/2.1.0": the version of this build, for every request the app sends.
+    public static string UserAgent { get; } =
+        $"OpenControlEdge/{typeof(UsageHttp).Assembly.GetName().Version?.ToString(3) ?? "unknown"}";
+
     public static HttpClient Create() => new(new SocketsHttpHandler
     {
         PooledConnectionIdleTimeout = TimeSpan.FromMinutes(16),

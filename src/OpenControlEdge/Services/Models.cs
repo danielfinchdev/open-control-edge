@@ -24,6 +24,9 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
     /// Set when this is an earlier good reading kept after an HTTP 429 or 5xx: when it was read. The card then says
     /// how old it is.
     public DateTimeOffset? StaleSince { get; init; }
+
+    /// The HTTP status of a failed request (429, 503…); null otherwise.
+    public int? HttpStatus { get; init; }
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.

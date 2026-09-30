@@ -6,15 +6,12 @@ namespace OpenControlEdge.Interop;
 /// caller; nothing here throws.
 internal static class ProcessNative
 {
-    public const uint PROCESS_TERMINATE = 0x0001;
     public const uint PROCESS_SET_QUOTA = 0x0100;
-    public const uint PROCESS_QUERY_INFORMATION = 0x0400;
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
     public const uint TOKEN_ASSIGN_PRIMARY = 0x0001;
     public const uint TOKEN_DUPLICATE = 0x0002;
     public const uint TOKEN_QUERY = 0x0008;
-    public const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
     public const uint TOKEN_ADJUST_DEFAULT = 0x0080;
     public const uint TOKEN_ADJUST_SESSIONID = 0x0100;
 
@@ -31,16 +28,10 @@ internal static class ProcessNative
     public const int STARTF_USESTDHANDLES = 0x00000100;
     public const short SW_HIDE = 0;
 
-    public const uint WAIT_OBJECT_0 = 0;
     public const uint WAIT_TIMEOUT = 0x102;
 
     public const int JobObjectExtendedLimitInformation = 9;
     public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
-
-    public const uint SE_PRIVILEGE_ENABLED = 0x2;
-
-    public const int SystemMemoryListInformation = 80;
-    public const int MemoryPurgeStandbyList = 4;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFO
@@ -130,21 +121,6 @@ internal static class ProcessNative
         public uint ThreadCount;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct LUID
-    {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct TOKEN_PRIVILEGES
-    {
-        public uint PrivilegeCount;
-        public LUID Luid;
-        public uint Attributes;
-    }
-
     [DllImport("user32.dll")]
     public static extern IntPtr GetShellWindow();
 
@@ -230,16 +206,6 @@ internal static class ProcessNative
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool IsProcessCritical(IntPtr process, out bool critical);
 
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool LookupPrivilegeValueW(string? system, string name, out LUID luid);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    public static extern bool AdjustTokenPrivileges(IntPtr token, bool disableAll, ref TOKEN_PRIVILEGES newState, int length,
-        IntPtr previousState, IntPtr returnLength);
-
-    [DllImport("ntdll.dll")]
-    public static extern int NtSetSystemInformation(int infoClass, ref int info, int length);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, out BY_HANDLE_FILE_INFORMATION info);
 
@@ -271,21 +237,6 @@ internal static class ProcessNative
         {
             if (!GetTokenInformation(token, TokenElevation, out int elevated, sizeof(int), out _)) return true;
             return elevated != 0;
-        }
-        finally { CloseHandle(token); }
-    }
-
-    /// Enables one privilege the token already holds (for example SeProfileSingleProcessPrivilege). False when the
-    /// token does not hold it — AdjustTokenPrivileges then succeeds but reports ERROR_NOT_ALL_ASSIGNED.
-    public static bool EnablePrivilege(string name)
-    {
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out IntPtr token)) return false;
-        try
-        {
-            if (!LookupPrivilegeValueW(null, name, out LUID luid)) return false;
-            var privileges = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = SE_PRIVILEGE_ENABLED };
-            if (!AdjustTokenPrivileges(token, false, ref privileges, 0, IntPtr.Zero, IntPtr.Zero)) return false;
-            return Marshal.GetLastWin32Error() == 0;
         }
         finally { CloseHandle(token); }
     }
