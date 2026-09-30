@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Shell;
 using static OpenControlEdge.Interop.NativeMethods;
 using OpenControlEdge.Services;
 using OpenControlEdge.Ui;
@@ -29,6 +30,8 @@ internal sealed class SettingsWindow : Window
     private readonly StackPanel _content = new();
     private readonly StackPanel _navigation = new();
     private readonly TextBlock _title = new();
+    private readonly ScrollViewer _scroll;
+    private readonly ScaleTransform _zoom = new(1, 1);
     private string _category = "General";
     private UpdateRelease? _release;
     private bool _noUpdateAvailable;
@@ -47,8 +50,14 @@ internal sealed class SettingsWindow : Window
         _sensorsAvailable = sensorsAvailable ?? (() => false);
         _category = categoryName;
         _release = release;
-        Width = 780; Height = 580; WindowStartupLocation = WindowStartupLocation.Manual;
-        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true;
+        Width = DesignWidth; Height = DesignHeight; MinWidth = MinDesignWidth; MinHeight = MinDesignHeight;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; AllowsTransparency = true;
+        // Resize borders and corners without a system frame; the header drags the window itself (DragMove).
+        WindowChrome.SetWindowChrome(this, new WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6),
+            GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0), UseAeroCaptionButtons = false });
+        // Maximised, a frameless transparent window spills past the work area, so it always stays a normal window.
+        StateChanged += (_, _) => { if (WindowState == WindowState.Maximized) WindowState = WindowState.Normal; };
         // A normal window, never Topmost and without Owner (a window owned by the topmost panel stays above every
         // other window): it has a taskbar button and an Alt+Tab entry like any other.
         Background = Brushes.Transparent; ShowInTaskbar = true; Topmost = false; UseLayoutRounding = true;
@@ -63,7 +72,7 @@ internal sealed class SettingsWindow : Window
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 28, ShadowDepth = 4, Opacity = .32 } };
         frame.SetResourceReference(Border.BorderBrushProperty, "Set.Border");
         frame.SetResourceReference(Border.BackgroundProperty, "Set.Background");
-        var root = new DockPanel();
+        var root = new DockPanel { LayoutTransform = _zoom };
 
         var header = new DockPanel { Margin = new Thickness(20, 12, 12, 12), Background = Brushes.Transparent };
         var close = new Button { Style = (Style)Application.Current.FindResource("PanelRoundButton"), Width = 30, Height = 30,
@@ -86,16 +95,65 @@ internal sealed class SettingsWindow : Window
         }
         DockPanel.SetDock(_navigation, Dock.Left); root.Children.Add(_navigation);
         _content.Margin = new Thickness(0, 0, 12, 0);
-        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(20, 16, 8, 14), Content = _content };
-        root.Children.Add(scroll); frame.Child = root; Content = frame;
+        _scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(20, 16, 8, 14), Content = _content };
+        root.Children.Add(_scroll); frame.Child = root; Content = frame;
         ThemeManager.Changed += OnThemeChanged; Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
         Loc.Changed += OnLanguageChanged; Closed += (_, _) => Loc.Changed -= OnLanguageChanged;
-        Loaded += (_, _) => CenterOnWidgetMonitor();
+        SourceInitialized += (_, _) => Place();
+        Closing += (_, _) => SaveBounds();
         RenderPage();
     }
 
     /// The panel: the window opens centred on its monitor. Not an Owner (see above).
     internal Window? Anchor { get; init; }
+
+    /// Snapshots: never placed on screen, never reads or saves the window position.
+    internal bool Preview { get; init; }
+
+    // Size at zoom 1, in design units. DesignHeight fits the tallest page (General of the installed copy, Updates
+    // with release notes); Snapshot fails if any page needs to scroll at the default size.
+    private const double DesignWidth = 820;
+    private const double DesignHeight = 780;
+    private const double MinDesignWidth = 600;
+    private const double MinDesignHeight = 420;
+    // Zoom like the panel's automatic scale: 1 on a 1080p work area, larger on taller screens; smaller only when the
+    // default size would not fit the work area (down to MinZoom, then the page scrolls).
+    private const double ReferenceWorkHeight = 1040;
+    private const double MinZoom = 0.8;
+    private const double MaxZoom = 1.4;
+    private const double ScreenMargin = 16;
+
+    private static double ZoomFor(double workWidthDip, double workHeightDip)
+    {
+        double preferred = Math.Min(Math.Max(1, workHeightDip / ReferenceWorkHeight), MaxZoom);
+        double fit = Math.Min((workWidthDip - 2 * ScreenMargin) / DesignWidth, (workHeightDip - 2 * ScreenMargin) / DesignHeight);
+        return Math.Round(Math.Max(MinZoom, Math.Min(preferred, fit)), 3);
+    }
+
+    private void ApplyZoom(double zoom)
+    {
+        _zoom.ScaleX = _zoom.ScaleY = zoom;
+        MinWidth = MinDesignWidth * zoom;
+        MinHeight = MinDesignHeight * zoom;
+    }
+
+    /// Snapshots: the default size and zoom on a work area of the given size (DIPs).
+    internal void PreviewWorkArea(double workWidthDip, double workHeightDip)
+    {
+        double zoom = ZoomFor(workWidthDip, workHeightDip);
+        ApplyZoom(zoom);
+        Width = DesignWidth * zoom;
+        Height = DesignHeight * zoom;
+    }
+
+    /// Snapshots: a window resized by hand to the given size (DIPs), keeping the zoom.
+    internal void PreviewSize(double width, double height)
+    {
+        Width = Math.Max(width, MinWidth);
+        Height = Math.Max(height, MinHeight);
+    }
+
+    internal double Zoom => _zoom.ScaleX;
 
     /// Brings the window to the front (it is not topmost, so another window may be covering it).
     internal void BringToFront()
@@ -104,21 +162,73 @@ internal sealed class SettingsWindow : Window
         Activate();
     }
 
-    private void CenterOnWidgetMonitor()
+    /// Before the window is first shown: where it was last closed if that is still wholly inside the work area of a
+    /// monitor with the same DPI; otherwise the default size, centred on the panel's monitor. In physical pixels.
+    private void Place()
     {
-        if (Anchor is null) return;
+        if (Preview) return;
         try
         {
-            IntPtr hwnd = new WindowInteropHelper(Anchor).Handle;
-            IntPtr monitor = hwnd != IntPtr.Zero ? MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (SettingsStore.Load().SettingsWindow is WindowBounds saved && SavedPlacement(saved) is double savedZoom)
+            {
+                ApplyZoom(savedZoom);
+                MoveTo(hwnd, saved.X, saved.Y, saved.Width, saved.Height);
+                return;
+            }
+            IntPtr anchor = Anchor is null ? IntPtr.Zero : new WindowInteropHelper(Anchor).Handle;
+            IntPtr monitor = anchor != IntPtr.Zero ? MonitorFromWindow(anchor, MONITOR_DEFAULTTONEAREST)
                 : MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
             var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
             if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return;
-            double dpi = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 ? dpiX / 96.0 : 1;
-            Left = (info.rcWork.Left + info.rcWork.Right) / (2 * dpi) - Width / 2;
-            Top = (info.rcWork.Top + info.rcWork.Bottom) / (2 * dpi) - Height / 2;
+            double dpi = MonitorDpi(monitor) / 96.0;
+            RECT work = info.rcWork;
+            double zoom = ZoomFor((work.Right - work.Left) / dpi, (work.Bottom - work.Top) / dpi);
+            ApplyZoom(zoom);
+            int width = (int)Math.Round(DesignWidth * zoom * dpi), height = (int)Math.Round(DesignHeight * zoom * dpi);
+            MoveTo(hwnd, (work.Left + work.Right - width) / 2, (work.Top + work.Bottom - height) / 2, width, height);
         }
-        catch (Exception ex) { Log.Warn("Settings", "monitor centering: " + ex.GetType().Name); }
+        catch (Exception ex) { Log.Warn("Settings", "window placement: " + ex.GetType().Name); }
+    }
+
+    /// The zoom for a saved rectangle, or null when it no longer fits a monitor as it was.
+    private static double? SavedPlacement(WindowBounds saved)
+    {
+        var rect = new RECT { Left = saved.X, Top = saved.Y, Right = saved.X + saved.Width, Bottom = saved.Y + saved.Height };
+        IntPtr monitor = MonitorFromRect(ref rect, MONITOR_DEFAULTTONULL);
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info) || MonitorDpi(monitor) != saved.Dpi) return null;
+        RECT work = info.rcWork;
+        if (rect.Left < work.Left || rect.Top < work.Top || rect.Right > work.Right || rect.Bottom > work.Bottom) return null;
+        double dpi = saved.Dpi / 96.0;
+        double zoom = ZoomFor((work.Right - work.Left) / dpi, (work.Bottom - work.Top) / dpi);
+        bool tooSmall = saved.Width < Math.Floor(MinDesignWidth * zoom * dpi) || saved.Height < Math.Floor(MinDesignHeight * zoom * dpi);
+        return tooSmall ? null : zoom;
+    }
+
+    private static int MonitorDpi(IntPtr monitor) =>
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0 ? (int)dpiX : 96;
+
+    /// Onto the target monitor first (if its DPI differs WPF rescales the window there), then the exact size.
+    private static void MoveTo(IntPtr hwnd, int x, int y, int width, int height)
+    {
+        SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(hwnd, IntPtr.Zero, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    /// Closed while minimised, the position is not saved and the previous one is kept.
+    private void SaveBounds()
+    {
+        if (Preview || WindowState != WindowState.Normal) return;
+        try
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out RECT rect)) return;
+            var bounds = new WindowBounds(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, (int)GetDpiForWindow(hwnd));
+            if (bounds.Width <= 0 || bounds.Height <= 0 || bounds.Dpi <= 0) return;
+            if (SettingsStore.Load().SettingsWindow != bounds) SettingsStore.Update(x => x with { SettingsWindow = bounds });
+        }
+        catch (Exception ex) { Log.Warn("Settings", "window position: " + ex.GetType().Name); }
     }
 
     /// shadcn zinc: the dark set lives in Controls.xaml; the light one overrides it in this window only.
@@ -242,19 +352,61 @@ internal sealed class SettingsWindow : Window
     }
     private static TextBlock Label(string text) => new() { Text = text, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 0) };
     /// Setting row: label (and an optional hint underneath) on the left, the control on the right.
-    private static DockPanel Row(Panel panel, string label, UIElement control, string? hint = null)
+    private static FlowRow Row(Panel panel, string label, UIElement control, string? hint = null)
     {
-        var row = new DockPanel { Margin = new Thickness(0, 6, 0, 6), LastChildFill = true };
-        DockPanel.SetDock(control, Dock.Right); row.Children.Add(control);
+        var row = new FlowRow { Margin = new Thickness(0, 6, 0, 6) };
+        row.Children.Add(control);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(Label(label));
         if (hint is not null) text.Children.Add(Muted(hint, new Thickness(0, 2, 16, 0), 12));
         row.Children.Add(text); panel.Children.Add(row); return row;
     }
+
+    /// Children[0] (the control) to the right of Children[1] (its text), both centred vertically; when the text
+    /// would be left with less than MinTextWidth, the control goes under the text instead, aligned to the left.
+    private sealed class FlowRow : Panel
+    {
+        internal double MinTextWidth { get; init; } = 200;
+        private const double StackGap = 8;
+        private bool _stacked;
+
+        protected override Size MeasureOverride(Size available)
+        {
+            UIElement control = InternalChildren[0], text = InternalChildren[1];
+            control.Measure(new Size(double.PositiveInfinity, available.Height));
+            double controlWidth = control.DesiredSize.Width;
+            _stacked = !double.IsInfinity(available.Width) && available.Width - controlWidth < MinTextWidth;
+            if (!_stacked)
+            {
+                text.Measure(new Size(Math.Max(0, available.Width - controlWidth), available.Height));
+                return new Size(text.DesiredSize.Width + controlWidth, Math.Max(text.DesiredSize.Height, control.DesiredSize.Height));
+            }
+            text.Measure(new Size(available.Width, double.PositiveInfinity));
+            control.Measure(new Size(available.Width, double.PositiveInfinity));
+            return new Size(Math.Max(text.DesiredSize.Width, control.DesiredSize.Width),
+                text.DesiredSize.Height + StackGap + control.DesiredSize.Height);
+        }
+
+        protected override Size ArrangeOverride(Size final)
+        {
+            UIElement control = InternalChildren[0], text = InternalChildren[1];
+            if (!_stacked)
+            {
+                Size c = control.DesiredSize;
+                double textWidth = Math.Max(0, final.Width - c.Width);
+                text.Arrange(new Rect(0, (final.Height - text.DesiredSize.Height) / 2, textWidth, text.DesiredSize.Height));
+                control.Arrange(new Rect(textWidth, (final.Height - c.Height) / 2, c.Width, c.Height));
+                return final;
+            }
+            text.Arrange(new Rect(0, 0, final.Width, text.DesiredSize.Height));
+            control.Arrange(new Rect(0, text.DesiredSize.Height + StackGap, Math.Min(control.DesiredSize.Width, final.Width), control.DesiredSize.Height));
+            return final;
+        }
+    }
     private void General()
     {
         Settings s = SettingsStore.Load(); var card = Card(Loc.Get("Settings.Preferences")); var p = Inside(card);
-        if (Installer.IsInstalledCopy)
+        if (Installer.IsInstalledCopy || Preview)
             AddStartupToggle(p);
         AddChoice(p, Loc.Get("Settings.PanelMode"), [Loc.Get("Settings.Pinned"), Loc.Get("Settings.Automatic")], s.PanelMode == PanelMode.Auto ? 1 : 0, i => { var updated = SettingsStore.Update(x => x with { PanelMode = i == 0 ? PanelMode.Pinned : PanelMode.Auto }); if (updated != null) _apply(updated); });
         int[] intervals = [2, 5, 10, 15];
@@ -358,8 +510,9 @@ internal sealed class SettingsWindow : Window
             return value;
         });
         toggle.IsEnabled = false;
-        DockPanel row = Row(panel, Loc.Get("Settings.StartWithWindows"), toggle, Loc.Get("Settings.Checking"));
+        FlowRow row = Row(panel, Loc.Get("Settings.StartWithWindows"), toggle, Loc.Get("Settings.Checking"));
         hint = (TextBlock)((StackPanel)row.Children[1]).Children[1];
+        if (Preview) { Show(true, null); return; }
         Task.Run(AutoStartService.Query).ContinueWith(task =>
         {
             if (task.IsCompletedSuccessfully) Show(task.Result.Enabled, task.Result.Error);
@@ -517,7 +670,8 @@ internal sealed class SettingsWindow : Window
                 if (actions.Children.Count > 0) ((FrameworkElement)actions.Children[^1]).Margin = new Thickness(0, 0, 6, 0);
                 actions.Children.Add(SmallButton(Loc.Get("Settings.Retry"), async (_, _) => { await _retry(id); RenderPage(); }));
             }
-            DockPanel.SetDock(actions, Dock.Right); row.Children.Add(actions);
+            var details = new FlowRow { MinTextWidth = 190 };
+            details.Children.Add(actions);
 
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
             var titleLine = new WrapPanel();
@@ -532,7 +686,8 @@ internal sealed class SettingsWindow : Window
                 if (id == AiProviderId.Claude && status.Kind == "error") detail.Foreground = (Brush)Application.Current.FindResource("Oce.Danger");
                 text.Children.Add(detail);
             }
-            row.Children.Add(text);
+            details.Children.Add(text);
+            row.Children.Add(details);
             p.Children.Add(row);
 
             if (_keyEditor == id) p.Children.Add(KeyEditor(id, name));
@@ -688,24 +843,74 @@ internal sealed class SettingsWindow : Window
             AiProviderId.OpenRouter => new AgentStatus("connected", null, null, null),
             _ => new AgentStatus("missing", null, null, null),
         };
+        static string FileName(string category) => category.Replace(' ', '_').Replace('ó', 'o').Replace('í', 'i').ToLowerInvariant();
+        // Work areas in DIPs (screen minus taskbar): the reference 1080p at 100 %, then 1366×768 at 100 %,
+        // 1080p at 125 % and 1440p at 100 %, the same as the panel's scale shots.
+        (string Name, double Width, double Height)[] screens = [("1366x768", 1366, 728), ("1080p_125", 1536, 824), ("1440p", 2560, 1392)];
+        var release = new UpdateRelease(new Version(2, 2, 0), "v2.2.0",
+            "Novedades de ejemplo:\n• Ventana de ajustes redimensionable.\n• Recuerda su tamaño y posición.\n• Corrige textos cortados en pantallas pequeñas.\n• Otras mejoras menores.",
+            new Uri("https://example.invalid/OpenControlEdge.zip"), "sha256:0");
         foreach ((AppTheme theme, string themeName) in new[] { (AppTheme.Dark, "dark"), (AppTheme.Light, "light") })
         foreach ((UiLanguage language, string languageName) in new[] { (UiLanguage.Spanish, "es"), (UiLanguage.English, "en") })
         {
             ThemeManager.Apply(theme, RingColorTheme.Classic);
             Loc.Apply(language);
             var window = new SettingsWindow(static () => Task.CompletedTask, static _ => { }, SampleStatus, static _ => Task.CompletedTask)
-                { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -32000, Top = -32000 };
+                { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -32000, Top = -32000, Preview = true };
+            window.PreviewWorkArea(1920, 1040);
             window.Show();
+            void Save(string file, string check)
+            {
+                window.RenderPage(); window.UpdateLayout();
+                if (check.Length > 0 && window._scroll.ExtentHeight > window._scroll.ViewportHeight + 0.5)
+                    throw new InvalidDataException($"settings page scrolls at its default size: {check} " +
+                        $"({window._scroll.ExtentHeight:0} > {window._scroll.ViewportHeight:0})");
+                Snapshot.SaveElement((FrameworkElement)window.Content, IOPath.Combine(directory, file));
+            }
             foreach (string category in Categories)
             {
-                window._category = category; window.RenderPage(); window.UpdateLayout();
-                string name = category.Replace(' ', '_').Replace('ó', 'o').Replace('í', 'i').ToLowerInvariant();
-                Snapshot.SaveElement((FrameworkElement)window.Content, IOPath.Combine(directory, $"settings_{themeName}_{languageName}_{name}.png"));
+                window._category = category;
+                Save($"settings_{themeName}_{languageName}_{FileName(category)}.png", $"{category} {themeName} {languageName}");
+            }
+            window._category = "Actualizaciones"; window._release = release;
+            Save($"settings_{themeName}_{languageName}_actualizaciones_release.png", $"release {themeName} {languageName}");
+            window._release = null;
+            if (language == UiLanguage.Spanish)
+            {
+                foreach ((string screen, double workWidth, double workHeight) in screens)
+                {
+                    window.PreviewWorkArea(workWidth, workHeight);
+                    string zoom = window.Zoom.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    foreach (string category in Categories)
+                    {
+                        window._category = category;
+                        Save($"settings_{screen}_x{zoom}_{themeName}_{FileName(category)}.png", $"{category} {screen} {themeName}");
+                    }
+                    window._category = "Actualizaciones"; window._release = release;
+                    Save($"settings_{screen}_x{zoom}_{themeName}_actualizaciones_release.png", $"release {screen} {themeName}");
+                    window._release = null;
+                }
+                // Resized by hand at zoom 1: as narrow and as short as allowed, and wide.
+                window.PreviewWorkArea(1920, 1040);
+                foreach ((string shape, double width, double height) in new[] { ("narrow", 0.0, 0.0), ("wide", 1240.0, 760.0) })
+                {
+                    window.PreviewSize(width, height);
+                    foreach (string category in Categories)
+                    {
+                        window._category = category;
+                        Save($"settings_resized_{shape}_{themeName}_{FileName(category)}.png", "");
+                    }
+                    window._category = "Agentes"; window._keyEditor = AiProviderId.DeepSeek;
+                    window.RenderPage(); window.UpdateLayout(); window._scroll.ScrollToEnd();
+                    Save($"settings_resized_{shape}_{themeName}_agentes_api_key.png", "");
+                    window._scroll.ScrollToHome(); window._keyEditor = null;
+                }
+                window.PreviewWorkArea(1920, 1040);
             }
             if (theme == AppTheme.Dark && language == UiLanguage.Spanish)
             {
-                window._category = "Agentes"; window._keyEditor = AiProviderId.DeepSeek; window.RenderPage(); window.UpdateLayout();
-                Snapshot.SaveElement((FrameworkElement)window.Content, IOPath.Combine(directory, "settings_dark_es_agentes_api_key.png"));
+                window._category = "Agentes"; window._keyEditor = AiProviderId.DeepSeek;
+                Save("settings_dark_es_agentes_api_key.png", "agentes api key");
                 window._keyEditor = null;
             }
             window.Close();

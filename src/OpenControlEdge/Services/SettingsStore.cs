@@ -66,8 +66,14 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     public bool AutoCheckUpdates { get; init; }
     public DateTimeOffset? LastAutoUpdateCheck { get; init; }
 
+    /// Where the settings window was last closed; null opens it at its default size, centred on the panel's monitor.
+    public WindowBounds? SettingsWindow { get; init; }
+
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
+
+/// A window rectangle in physical pixels (virtual screen coordinates) and the DPI of the monitor it was on.
+internal readonly record struct WindowBounds(int X, int Y, int Width, int Height, int Dpi);
 
 /// Preferences in %LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json:
 ///
@@ -81,6 +87,7 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
 ///     "autoRenewClaude": true | false,
 ///     "ramCleanup": true | false,
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
+///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
@@ -145,6 +152,7 @@ internal static class SettingsStore
                 UsageRefreshMinutes = GetInt(root, "usageRefreshMinutes") is int minutes && minutes is 2 or 5 or 10 or 15 ? minutes : 2,
                 AutoCheckUpdates = GetBool(root, "autoCheckUpdates") ?? false,
                 LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
+                SettingsWindow = ParseBounds(root, "settingsWindow"),
             };
         }
         catch (Exception ex)
@@ -220,6 +228,16 @@ internal static class SettingsStore
                 writer.WriteNumber("usageRefreshMinutes", settings.UsageRefreshMinutes);
                 writer.WriteBoolean("autoCheckUpdates", settings.AutoCheckUpdates);
                 if (settings.LastAutoUpdateCheck is DateTimeOffset checkedAt) writer.WriteString("lastAutoUpdateCheck", checkedAt.ToString("o"));
+                if (settings.SettingsWindow is WindowBounds bounds)
+                {
+                    writer.WriteStartObject("settingsWindow");
+                    writer.WriteNumber("x", bounds.X);
+                    writer.WriteNumber("y", bounds.Y);
+                    writer.WriteNumber("width", bounds.Width);
+                    writer.WriteNumber("height", bounds.Height);
+                    writer.WriteNumber("dpi", bounds.Dpi);
+                    writer.WriteEndObject();
+                }
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -289,6 +307,15 @@ internal static class SettingsStore
     {
         if (!root.TryGetProperty("uiScale", out JsonElement value) || value.ValueKind != JsonValueKind.Number) return null;
         return value.TryGetDouble(out double scale) && scale >= MinUiScale && scale <= MaxUiScale ? scale : null;
+    }
+
+    /// Anything but an object with the five whole numbers (positive size and DPI) means "no saved position".
+    private static WindowBounds? ParseBounds(JsonElement root, string key)
+    {
+        if (!root.TryGetProperty(key, out JsonElement value) || value.ValueKind != JsonValueKind.Object) return null;
+        if (GetInt(value, "x") is not int x || GetInt(value, "y") is not int y || GetInt(value, "width") is not int width
+            || GetInt(value, "height") is not int height || GetInt(value, "dpi") is not int dpi) return null;
+        return width > 0 && height > 0 && dpi > 0 ? new WindowBounds(x, y, width, height, dpi) : null;
     }
 
     private static bool? GetBool(JsonElement obj, string key) =>
