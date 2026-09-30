@@ -49,7 +49,9 @@ internal sealed class SettingsWindow : Window
         _release = release;
         Width = 780; Height = 580; WindowStartupLocation = WindowStartupLocation.Manual;
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true;
-        Background = Brushes.Transparent; ShowInTaskbar = false; UseLayoutRounding = true;
+        // A normal window, never Topmost and without Owner (a window owned by the topmost panel stays above every
+        // other window): it has a taskbar button and an Alt+Tab entry like any other.
+        Background = Brushes.Transparent; ShowInTaskbar = true; Topmost = false; UseLayoutRounding = true;
         FontFamily = (FontFamily)Application.Current.FindResource("UiFont"); FontSize = 13;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
         TextOptions.SetTextRenderingMode(this, TextRenderingMode.Grayscale);
@@ -91,12 +93,22 @@ internal sealed class SettingsWindow : Window
         RenderPage();
     }
 
+    /// The panel: the window opens centred on its monitor. Not an Owner (see above).
+    internal Window? Anchor { get; init; }
+
+    /// Brings the window to the front (it is not topmost, so another window may be covering it).
+    internal void BringToFront()
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
+
     private void CenterOnWidgetMonitor()
     {
-        if (Owner is null) return;
+        if (Anchor is null) return;
         try
         {
-            IntPtr hwnd = new WindowInteropHelper(Owner).Handle;
+            IntPtr hwnd = new WindowInteropHelper(Anchor).Handle;
             IntPtr monitor = hwnd != IntPtr.Zero ? MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
                 : MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
             var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
@@ -132,14 +144,15 @@ internal sealed class SettingsWindow : Window
 
     private void OnThemeChanged() { Dispatcher.InvokeAsync(() => { Background = Brushes.Transparent; UsePalette(); RenderPage(); }); }
     private void OnLanguageChanged() => Dispatcher.InvokeAsync(RenderPage);
-    internal void RefreshAgents() => Dispatcher.InvokeAsync(RenderPage);
+    /// Only the Agents page shows agent state; any other page is left alone (rebuilding it would reset its controls).
+    internal void RefreshAgents() => Dispatcher.InvokeAsync(() => { if (_category == "Agentes") RenderPage(); });
     internal void ShowUpdateResult(UpdateRelease release)
     {
         _release = release;
         _noUpdateAvailable = false;
         _category = "Actualizaciones";
         RenderPage();
-        Activate();
+        BringToFront();
     }
     private static string T(string es, string en) => Loc.Language == UiLanguage.English ? en : es;
     private static Style StyleOf(string key) => (Style)Application.Current.FindResource(key);
@@ -176,6 +189,7 @@ internal sealed class SettingsWindow : Window
     private void RenderPage()
     {
         _title.Text = "Open Control Edge · " + T("Ajustes", "Settings");
+        Title = _title.Text;
         foreach (Button button in _navigation.Children)
         {
             string category = (string)button.Tag;
@@ -184,7 +198,7 @@ internal sealed class SettingsWindow : Window
             var item = new StackPanel { Orientation = Orientation.Horizontal };
             item.Children.Add(Glyph(CategoryIcon(category), 16, active ? "Set.Foreground" : "Set.Muted"));
             var text = new TextBlock { Text = Category(category), Margin = new Thickness(10, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center,
-                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal };
+                FontWeight = active ? FontWeights.Medium : FontWeights.Normal };
             text.SetResourceReference(TextBlock.ForegroundProperty, active ? "Set.Foreground" : "Set.Muted");
             item.Children.Add(text);
             button.Content = item;
@@ -239,7 +253,6 @@ internal sealed class SettingsWindow : Window
         if (hint is not null) text.Children.Add(Muted(hint, new Thickness(0, 2, 16, 0), 12));
         row.Children.Add(text); panel.Children.Add(row); return row;
     }
-    private static void Store(Func<Settings, Settings> update) => SettingsStore.Update(update);
     private void General()
     {
         Settings s = SettingsStore.Load(); var card = Card(T("Preferencias", "Preferences")); var p = Inside(card);
@@ -260,8 +273,10 @@ internal sealed class SettingsWindow : Window
         }, true));
 
         var extra = Card(T("Opciones", "Options")); var ep = Inside(extra);
-        AddToggle(ep, T("Renovar la sesión de Claude automáticamente", "Automatically renew Claude session"), s.AutoRenewClaude, v => Store(x => x with { AutoRenewClaude = v }));
-        AddToggle(ep, T("Permitir liberar RAM con un clic", "Allow one-click RAM cleanup"), s.RamCleanup, v => Store(x => x with { RamCleanup = v }));
+        AddToggle(ep, T("Renovar la sesión de Claude automáticamente", "Automatically renew Claude session"), s.AutoRenewClaude,
+            (x, v) => x with { AutoRenewClaude = v }, x => x.AutoRenewClaude);
+        AddToggle(ep, T("Permitir liberar RAM con un clic", "Allow one-click RAM cleanup"), s.RamCleanup,
+            (x, v) => x with { RamCleanup = v }, x => x.RamCleanup);
         Actions(ep, Button(T("Restablecer ajustes", "Reset settings"), (_, _) =>
         {
             if (MessageBox.Show(T("¿Restablecer todos los ajustes?", "Reset all settings?"), "Open Control Edge",
@@ -296,41 +311,62 @@ internal sealed class SettingsWindow : Window
         combo.SelectionChanged += (_, _) => { if (combo.SelectedIndex >= 0) changed(combo.SelectedIndex); };
         Row(panel, label, combo);
     }
-    private static ToggleButton Switch(bool value, Action<bool> changed)
+    /// A switch that reacts to the user's click only (Click, not Checked/Unchecked, so setting IsChecked from code
+    /// never saves anything). changed returns what was actually stored, and the switch shows exactly that.
+    private static ToggleButton Switch(bool value, Func<bool, bool> changed)
     {
         var toggle = new ToggleButton { Style = StyleOf("Oce.Switch"), IsChecked = value };
-        toggle.Checked += (_, _) => changed(true); toggle.Unchecked += (_, _) => changed(false);
+        toggle.Click += (_, _) => toggle.IsChecked = changed(toggle.IsChecked == true);
         return toggle;
     }
-    private void AddToggle(Panel panel, string text, bool value, Action<bool> changed) => Row(panel, text, Switch(value, changed));
+    /// For settings stored in the settings file: the switch follows the saved value (the old one if saving failed).
+    private static ToggleButton SettingSwitch(bool value, Func<Settings, bool, Settings> set, Func<Settings, bool> get, Action<Settings>? saved = null) =>
+        Switch(value, on =>
+        {
+            Settings? updated = SettingsStore.Update(x => set(x, on));
+            if (updated is null) return !on;
+            saved?.Invoke(updated);
+            return get(updated);
+        });
+    private void AddToggle(Panel panel, string text, bool value, Func<Settings, bool, Settings> set, Func<Settings, bool> get, Action<Settings>? saved = null) =>
+        Row(panel, text, SettingSwitch(value, set, get, saved));
 
+    /// The scheduled task is asked off the UI thread (schtasks answers in well under a second; AutoStartService gives
+    /// it 5 s at most); the hint says Activado / Desactivado, or why it could not be read or changed.
     private void AddStartupToggle(Panel panel)
     {
         ToggleButton? toggle = null;
+        TextBlock? hint = null;
         bool enabled = false;
+        void Show(bool state, string? error)
+        {
+            enabled = state;
+            toggle!.IsChecked = state;
+            toggle.IsEnabled = true;
+            hint!.Text = error is not null ? DisplayError(error) : state ? T("Activado", "On") : T("Desactivado", "Off");
+            if (error is not null) hint.SetResourceReference(TextBlock.ForegroundProperty, "Oce.Danger");
+            else hint.SetResourceReference(TextBlock.ForegroundProperty, "Set.Muted");
+        }
         toggle = Switch(false, value =>
         {
             toggle!.IsEnabled = false;
-            _ = Task.Run(() => value ? AutoStartService.Enable() : AutoStartService.Disable()).ContinueWith(task => Dispatcher.Invoke(() =>
+            hint!.Text = T("Aplicando…", "Applying…");
+            Task.Run(() => value ? AutoStartService.Enable() : AutoStartService.Disable()).ContinueWith(task =>
             {
-                string? error = task.Result;
-                if (error is not null)
-                {
-                    toggle.IsChecked = enabled;
-                    MessageBox.Show(DisplayError(error));
-                }
-                else enabled = value;
-                toggle.IsEnabled = true;
-            }));
+                string? error = task.IsCompletedSuccessfully ? task.Result
+                    : value ? "No se pudo registrar el inicio con Windows" : "No se pudo quitar el inicio con Windows";
+                Show(error is null ? value : enabled, error);
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+            return value;
         });
         toggle.IsEnabled = false;
-        Row(panel, T("Iniciar con Windows", "Start with Windows"), toggle, T("Comprobando…", "Checking…"));
-        _ = Task.Run(AutoStartService.IsEnabled).ContinueWith(task => Dispatcher.Invoke(() =>
+        DockPanel row = Row(panel, T("Iniciar con Windows", "Start with Windows"), toggle, T("Comprobando…", "Checking…"));
+        hint = (TextBlock)((StackPanel)row.Children[1]).Children[1];
+        Task.Run(AutoStartService.Query).ContinueWith(task =>
         {
-            enabled = task.Result;
-            toggle.IsChecked = enabled;
-            toggle.IsEnabled = true;
-        }));
+            if (task.IsCompletedSuccessfully) Show(task.Result.Enabled, task.Result.Error);
+            else Show(false, AutoStartService.QueryFailedMessage);
+        }, TaskScheduler.FromCurrentSynchronizationContext());
     }
     private void AddRingThemes(Settings s)
     {
@@ -378,12 +414,20 @@ internal sealed class SettingsWindow : Window
         };
         Closed += (_, _) => saveTimer.Stop();
         string ScaleText() => T("Escala manual: ", "Manual scale: ") + $"{slider.Value:P0}";
-        var auto = new ToggleButton { Style = StyleOf("Oce.Switch"), IsChecked = s.UiScale is null };
+        TextBlock? value = null;
+        var auto = SettingSwitch(s.UiScale is null, (x, on) =>
+        {
+            saveTimer.Stop();
+            return x with { UiScale = on ? null : slider.Value };
+        }, x => x.UiScale is null, updated =>
+        {
+            slider.IsEnabled = updated.UiScale is not null;
+            value!.Text = updated.UiScale is null ? T("Escala automática", "Automatic scale") : ScaleText();
+            _apply(updated);
+        });
         var row = Row(Inside(card), T("Automático", "Automatic"), auto, s.UiScale is null ? T("Escala automática", "Automatic scale") : ScaleText());
-        var value = (TextBlock)((StackPanel)row.Children[1]).Children[1];
+        value = (TextBlock)((StackPanel)row.Children[1]).Children[1];
         Inside(card).Children.Add(slider);
-        auto.Checked += (_, _) => { slider.IsEnabled = false; value.Text = T("Escala automática", "Automatic scale"); var updated = SettingsStore.Update(x => x with { UiScale = null }); if (updated != null) _apply(updated); };
-        auto.Unchecked += (_, _) => { slider.IsEnabled = true; value.Text = ScaleText(); var updated = SettingsStore.Update(x => x with { UiScale = slider.Value }); if (updated != null) _apply(updated); };
         slider.ValueChanged += (_, _) =>
         {
             if (!slider.IsEnabled) return;
@@ -413,11 +457,13 @@ internal sealed class SettingsWindow : Window
             DockPanel.SetDock(logo, Dock.Left); row.Children.Add(logo);
 
             bool visible = !settings.Providers.TryGetValue(name, out ProviderVisibility v) || v != ProviderVisibility.Hide;
-            var show = Switch(visible, on =>
-            {
-                var updated = SettingsStore.Update(x => { var map = x.Providers.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase); map[name] = on ? ProviderVisibility.Show : ProviderVisibility.Hide; return x with { Providers = map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase) }; });
-                if (updated != null) _apply(updated);
-            });
+            var show = SettingSwitch(visible, (x, on) =>
+                {
+                    var map = x.Providers.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+                    map[name] = on ? ProviderVisibility.Show : ProviderVisibility.Hide;
+                    return x with { Providers = map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase) };
+                },
+                x => !x.Providers.TryGetValue(name, out ProviderVisibility stored) || stored != ProviderVisibility.Hide, _apply);
             show.ToolTip = T("Mostrar en el panel", "Show in the panel");
             var showBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
             showBox.Children.Add(Muted(T("Mostrar", "Show"), new Thickness(0, 0, 8, 1), 12.5));
@@ -432,7 +478,15 @@ internal sealed class SettingsWindow : Window
             {
                 actions.Children.Add(SmallButton(T("Conectar", "Connect"), (_, _) =>
                 {
-                    string name = id switch { AiProviderId.Claude => "claude", AiProviderId.Codex => "codex", _ => "cursor-agent" };
+                    if (id == AiProviderId.Claude)
+                    {
+                        // The same sign-in as clicking the ring while signed out (ClaudeSessionRenewer.StartLogin).
+                        string? loginError = ClaudeSessionRenewer.StartLogin();
+                        if (loginError is not null) MessageBox.Show(DisplayError(loginError));
+                        else (Application.Current as App)?.WatchClaudeSignIn();
+                        return;
+                    }
+                    string name = id == AiProviderId.Codex ? "codex" : "cursor-agent";
                     string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                     string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                     var candidates = new List<string>
@@ -452,7 +506,7 @@ internal sealed class SettingsWindow : Window
                             }
                     string? cli = candidates.FirstOrDefault(File.Exists);
                     if (cli is null) { MessageBox.Show(T("No se encuentra la CLI del agente.", "The agent CLI could not be found.")); return; }
-                    string login = name == "claude" ? "auth login" : "login";
+                    const string login = "login";
                     bool script = IOPath.GetExtension(cli).Equals(".cmd", StringComparison.OrdinalIgnoreCase);
                     string application = script ? IOPath.Combine(Environment.SystemDirectory, "cmd.exe") : cli;
                     string arguments = script ? $"/d /s /c \"{UnelevatedLauncher.Quote(cli)} {login}\"" : login;
@@ -503,7 +557,7 @@ internal sealed class SettingsWindow : Window
         };
         var content = new StackPanel { Orientation = Orientation.Horizontal };
         if (dot is not null) content.Children.Add(new Ellipse { Width = 6, Height = 6, Fill = (Brush)Application.Current.FindResource(dot), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 6, 0) });
-        var label = new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center };
         label.SetResourceReference(TextBlock.ForegroundProperty, dot is null ? "Set.Muted" : "Set.Foreground");
         content.Children.Add(label);
         return new Border { Style = StyleOf("Oce.Badge"), Child = content };
@@ -599,7 +653,8 @@ internal sealed class SettingsWindow : Window
         p.Children.Add(new Border { Style = StyleOf("Oce.Separator") });
         Settings settings = SettingsStore.Load();
         AddToggle(p, T("Buscar actualizaciones automáticamente (una vez al día)", "Check automatically (once a day)"), settings.AutoCheckUpdates,
-            enabled => { var updated = SettingsStore.Update(x => x with { AutoCheckUpdates = enabled, LastAutoUpdateCheck = enabled ? null : x.LastAutoUpdateCheck }); if (updated is not null) _apply(updated); });
+            (x, enabled) => x with { AutoCheckUpdates = enabled, LastAutoUpdateCheck = enabled ? null : x.LastAutoUpdateCheck },
+            x => x.AutoCheckUpdates, _apply);
     }
     private void Feedback()
     {
@@ -620,25 +675,8 @@ internal sealed class SettingsWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), hidden: false, wait: null);
     private static TextBlock FieldLabel(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 6) };
 
-    private static string DisplayError(string message) => message switch
-    {
-        "La dirección de releases no es segura." => T("La dirección de releases no es segura.", "The releases URL is not secure."),
-        "La versión de GitHub no tiene un formato válido." => T("La versión de GitHub no tiene un formato válido.", "GitHub returned an invalid version."),
-        "El release no contiene assets." => T("El release no contiene assets.", "The release has no assets."),
-        "La URL del ZIP no es segura." => T("La URL del ZIP no es segura.", "The ZIP URL is not secure."),
-        "El ZIP no tiene un digest SHA-256 verificable; no se instalará." => T("El ZIP no tiene un digest SHA-256 verificable; no se instalará.", "The ZIP has no verifiable SHA-256 digest; it will not be installed."),
-        "El release no incluye un ZIP de instalación." => T("El release no incluye un ZIP de instalación.", "The release has no installation ZIP."),
-        "No se pudo conectar con GitHub." => T("No se pudo conectar con GitHub.", "Could not connect to GitHub."),
-        "La respuesta de releases no tiene el formato esperado." => T("La respuesta de releases no tiene el formato esperado.", "The release response has an unexpected format."),
-        "No se pudo comprobar si hay actualizaciones." => T("No se pudo comprobar si hay actualizaciones.", "Could not check for updates."),
-        "El digest SHA-256 del ZIP no coincide. No se instalará." => T("El digest SHA-256 del ZIP no coincide. No se instalará.", "The ZIP SHA-256 digest does not match. Nothing was installed."),
-        "El ZIP contiene una ruta o enlace no seguro." => T("El ZIP contiene una ruta o enlace no seguro.", "The ZIP contains an unsafe path or link."),
-        "Instala Open Control Edge antes de actualizar." => T("Instala Open Control Edge antes de actualizar.", "Install Open Control Edge before updating."),
-        "La carpeta de instalación no está protegida; se cancela la actualización." => T("La carpeta de instalación no está protegida; se cancela la actualización.", "The install folder is not protected; the update was cancelled."),
-        "El instalador terminó, pero PawnIO sigue sin estar disponible." => T("El instalador terminó, pero PawnIO sigue sin estar disponible.", "The installer finished, but PawnIO is still unavailable."),
-        "No se pudo descargar o instalar PawnIO." => T("No se pudo descargar o instalar PawnIO.", "Could not download or install PawnIO."),
-        _ => message,
-    };
+    /// A service message in the interface language (Loc: Strings.*.xaml).
+    private static string DisplayError(string message) => Loc.Message(message) ?? message;
 
     internal static void SaveSnapshots(string directory)
     {

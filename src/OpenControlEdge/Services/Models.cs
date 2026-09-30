@@ -20,6 +20,10 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
 
     /// Expiry of the OAuth access token (claudeAiOauth.expiresAt); null when unknown. Drives the background renewal.
     public DateTimeOffset? TokenExpiresAt { get; init; }
+
+    /// Set when this is an earlier good reading kept after an HTTP 429 or 5xx: when it was read. The card then says
+    /// how old it is.
+    public DateTimeOffset? StaleSince { get; init; }
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.

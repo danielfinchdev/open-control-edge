@@ -30,25 +30,38 @@ internal static class AutoStartService
     private static string Schtasks => Path.Combine(Environment.SystemDirectory, "schtasks.exe");
 
     /// The task exists, is enabled and starts the installed copy.
-    public static bool IsEnabled()
+    public static bool IsEnabled() => Query().Enabled;
+
+    /// Enabled as IsEnabled; Error says why the answer could not be read (then Enabled is false).
+    /// A missing task is a plain "off", not an error.
+    public static (bool Enabled, string? Error) Query()
     {
         try
         {
-            if (!RunSchtasks($"/Query /TN \"{TaskName}\" /XML ONE", out string xml)) return false;
+            var clock = Stopwatch.StartNew();
+            SchtasksRun run = RunSchtasks($"/Query /TN \"{TaskName}\" /XML ONE", out string xml, QueryTimeoutMs);
+            Log.Trace("AutoStart", $"consulta: {run} en {clock.ElapsedMilliseconds} ms");
+            if (run == SchtasksRun.TimedOut) return (false, QueryTimeoutMessage);
+            if (run == SchtasksRun.NotStarted) return (false, QueryFailedMessage);
+            if (run == SchtasksRun.Failed) return (false, null);
             XDocument document = XDocument.Parse(xml.TrimStart('\uFEFF'));
             XNamespace ns = TaskNamespace;
             string? enabled = document.Root?.Element(ns + "Settings")?.Element(ns + "Enabled")?.Value;
             string? command = document.Root?.Element(ns + "Actions")?.Element(ns + "Exec")?.Element(ns + "Command")?.Value;
-            return !string.Equals(enabled, "false", StringComparison.OrdinalIgnoreCase)
-                   && command is not null
-                   && string.Equals(command.Trim('"'), Installer.InstalledExe, StringComparison.OrdinalIgnoreCase);
+            return (!string.Equals(enabled, "false", StringComparison.OrdinalIgnoreCase)
+                    && command is not null
+                    && string.Equals(command.Trim('"'), Installer.InstalledExe, StringComparison.OrdinalIgnoreCase), null);
         }
         catch (Exception ex)
         {
             Log.Warn("AutoStart", "consulta: " + ex.GetType().Name);
-            return false;
+            return (false, QueryFailedMessage);
         }
     }
+
+    public const string QueryTimeoutMessage = "El Programador de tareas no ha respondido en 5 s";
+    public const string QueryFailedMessage = "No se pudo consultar el inicio con Windows";
+    private const int QueryTimeoutMs = 5_000;
 
     public static string? Enable()
     {
@@ -64,7 +77,8 @@ internal static class AutoStartService
     }
 
     /// Removes the task, closes any other copy and schedules the install folder for deletion at the next restart (the
-    /// running executable cannot be deleted before). Settings, cache and log in %LOCALAPPDATA% are kept.
+    /// running executable cannot be deleted before). Settings, cache and log are kept in the data folder, which is
+    /// given back to the user (DataFolder.Release) so they can be opened or deleted without administrator rights.
     public static string? Uninstall()
     {
         if (!UnelevatedLauncher.IsElevated) return "Hace falta ejecutar como administrador";
@@ -75,6 +89,7 @@ internal static class AutoStartService
             Installer.StopOtherInstances();
             if (Directory.Exists(Installer.InstallDir)) Installer.DeleteAtRestart(Installer.InstallDir);
             Log.Info("AutoStart", "desinstalado: tarea quitada y carpeta marcada para borrarse al reiniciar");
+            DataFolder.Release();
             return null;
         }
         catch (Exception ex)
@@ -174,8 +189,13 @@ internal static class AutoStartService
     /// True when the task is gone (or never existed).
     internal static bool Delete(string name) => !Exists(name) || RunSchtasks($"/Delete /TN \"{name}\" /F", out _);
 
+    private enum SchtasksRun { Ok, Failed, TimedOut, NotStarted }
+
     /// schtasks.exe from System32, no window, 15 s at most. True on exit code 0.
-    private static bool RunSchtasks(string arguments, out string output)
+    private static bool RunSchtasks(string arguments, out string output) =>
+        RunSchtasks(arguments, out output, 15_000) == SchtasksRun.Ok;
+
+    private static SchtasksRun RunSchtasks(string arguments, out string output, int timeoutMs)
     {
         output = string.Empty;
         var start = new ProcessStartInfo(Schtasks, arguments)
@@ -185,16 +205,21 @@ internal static class AutoStartService
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        using Process? process = Process.Start(start);
-        if (process is null) return false;
-        Task<string> read = process.StandardOutput.ReadToEndAsync();
-        _ = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(15_000))
+        Process? process;
+        try { process = Process.Start(start); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return SchtasksRun.NotStarted; }
+        if (process is null) return SchtasksRun.NotStarted;
+        using (process)
         {
-            try { process.Kill(); } catch (InvalidOperationException) { }
-            return false;
+            Task<string> read = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(timeoutMs))
+            {
+                try { process.Kill(); } catch (InvalidOperationException) { }
+                return SchtasksRun.TimedOut;
+            }
+            output = read.Result;
+            return process.ExitCode == 0 ? SchtasksRun.Ok : SchtasksRun.Failed;
         }
-        output = read.Result;
-        return process.ExitCode == 0;
     }
 }

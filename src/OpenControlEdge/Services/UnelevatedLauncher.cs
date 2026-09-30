@@ -1,3 +1,5 @@
+using System.IO;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Principal;
@@ -15,19 +17,30 @@ namespace OpenControlEdge.Services;
 /// plain user's. Everything else — command line, flags, hidden window, job and timeout — is the same code path.
 ///
 /// Never throws: every failure is a Result with Error set (a short Spanish message for the log, never a secret).
-internal static class UnelevatedLauncher
+internal static partial class UnelevatedLauncher
 {
     internal sealed record Result(bool Started, uint? ExitCode, bool TimedOut, string? Error)
     {
         public static Result Fail(string error) => new(false, null, false, error);
+
+        /// captureOutput: the first line the program wrote to stdout or stderr, sanitised (see Summarize).
+        public string? Output { get; init; }
     }
 
+    /// CreateProcessWithTokenW goes through the Secondary Logon service; disabled (1058) or missing (1060), nothing
+    /// can be started without this process's rights.
+    public const string SeclogonMessage = "El servicio Inicio de sesión secundario (seclogon) está desactivado: actívalo para abrir programas sin permisos de administrador";
+
     public static bool IsElevated { get; } = IsCurrentProcessElevated();
+
+    private const int MaxCapturedBytes = 8 * 1024;
 
     /// Starts application with arguments. hidden: no window at all (CREATE_NO_WINDOW, and SW_HIDE for anything that
     /// still asks for one). wait: waits up to that long for it to exit; on timeout the whole process tree is killed
     /// (it runs inside a kill-on-close job). Without wait it is fire-and-forget and outlives nothing of ours.
-    public static Result Run(string application, string arguments, string? workingDirectory, bool hidden, TimeSpan? wait)
+    /// captureOutput (with wait only): stdout and stderr go to a pipe and Result.Output keeps a sanitised first line.
+    public static Result Run(string application, string arguments, string? workingDirectory, bool hidden, TimeSpan? wait,
+        bool captureOutput = false)
     {
         string commandLine = Quote(application) + (arguments.Length > 0 ? " " + arguments : string.Empty);
         uint flags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | (hidden ? CREATE_NO_WINDOW : 0);
@@ -38,6 +51,15 @@ internal static class UnelevatedLauncher
             dwFlags = hidden ? STARTF_USESHOWWINDOW : 0,
             wShowWindow = hidden ? SW_HIDE : (short)0,
         };
+
+        using AnonymousPipeServerStream? pipe = captureOutput && wait is not null
+            ? new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable)
+            : null;
+        if (pipe is not null)
+        {
+            startup.dwFlags |= STARTF_USESTDHANDLES;
+            startup.hStdOutput = startup.hStdError = pipe.ClientSafePipeHandle.DangerousGetHandle();
+        }
 
         PROCESS_INFORMATION info;
         IntPtr token = IntPtr.Zero, environment = IntPtr.Zero;
@@ -61,12 +83,16 @@ internal static class UnelevatedLauncher
                     return Result.Fail($"sin entorno del usuario (error {Marshal.GetLastWin32Error()})");
                 if (!CreateProcessWithTokenW(token, 0, application, commandLine, flags, environment, workingDirectory,
                         ref startup, out info))
-                    return Result.Fail($"CreateProcessWithTokenW error {Marshal.GetLastWin32Error()}");
+                {
+                    int code = Marshal.GetLastWin32Error();
+                    return Result.Fail(code is 1058 or 1060 ? SeclogonMessage : $"CreateProcessWithTokenW error {code}");
+                }
             }
             else
             {
                 // Our own environment, but as a Unicode block like the elevated path: IntPtr.Zero inherits it.
-                if (!CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, false, flags, IntPtr.Zero,
+                // Handles are inherited only for the output pipe.
+                if (!CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, pipe is not null, flags, IntPtr.Zero,
                         workingDirectory, ref startup, out info))
                     return Result.Fail($"CreateProcessW error {Marshal.GetLastWin32Error()}");
             }
@@ -77,8 +103,50 @@ internal static class UnelevatedLauncher
             if (token != IntPtr.Zero) CloseHandle(token);
         }
 
-        return wait is TimeSpan limit ? RunInJob(info, limit) : Release(info);
+        if (wait is not TimeSpan limit) return Release(info);
+        if (pipe is null) return RunInJob(info, limit);
+
+        // Our copy of the write end must go, or the read below never sees the end of the stream.
+        pipe.DisposeLocalCopyOfClientHandle();
+        Task<string> output = Task.Run(() => ReadCapped(pipe));
+        Result result = RunInJob(info, limit);
+        string? captured = null;
+        try { if (output.Wait(TimeSpan.FromSeconds(2))) captured = output.Result; }
+        catch (AggregateException) { }
+        return result with { Output = Summarize(captured) };
     }
+
+    /// Reads the pipe to the end, keeping the first MaxCapturedBytes (the rest is drained so the program never blocks).
+    private static string ReadCapped(Stream stream)
+    {
+        var kept = new MemoryStream();
+        byte[] buffer = new byte[4096];
+        try
+        {
+            int read;
+            while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                int room = MaxCapturedBytes - (int)kept.Length;
+                if (room > 0) kept.Write(buffer, 0, Math.Min(room, read));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
+        return System.Text.Encoding.UTF8.GetString(kept.GetBuffer(), 0, (int)kept.Length);
+    }
+
+    /// The first non-empty line, for the log: at most 160 characters, and every run of 24 or more token-like
+    /// characters (keys, tokens, hashes) replaced with "…", so no secret ever reaches the log.
+    internal static string? Summarize(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string? line = text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+        if (line is null) return null;
+        line = SecretLike().Replace(line, "…");
+        return line.Length <= 160 ? line : line[..160] + "…";
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"[A-Za-z0-9_\-\.+/=]{24,}")]
+    private static partial System.Text.RegularExpressions.Regex SecretLike();
 
     /// Fire-and-forget: let it run and drop our handles.
     private static Result Release(PROCESS_INFORMATION info)

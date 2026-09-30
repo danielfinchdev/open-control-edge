@@ -107,7 +107,7 @@ public partial class InstallWindow : Window
         try
         {
             string? error = await PawnIoInstaller.InstallAsync();
-            MessageBox.Show(error ?? Loc.Get("Install.PawnIoDone"), "Open Control Edge", MessageBoxButton.OK,
+            MessageBox.Show(Loc.Message(error) ?? Loc.Get("Install.PawnIoDone"), "Open Control Edge", MessageBoxButton.OK,
                 error is null ? MessageBoxImage.Information : MessageBoxImage.Warning);
             if (error is null) PawnIoButton.Visibility = Visibility.Collapsed;
         }
@@ -169,7 +169,7 @@ public partial class InstallWindow : Window
             PrimaryButton.IsEnabled = SecondaryButton.IsEnabled = true;
         }
 
-        WarningsText.Text = string.Join(Environment.NewLine, result.Warnings);
+        WarningsText.Text = string.Join(Environment.NewLine, result.Warnings.Select(w => Loc.Message(w) ?? w));
         WarningsText.Visibility = result.Warnings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

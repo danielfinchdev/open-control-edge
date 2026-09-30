@@ -51,6 +51,76 @@ internal static partial class Loc
         ["Sensor de temperatura no disponible"] = "Msg.SensorUnavailable",
         ["Requiere ejecutar como administrador"] = "Msg.NeedsAdmin",
         ["Detenido"] = "Msg.Stopped",
+        [ClaudeSessionRenewer.SignedOutMessage] = "Msg.ClaudeSignedOut",
+        [ClaudeSessionRenewer.LoginOpenedMessage] = "Msg.ClaudeLoginOpened",
+        [UnelevatedLauncher.SeclogonMessage] = "Msg.Seclogon",
+        ["Hace falta ejecutar como administrador"] = "Msg.RunAsAdmin",
+        ["Hace falta ejecutar como administrador."] = "Msg.RunAsAdminDot",
+        ["Instala Open Control Edge primero"] = "Msg.InstallFirst",
+        ["No se pudo quitar el inicio con Windows"] = "Msg.AutoStartRemoveFailed",
+        ["No se pudo registrar el inicio con Windows"] = "Msg.AutoStartRegisterFailed",
+        ["La carpeta de instalación no está protegida; no se registra el inicio"] = "Msg.AutoStartUnprotected",
+        [AutoStartService.QueryTimeoutMessage] = "Msg.AutoStartQueryTimeout",
+        [AutoStartService.QueryFailedMessage] = "Msg.AutoStartQueryFailed",
+        ["No se pudo desinstalar"] = "Msg.UninstallFailed",
+        ["Esta ya es la copia instalada."] = "Msg.AlreadyInstalled",
+        ["La instalación debe aceptarse con la misma cuenta que tiene la sesión abierta."] = "Msg.InstallOtherAccount",
+        ["Se conserva la carpeta antigua C:\\Program Files\\EdgeWidget."] = "Msg.InstallKeepsOldFolder",
+        ["Usuarios sin privilegios pueden escribir en la carpeta de instalación."] = "Msg.InstallDirWritable",
+        ["Error inesperado durante la instalación."] = "Msg.InstallUnexpected",
+        ["No se encuentra OpenControlEdge.exe en la carpeta de origen."] = "Msg.InstallNoExe",
+        ["La carpeta de datos es un enlace o punto de reanálisis; se cancela para evitar escrituras elevadas fuera de ella."] = "Msg.DataFolderLink",
+        ["La carpeta de datos no tiene padre."] = "Msg.DataNoParent",
+        ["La dirección de releases no es segura."] = "Msg.UpdReleasesUrl",
+        ["La versión de GitHub no tiene un formato válido."] = "Msg.UpdBadVersion",
+        ["El release no contiene assets."] = "Msg.UpdNoAssets",
+        ["La URL del ZIP no es segura."] = "Msg.UpdZipUrl",
+        ["El ZIP no tiene un digest SHA-256 verificable; no se instalará."] = "Msg.UpdNoDigest",
+        ["El release no incluye un ZIP de instalación."] = "Msg.UpdNoZip",
+        ["La búsqueda se ha cancelado."] = "Msg.UpdCancelled",
+        ["No se pudo conectar con GitHub."] = "Msg.UpdNoGitHub",
+        ["La respuesta de releases no tiene el formato esperado."] = "Msg.UpdBadResponse",
+        ["No se pudo comprobar si hay actualizaciones."] = "Msg.UpdCheckFailed",
+        ["El ZIP tiene un tamaño no válido."] = "Msg.UpdZipSize",
+        ["El ZIP supera el tamaño permitido."] = "Msg.UpdZipTooBig",
+        ["El ZIP está vacío."] = "Msg.UpdZipEmpty",
+        ["El digest SHA-256 del ZIP no coincide. No se instalará."] = "Msg.UpdDigestMismatch",
+        ["El ZIP contiene una ruta o enlace no seguro."] = "Msg.UpdUnsafePath",
+        ["El contenido extraído supera el límite permitido."] = "Msg.UpdTooLarge",
+        ["El ZIP intenta salir de staging."] = "Msg.UpdEscapes",
+        ["El ejecutable no tiene una firma Authenticode válida de SignPath Foundation."] = "Msg.UpdUnsigned",
+        ["El ZIP no contiene OpenControlEdge.exe en la raíz o en un único directorio."] = "Msg.UpdNoExe",
+        ["Instala Open Control Edge antes de actualizar."] = "Msg.UpdInstallFirst",
+        ["La actualización requiere iniciar la app instalada con permisos de administrador."] = "Msg.UpdNeedsAdmin",
+        ["La carpeta de instalación no está protegida; se cancela la actualización."] = "Msg.UpdUnprotected",
+        ["No se pudo proteger staging; no se ejecutará la actualización."] = "Msg.UpdStagingUnprotected",
+        ["Se canceló el permiso para actualizar."] = "Msg.UpdUacCancelled",
+        ["No se pudo preparar la actualización; la instalación actual sigue intacta."] = "Msg.UpdPrepareFailed",
+        ["El lanzamiento oficial no contiene un instalador EXE."] = "Msg.PawnNoExe",
+        ["URL de descarga no válida."] = "Msg.PawnBadUrl",
+        ["Tamaño del instalador no válido."] = "Msg.PawnBadSize",
+        ["No se pudo proteger staging."] = "Msg.PawnStaging",
+        ["La firma Authenticode del instalador no coincide con PawnIO; no se ejecutó."] = "Msg.PawnSignature",
+        ["No se pudo iniciar el instalador."] = "Msg.PawnStartFailed",
+        ["El instalador terminó, pero PawnIO sigue sin estar disponible."] = "Msg.PawnStillMissing",
+        ["Instalación cancelada."] = "Msg.PawnCancelled",
+        ["No se pudo descargar o instalar PawnIO."] = "Msg.PawnFailed",
+    };
+
+    /// Service messages that carry a value (a file name, an error code): pattern and key, the groups as {0}, {1}.
+    private static readonly (Regex Pattern, string Key)[] MessagePatterns =
+    {
+        (new Regex(@"^Error HTTP (\d{3})$"), "Msg.HttpError"),
+        (new Regex(@"^No se pudo quitar la tarea antigua «(.+)»\.$"), "Msg.InstallLegacyTask"),
+        (new Regex(@"^La comprobación SHA-256 de (.+) ha fallado\.$"), "Msg.InstallHashFailed"),
+        (new Regex(@"^Falta (.+) junto a OpenControlEdge\.exe\. Descomprime el ZIP completo\.$"), "Msg.InstallMissingFile"),
+        (new Regex(@"^No se puede abrir (.+) \(error (\d+)\)\.$"), "Msg.DataOpenFailed"),
+        (new Regex(@"^No se puede comprobar (.+)\.$"), "Msg.DataCheckFailed"),
+        (new Regex(@"^(.+) es un enlace o punto de reanálisis; se cancela para evitar escrituras elevadas fuera de la carpeta de datos\.$"), "Msg.DataLink"),
+        (new Regex(@"^(.+) ha cambiado de tipo durante la comprobación\.$"), "Msg.DataTypeChanged"),
+        (new Regex(@"^(.+) tiene varios vínculos duros; se cancela\.$"), "Msg.DataHardLinks"),
+        (new Regex(@"^Descriptor de seguridad no válido \(error (\d+)\)\.$"), "Msg.DataBadDescriptor"),
+        (new Regex(@"^No se pudo proteger (.+) \(error (\d+)\)\.$"), "Msg.DataProtectFailed"),
     };
 
     public static UiLanguage Language { get; private set; } = UiLanguage.Spanish;
@@ -88,10 +158,12 @@ internal static partial class Loc
     {
         if (message is null) return null;
         if (MessageKeys.TryGetValue(message, out string? key)) return Get(key);
-        Match http = HttpError().Match(message);
-        return http.Success ? Format("Msg.HttpError", http.Groups[1].Value) : message;
+        foreach ((Regex pattern, string patternKey) in MessagePatterns)
+        {
+            Match match = pattern.Match(message);
+            if (match.Success)
+                return Format(patternKey, match.Groups.Values.Skip(1).Select(g => (object)g.Value).ToArray());
+        }
+        return message;
     }
-
-    [GeneratedRegex(@"^Error HTTP (\d{3})$")]
-    private static partial Regex HttpError();
 }

@@ -151,6 +151,79 @@ internal static class DataFolder
         }
     }
 
+    /// Uninstalling: gives the folder back to the user, so the settings and the log left behind can be opened or
+    /// deleted without administrator rights. Owner this account, DACL inherited again (plus full control for the
+    /// account on the folder itself) and no High label. Children go first, while the folder is still protected and
+    /// nothing can be swapped in; links, reparse points and hard links are left untouched. Elevated only; never
+    /// throws. False when something could not be released (logged).
+    public static bool Release()
+    {
+        if (!UnelevatedLauncher.IsElevated || !Directory.Exists(Path)) return true;
+        try
+        {
+            string user = WindowsIdentity.GetCurrent().User?.Value
+                ?? throw new InvalidOperationException("sin SID de usuario");
+            var entries = new List<(string Path, bool Directory)>();
+            var pending = new Stack<string>();
+            pending.Push(Path);
+            while (pending.Count > 0)
+            {
+                string folder = pending.Pop();
+                foreach (string entry in Directory.EnumerateFileSystemEntries(folder))
+                {
+                    FileAttributes attributes = File.GetAttributes(entry);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
+                    bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+                    entries.Add((entry, isDirectory));
+                    if (isDirectory) pending.Push(entry);
+                }
+            }
+
+            // Logged before: once the folder is the user's, the elevated log no longer writes into it.
+            Log.Info("Data", $"devolviendo la carpeta de datos al usuario ({entries.Count} elementos)");
+            bool all = true;
+            for (int i = entries.Count - 1; i >= 0; i--)
+                all &= Unprotect(entries[i].Path, entries[i].Directory, $"O:{user}D:S:");
+            all &= Unprotect(Path, directory: true, $"O:{user}D:(A;OICI;FA;;;{user})S:");
+            return all;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Log.Warn("Data", "no se pudo devolver la carpeta de datos: " + ex.GetType().Name);
+            return false;
+        }
+    }
+
+    /// One object of Release: new owner, unprotected DACL (the explicit ACEs of sddl plus whatever the parent
+    /// passes down) and an empty SACL, which drops the mandatory label.
+    private static bool Unprotect(string path, bool directory, string sddl)
+    {
+        using SafeFileHandle handle = CreateFileW(path, READ_CONTROL | WRITE_DAC | WRITE_OWNER, FILE_SHARE_ALL, IntPtr.Zero,
+            OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
+        if (handle.IsInvalid) return false;
+        if (!Interop.ProcessNative.GetFileInformationByHandle(handle, out var info)) return false;
+        if ((info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) return false;
+        if (((info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) != directory) return false;
+        if (!directory && info.NumberOfLinks > 1) return false;
+
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out IntPtr descriptor, out _)) return false;
+        try
+        {
+            GetSecurityDescriptorOwner(descriptor, out IntPtr owner, out _);
+            GetSecurityDescriptorDacl(descriptor, out _, out IntPtr dacl, out _);
+            GetSecurityDescriptorSacl(descriptor, out _, out IntPtr sacl, out _);
+            uint error = SetSecurityInfo(handle, SE_FILE_OBJECT,
+                OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION,
+                owner, IntPtr.Zero, dacl, sacl);
+            if (error != 0) Log.Warn("Data", $"no se pudo devolver un elemento de la carpeta de datos (error {error})");
+            return error == 0;
+        }
+        finally
+        {
+            LocalFree(descriptor);
+        }
+    }
+
     private static void Protect(string path, bool directory)
     {
         using SafeFileHandle handle = CreateFileW(path, READ_CONTROL | WRITE_DAC | WRITE_OWNER, FILE_SHARE_ALL, IntPtr.Zero,

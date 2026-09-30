@@ -16,13 +16,18 @@ internal sealed class ClaudeUsageService
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
 
+    /// After an HTTP 429 the endpoint is not asked again before this (seen 2026-09-30: 429 every 2 minutes for
+    /// hours when retried at the refresh interval).
+    internal static readonly TimeSpan MinRateLimitBackoff = TimeSpan.FromMinutes(5);
+
     public async Task<ClaudeSnapshot> FetchAsync()
     {
         try
         {
             var credentials = CredentialReader.Read(CredentialReader.DefaultPath);
+            // No token (never signed in, or the CLI dropped the session after a failed refresh): sign in again.
             if (credentials is null)
-                return ClaudeSnapshot.Failed(AiDetector.ClaudeLoginMessage);
+                return ClaudeSnapshot.Failed(ClaudeSessionRenewer.SignedOutMessage);
 
             string? plan = credentials.SubscriptionType;
             DateTimeOffset? expiry = credentials.ExpiresAt;
@@ -48,10 +53,11 @@ internal sealed class ClaudeUsageService
                 Log.Warn("Claude", $"HTTP {(int)response.StatusCode}");
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
+                    // Retry-After when it asks for longer; never sooner than MinRateLimitBackoff.
                     TimeSpan delay = response.Headers.RetryAfter?.Delta
                         ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
-                        ?? TimeSpan.FromMinutes(1);
-                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > TimeSpan.Zero ? delay : TimeSpan.FromMinutes(1));
+                        ?? TimeSpan.Zero;
+                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > MinRateLimitBackoff ? delay : MinRateLimitBackoff);
                 }
                 else if ((int)response.StatusCode >= 500)
                 {

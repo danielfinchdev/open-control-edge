@@ -79,7 +79,8 @@ public partial class EdgeWindow : Window
     private static readonly TimeSpan FarPoll = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan NearPoll = TimeSpan.FromMilliseconds(30);
 
-    private static readonly IEasingFunction EaseOut = CreateEaseOut();
+    private static readonly IEasingFunction EaseOut = CreateEase(EasingMode.EaseOut);
+    private static readonly IEasingFunction EaseIn = CreateEase(EasingMode.EaseIn);
 
     private readonly DateTime _sessionStart;
     private readonly DispatcherTimer _pointerWatch;
@@ -326,6 +327,7 @@ public partial class EdgeWindow : Window
         ClearRing(ClaudeRing, ClaudeLabel, "…");
         ClaudeMetrics.Visibility = Visibility.Collapsed;
         ClaudeTabs.Visibility = Visibility.Collapsed;
+        ClaudeStale.Visibility = Visibility.Collapsed;
         ClaudeMessage.Text = Loc.Get("Value.Renewing");
         ClaudeMessage.Visibility = Visibility.Visible;
         ClaudeNote.Visibility = Visibility.Collapsed;
@@ -903,6 +905,12 @@ public partial class EdgeWindow : Window
     {
         var now = DateTimeOffset.Now;
         ClaudeHeaderReset.Text = _claude?.Session is UsageWindow session ? Fmt.Reset(session.ResetsAt, now) : string.Empty;
+        if (_claude is { Session: not null, StaleSince: DateTimeOffset readAt })
+        {
+            ClaudeStale.Text = Loc.Format("Claude.Stale", Math.Max(1, (int)Math.Round((now - readAt).TotalMinutes)));
+            ClaudeStale.Visibility = Visibility.Visible;
+        }
+        else ClaudeStale.Visibility = Visibility.Collapsed;
         WeeklyReset.Text = _claude?.Weekly is UsageWindow weekly ? Fmt.Reset(weekly.ResetsAt, now) : string.Empty;
         CodexReset.Text = _codexShown is CodexWindow shown ? Fmt.Reset(shown.ResetsAt, now) : string.Empty;
         CursorHeaderReset.Text = _cursor?.Cycle is UsageWindow cursorCycle ? Fmt.Reset(cursorCycle.ResetsAt, now) : string.Empty;
@@ -1109,10 +1117,11 @@ public partial class EdgeWindow : Window
         ExpandedChanged?.Invoke(true);
     }
 
+    /// The reverse of Expand: same 250 ms, the cubic curve mirrored in time (ease-in). The animations must start
+    /// before _expanded is cleared: Animate jumps straight to the end for a collapsed panel.
     private void Collapse()
     {
         if (!_expanded) return;
-        _expanded = false;
         Log.Trace("Edge", "collapse");
 
         _outside.Reset();
@@ -1121,9 +1130,20 @@ public partial class EdgeWindow : Window
 
         HideCard();
         for (int i = 0; i < _rings.Length; i++) ScaleRing(i, 1.0);
-        Animate(PanelShift, TranslateTransform.XProperty, PanelWidth, PanelMs);
-        Animate(Strip, OpacityProperty, 1, PanelMs);
+        Animate(PanelShift, TranslateTransform.XProperty, PanelWidth, PanelMs, ease: EaseIn);
+        Animate(Strip, OpacityProperty, 1, PanelMs, ease: EaseIn);
+        _expanded = false;
         ExpandedChanged?.Invoke(false);
+    }
+
+    /// Slides the panel out before the application quits (the close button, "Salir"), then calls done.
+    internal void SlideOut(Action done)
+    {
+        if (!_expanded || !AnimationsEnabled || PreviewMode) { done(); return; }
+        Collapse();
+        var wait = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(PanelMs) };
+        wait.Tick += (_, _) => { wait.Stop(); done(); };
+        wait.Start();
     }
 
     // ───────────────────────────── Rings & card ─────────────────────────────
@@ -1203,7 +1223,8 @@ public partial class EdgeWindow : Window
         Root.InvalidateArrange();
     }
 
-    private void Animate(IAnimatable target, DependencyProperty property, double to, int milliseconds, double? from = null)
+    private void Animate(IAnimatable target, DependencyProperty property, double to, int milliseconds, double? from = null,
+        IEasingFunction? ease = null)
     {
         DependencyObject dependency = (DependencyObject)target;
         if (!_expanded && !PreviewMode || !AnimationsEnabled || milliseconds <= 0)
@@ -1218,14 +1239,14 @@ public partial class EdgeWindow : Window
             && Math.Abs(baseValue - to) < 0.001 && Math.Abs(current - to) < 0.001)
             return;
 
-        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = EaseOut };
+        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = ease ?? EaseOut };
         if (from is double start) animation.From = start;
         target.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
     }
 
-    private static IEasingFunction CreateEaseOut()
+    private static IEasingFunction CreateEase(EasingMode mode)
     {
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = new CubicEase { EasingMode = mode };
         ease.Freeze();
         return ease;
     }

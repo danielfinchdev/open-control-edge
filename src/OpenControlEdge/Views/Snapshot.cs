@@ -71,6 +71,7 @@ internal static class Snapshot
         window.SetClaude(claude);
         window.SetCpu(cpu);
         CheckFont(window.ClaudeLabel, FontWeights.Normal);
+        CheckFont(window.ClaudeLabel, FontWeights.Medium);
         CheckFont(window.ClaudePlanText, FontWeights.SemiBold);
         window.SaveSnapshot(Path.Combine(directory, "01_auto_collapsed.png"));
 
@@ -179,6 +180,18 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "16e_card_claude_not_renewed.png"));
         window.SetClaudeNote(Loc.Message(ClaudeSessionRenewer.CliMissingMessage));
         window.SaveSnapshot(Path.Combine(directory, "16f_card_claude_cli_missing.png"));
+        // Signed out (empty token and refresh token): one click opens the sign-in.
+        window.SetClaude(ClaudeSnapshot.Failed(ClaudeSessionRenewer.SignedOutMessage));
+        window.SetClaudeNote(null);
+        window.SaveSnapshot(Path.Combine(directory, "16g_card_claude_signed_out.png"));
+        window.SetClaudeNote(Loc.Message(ClaudeSessionRenewer.LoginOpenedMessage));
+        window.SaveSnapshot(Path.Combine(directory, "16h_card_claude_login_opened.png"));
+        window.SetClaudeNote(Loc.Message(UnelevatedLauncher.SeclogonMessage));
+        window.SaveSnapshot(Path.Combine(directory, "16i_card_claude_seclogon.png"));
+        // HTTP 429: the earlier reading, with its age.
+        window.SetClaudeNote(null);
+        window.SetClaude(claude with { StaleSince = now.AddMinutes(-7) });
+        window.SaveSnapshot(Path.Combine(directory, "16j_card_claude_stale.png"));
         window.SetClaudeNote(null);
 
         // RAM ring and card: the hint, then the outcome of "Liberar RAM".
@@ -419,7 +432,7 @@ internal static class Snapshot
     {
         var typeface = new Typeface(text.FontFamily, text.FontStyle, weight, text.FontStretch);
         if (!typeface.TryGetGlyphTypeface(out GlyphTypeface glyphs)
-            || !glyphs.FamilyNames.Values.Contains("Google Sans Flex")
+            || !glyphs.FamilyNames.Values.Contains("Outfit")
             || glyphs.Weight != weight)
             throw new InvalidDataException($"font check failed for weight {weight}");
     }

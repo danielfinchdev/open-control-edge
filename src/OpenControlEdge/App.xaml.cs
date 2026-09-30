@@ -11,8 +11,6 @@ namespace OpenControlEdge;
 
 public partial class App : Application
 {
-    private const string MutexName = @"Local\OpenControlEdge.SingleInstance.7F3C2A1E";
-
     /// Background renewal of the Claude session: considered once the token has less than AutoRenewWindow left,
     /// run AutoRenewLead before the expiry (inside the CLI's own 5-minute refresh window, so one run is enough) and
     /// at most once every AutoRenewInterval.
@@ -43,7 +41,14 @@ public partial class App : Application
     private readonly OpenCodeUsageService _openCode = new();
     private readonly DeepSeekUsageService _deepSeek = new();
     private readonly OpenRouterUsageService _openRouter = new();
-    private Mutex? _mutex;
+    private SingleInstanceLock? _instanceLock;
+
+    /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync).
+    private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(15);
+    private DateTimeOffset? _claudeReadAt;
+    private string? _claudeRetryError;
+    private DispatcherTimer? _signInWatch;
+    private DateTimeOffset? _autoRenewGaveUpOn;
     private HardwareSensorService? _sensors;
     private EdgeWindow? _edge;
     private TrayIcon? _tray;
@@ -199,6 +204,7 @@ public partial class App : Application
         UsageCache.Cached cached = UsageCache.Load(DateTimeOffset.Now);
         _lastClaude = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)
             ? cached.Claude ?? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
+        _claudeReadAt = cached.Claude is not null ? cached.SavedAt : null;
         _edge.SetClaude(_lastClaude);
         _edge.ApplyUsageView(settings.UsageView);
         _lastCodex = InitialCodex(settings, cached.Codex);
@@ -223,7 +229,7 @@ public partial class App : Application
         _edge.ModeChangeRequested += SetPanelMode;
         _edge.UsageViewChanged += SettingsStore.SaveUsageView;
         _edge.SettingsRequested += OpenSettings;
-        _edge.CloseRequested += Shutdown;
+        _edge.CloseRequested += () => _edge.SlideOut(Shutdown);
         _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync(automatic: false);
         _edge.CpuClicked += OpenSystemInformation;
         _edge.RamClicked += () => _ = FreeRamAsync();
@@ -271,7 +277,7 @@ public partial class App : Application
 
     private void OpenSettings()
     {
-        if (_settingsWindow is { IsVisible: true }) { _settingsWindow.Activate(); return; }
+        if (_settingsWindow is { IsVisible: true }) { _settingsWindow.BringToFront(); return; }
         OpenSettings("General");
     }
 
@@ -280,7 +286,7 @@ public partial class App : Application
         if (_settingsWindow is { IsVisible: true })
         {
             if (release is not null) _settingsWindow.ShowUpdateResult(release);
-            else _settingsWindow.Activate();
+            else _settingsWindow.BringToFront();
             return;
         }
         Settings previousSettings = SettingsStore.Load();
@@ -298,7 +304,7 @@ public partial class App : Application
             previousSettings = settings;
             if (providersChanged || refreshChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release, () => _lastUsageRefresh,
-            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Owner = _edge };
+            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
         if (category == "Agentes" && !_agentsProbed)
         {
@@ -306,6 +312,7 @@ public partial class App : Application
             _ = ProbeAgentsAsync(_settingsWindow);
         }
         _settingsWindow.Show();
+        _settingsWindow.BringToFront();
     }
 
     private async Task ProbeAgentsAsync(SettingsWindow window)
@@ -442,21 +449,8 @@ public partial class App : Application
 
     private bool AcquireSingleInstance()
     {
-        try
-        {
-            _mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
-            if (createdNew) return true;
-            Log.Warn("App", "no se inició porque otra instancia ya ocupa el mutex de instancia única");
-            _mutex.Dispose();
-            _mutex = null;
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // The mutex exists and belongs to an elevated instance.
-            Log.Warn("App", "no se pudo adquirir el mutex de instancia única");
-            return false;
-        }
+        _instanceLock = SingleInstanceLock.Acquire();
+        return _instanceLock is not null;
     }
 
     /// Refreshes all usage providers concurrently. Joins an in-flight refresh.
@@ -485,7 +479,8 @@ public partial class App : Application
                 _firstDataLogged = true;
                 LogStartup("primera lectura de red pintada");
             }
-            UsageCache.Save(_lastClaude, _lastCodex, _lastCursor, DateTimeOffset.Now);
+            // A stale Claude reading is not saved again: savedAt would make it look newer than it is.
+            UsageCache.Save(_lastClaude is { StaleSince: null } ? _lastClaude : null, _lastCodex, _lastCursor, DateTimeOffset.Now);
             _lastUsageRefresh = DateTimeOffset.Now;
             ArmAutoRenew();
             Log.Trace("Usage", "refresh finished");
@@ -562,19 +557,41 @@ public partial class App : Application
         return await FetchClaudePreservingAsync();
     }
 
+    /// After an HTTP 429 or 5xx the last good reading stays on screen, marked with its age, for up to
+    /// ClaudeStaleLimit; after that the error shows. While the service asks to wait (RetryAfterUntil) nothing is sent.
     private async Task<ClaudeSnapshot> FetchClaudePreservingAsync()
     {
-        if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt
-            && _lastClaude is { Hidden: false, Session: not null })
-            return _lastClaude;
+        DateTimeOffset now = DateTimeOffset.Now;
+        if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt && _claudeRetryError is not null)
+            return KeepClaudeReading(now) ?? ClaudeSnapshot.Failed(_claudeRetryError) with
+            {
+                Plan = _lastClaude?.Plan, TokenExpiresAt = _lastClaude?.TokenExpiresAt,
+            };
+
         ClaudeSnapshot current = await _claude.FetchAsync();
+        _claudeRetryError = null;
+        if (current is { Hidden: false, Session: not null })
+        {
+            _claudeReadAt = DateTimeOffset.Now;
+            return current;
+        }
         if (current.Message is string error && error.StartsWith("Error HTTP ", StringComparison.Ordinal)
             && int.TryParse(error.AsSpan("Error HTTP ".Length), out int status)
-            && (status == 429 || status >= 500)
-            && _lastClaude is { Hidden: false, Session: not null } previous)
-            return previous with { Plan = current.Plan ?? previous.Plan, TokenExpiresAt = current.TokenExpiresAt };
+            && (status == 429 || status >= 500))
+        {
+            _claudeRetryError = error;
+            if (KeepClaudeReading(DateTimeOffset.Now) is ClaudeSnapshot kept)
+                return kept with { Plan = current.Plan ?? kept.Plan, TokenExpiresAt = current.TokenExpiresAt };
+        }
         return current;
     }
+
+    /// The last good Claude reading marked as stale, or null when there is none or it is older than ClaudeStaleLimit.
+    private ClaudeSnapshot? KeepClaudeReading(DateTimeOffset now) =>
+        _lastClaude is { Hidden: false, Session: not null } previous && _claudeReadAt is DateTimeOffset readAt
+        && now - readAt < ClaudeStaleLimit
+            ? previous with { StaleSince = readAt }
+            : null;
 
     private async Task<CodexSnapshot> RefreshCodexAsync(Settings settings)
     {
@@ -678,11 +695,24 @@ public partial class App : Application
             RenewResult result = await ClaudeSessionRenewer.RenewAsync();
             Log.Info("Claude", $"renovación: {result.Outcome}");
 
+            // Not renewed: the background renewal gives up on this token until expiresAt changes (a click still tries).
+            _autoRenewGaveUpOn = result.Outcome is RenewOutcome.NotRenewed or RenewOutcome.SignedOut
+                ? result.ExpiresAt ?? ClaudeSessionRenewer.ReadExpiry() ?? DateTimeOffset.MinValue
+                : null;
+
+            // Signed out: nothing to renew. A click opens the sign-in (the one way to sign in again).
+            string? loginError = null;
+            if (result.Outcome == RenewOutcome.SignedOut && !automatic)
+            {
+                loginError = ClaudeSessionRenewer.StartLogin();
+                if (loginError is null) WatchClaudeSignIn();
+            }
+
             _renewing = false;
             await ApplyClaudeAsync(SettingsStore.Load());
             UpdateTooltip();
             ArmAutoRenew();
-            if (!automatic) ShowClaudeNote(result);
+            if (!automatic) ShowClaudeNote(result, loginError);
         }
         catch (Exception ex)
         {
@@ -698,7 +728,7 @@ public partial class App : Application
     }
 
     /// The outcome of a clicked renewal under the Claude card, for ClaudeNoteDuration.
-    private void ShowClaudeNote(RenewResult result)
+    private void ShowClaudeNote(RenewResult result, string? loginError = null)
     {
         if (_edge is null) return;
         DateTime? until = result.ExpiresAt?.LocalDateTime;
@@ -706,8 +736,10 @@ public partial class App : Application
         {
             RenewOutcome.Renewed when until is DateTime at => Loc.Format("Claude.Renewed", at),
             RenewOutcome.StillValid when until is DateTime at => Loc.Format("Claude.StillValid", at),
+            RenewOutcome.SignedOut => Loc.Message(loginError ?? ClaudeSessionRenewer.LoginOpenedMessage)!,
             RenewOutcome.CliMissing => Loc.Message(ClaudeSessionRenewer.CliMissingMessage)!,
             RenewOutcome.TimedOut => Loc.Message(ClaudeSessionRenewer.TimedOutMessage)!,
+            RenewOutcome.Failed when result.Error == UnelevatedLauncher.SeclogonMessage => Loc.Message(UnelevatedLauncher.SeclogonMessage)!,
             RenewOutcome.Failed => Loc.Message(ClaudeSessionRenewer.StartFailedMessage)!,
             _ => Loc.Message(ClaudeSessionRenewer.NotRenewedMessage)!,
         };
@@ -717,6 +749,27 @@ public partial class App : Application
         _claudeNoteTimer.Stop();
         _claudeNoteTimer.Interval = ClaudeNoteDuration;
         _claudeNoteTimer.Start();
+    }
+
+    /// After the sign-in window opened: checks the credentials every 5 s, for up to 5 minutes, and reads Claude usage
+    /// again as soon as there is a sign-in, so the ring does not wait for the next refresh.
+    internal void WatchClaudeSignIn()
+    {
+        _signInWatch?.Stop();
+        DateTime until = DateTime.UtcNow.AddMinutes(5);
+        _signInWatch = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
+        _signInWatch.Tick += async (_, _) =>
+        {
+            if (DateTime.UtcNow > until) { _signInWatch?.Stop(); return; }
+            if (!await Task.Run(() => ClaudeSessionRenewer.HasSignIn)) return;
+            _signInWatch?.Stop();
+            Log.Info("Claude", "sesión iniciada en Claude Code");
+            _edge?.SetClaudeNote(null);
+            await ApplyClaudeAsync(SettingsStore.Load());
+            UpdateTooltip();
+            ArmAutoRenew();
+        };
+        _signInWatch.Start();
     }
 
     /// Schedules the background renewal for AutoRenewLead before the token expires (right away if that moment has
@@ -737,6 +790,7 @@ public partial class App : Application
     {
         if (!SettingsStore.Load().AutoRenewClaude) return;
         if (ClaudeSessionRenewer.ReadExpiry() is not DateTimeOffset expiry || expiry - DateTimeOffset.UtcNow >= AutoRenewWindow) return;
+        if (expiry == _autoRenewGaveUpOn) return;
         if (DateTime.UtcNow - _lastAutoRenew < AutoRenewInterval || !ClaudeSessionRenewer.IsAvailable) return;
         _lastAutoRenew = DateTime.UtcNow;
         await RenewClaudeSessionAsync(automatic: true);
@@ -910,7 +964,7 @@ public partial class App : Application
         var menu = new TrayMenuWindow();
         menu.RefreshRequested += () => _ = RefreshEverythingAsync();
         menu.ApiKeysRequested += () => OpenSettings("Agentes");
-        menu.ExitRequested += Shutdown;
+        menu.ExitRequested += () => { if (_edge is null) Shutdown(); else _edge.SlideOut(Shutdown); };
         menu.AutoStartToggled += SetAutoStart;
         menu.UninstallRequested += ShowUninstallWindow;
         menu.Closed += (_, _) =>
@@ -957,15 +1011,11 @@ public partial class App : Application
         _warmupTimer?.Stop();
         _autoRenewTimer?.Stop();
         _claudeNoteTimer?.Stop();
+        _signInWatch?.Stop();
         _tray?.Dispose();
         _sensors?.Dispose();
         ThemeManager.Shutdown();
-        if (_mutex is not null)
-        {
-            try { _mutex.ReleaseMutex(); }
-            catch (ApplicationException) { }
-            _mutex.Dispose();
-        }
+        _instanceLock?.Dispose();
         Log.Info("App", "exit");
         base.OnExit(e);
     }

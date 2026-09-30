@@ -22,6 +22,7 @@ internal static class SecurityNative
     public const uint DACL_SECURITY_INFORMATION = 0x4;
     public const uint LABEL_SECURITY_INFORMATION = 0x10;
     public const uint PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000;
+    public const uint UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000;
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition,
@@ -46,4 +47,24 @@ internal static class SecurityNative
 
     [DllImport("kernel32.dll")]
     public static extern IntPtr LocalFree(IntPtr memory);
+
+    public const int ERROR_ALREADY_EXISTS = 183;
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr CreateBoundaryDescriptorW(string name, uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool AddSIDToBoundaryDescriptor(ref IntPtr boundary, IntPtr sid);
+
+    [DllImport("kernel32.dll")]
+    public static extern void DeleteBoundaryDescriptor(IntPtr boundary);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr CreatePrivateNamespaceW(IntPtr attributes, IntPtr boundary, string alias);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr OpenPrivateNamespaceW(IntPtr boundary, string alias);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool ClosePrivateNamespace(IntPtr handle, uint flags);
 }

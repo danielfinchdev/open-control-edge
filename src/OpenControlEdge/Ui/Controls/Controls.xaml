@@ -82,7 +82,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Set.Border}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Height" Value="34" />
         <Setter Property="Padding" Value="14,0" />
         <Setter Property="Margin" Value="0,0,8,0" />
@@ -161,7 +161,8 @@
         <Setter Property="Margin" Value="0,0,0,2" />
     </Style>
 
-    <!-- Switch: 36 × 20, the thumb sits on the right while checked and slides in 120 ms. -->
+    <!-- Switch: 36 × 20, the thumb sits on the right while checked and slides in 120 ms. The animations have no From:
+         they start where the thumb is, so a switch created already on (a page rebuilt) does not slide in from off. -->
     <Style x:Key="Oce.Switch" TargetType="ToggleButton">
         <Setter Property="Width" Value="36" /><Setter Property="Height" Value="20" /><Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" /><Setter Property="VerticalAlignment" Value="Center" />
@@ -178,9 +179,9 @@
                             <Setter TargetName="Track" Property="Background" Value="{DynamicResource Set.Primary}" />
                             <Setter TargetName="Thumb" Property="Margin" Value="18,0,0,0" />
                             <Trigger.EnterActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="Thumb"
-                                Storyboard.TargetProperty="Margin" From="2,0,0,0" To="18,0,0,0" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
+                                Storyboard.TargetProperty="Margin" To="18,0,0,0" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
                             <Trigger.ExitActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="Thumb"
-                                Storyboard.TargetProperty="Margin" From="18,0,0,0" To="2,0,0,0" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
+                                Storyboard.TargetProperty="Margin" To="2,0,0,0" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
                     </ControlTemplate.Triggers>

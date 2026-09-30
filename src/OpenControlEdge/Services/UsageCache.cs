@@ -23,7 +23,8 @@ internal static class UsageCache
 
     public static string FilePath => Path.Combine(DataFolder.Path, "cache.json");
 
-    internal sealed record Cached(ClaudeSnapshot? Claude, CodexSnapshot? Codex, CursorSnapshot? Cursor);
+    /// SavedAt: when the cached readings were taken; null when there are none.
+    internal sealed record Cached(ClaudeSnapshot? Claude, CodexSnapshot? Codex, CursorSnapshot? Cursor, DateTimeOffset? SavedAt = null);
 
     public static Cached Load(DateTimeOffset now)
     {
@@ -36,7 +37,7 @@ internal static class UsageCache
                 || now - saved > MaxAge || saved > now.AddMinutes(5))
                 return new Cached(null, null, null);
 
-            return new Cached(ReadClaude(root, now), ReadCodex(root, now), ReadCursor(root, now));
+            return new Cached(ReadClaude(root, now), ReadCodex(root, now), ReadCursor(root, now), saved);
         }
         catch (Exception ex)
         {

@@ -28,6 +28,7 @@ internal static class ProcessNative
     public const uint CREATE_NO_WINDOW = 0x08000000;
 
     public const int STARTF_USESHOWWINDOW = 0x00000001;
+    public const int STARTF_USESTDHANDLES = 0x00000100;
     public const short SW_HIDE = 0;
 
     public const uint WAIT_OBJECT_0 = 0;
