@@ -157,8 +157,8 @@ internal static class Installer
             if (!Hash(file).AsSpan().SequenceEqual(Hash(copy)))
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");
         }
-        if (!AuthenticodeVerifier.IsValidSignPathSignature(Path.Combine(staging, "OpenControlEdge.exe")))
-            throw new InvalidOperationException("El ejecutable no tiene una firma Authenticode válida de SignPath Foundation.");
+        // A local install copies the exe the user just launched and approved through UAC, so the staged copy only has to
+        // match it byte for byte (checked above). The SignPath signature is required for downloaded updates (UpdateService).
 
         string backup = $"{InstallDir}.previous-{Guid.NewGuid():N}";
         bool hadPrevious = Directory.Exists(InstallDir);
@@ -188,8 +188,24 @@ internal static class Installer
         string executable = Path.Combine(sourceDir, "OpenControlEdge.exe");
         if (!File.Exists(executable) || (File.GetAttributes(executable) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("No se encuentra OpenControlEdge.exe en la carpeta de origen.");
-        return new List<string> { executable };
+        // The exe cannot start without the native libraries published next to it (IncludeNativeLibrariesForSelfExtract
+        // is false so they are never extracted to a user-writable folder). Copy exactly this closed list, nothing else.
+        var files = new List<string> { executable };
+        foreach (string name in NativeLibraries)
+        {
+            string library = Path.Combine(sourceDir, name);
+            if (!File.Exists(library) || (File.GetAttributes(library) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException($"Falta {name} junto a OpenControlEdge.exe. Descomprime el ZIP completo.");
+            files.Add(library);
+        }
+        return files;
     }
+
+    private static readonly string[] NativeLibraries =
+    {
+        "D3DCompiler_47_cor3.dll", "PenImc_cor3.dll", "PresentationNative_cor3.dll", "vcruntime140_cor3.dll",
+        "wpfgfx_cor3.dll", "e_sqlite3.dll", "MonoPosixHelper.dll", "libMonoPosixHelper.dll",
+    };
 
     private static byte[] Hash(string path)
     {
