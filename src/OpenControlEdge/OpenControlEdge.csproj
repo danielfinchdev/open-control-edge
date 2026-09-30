@@ -34,11 +34,12 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
 
-  <!-- Google Sans Flex (SIL OFL 1.1, see Assets/Fonts/OFL.txt): static instances of the two weights the interface
-       uses, as served by fonts.google.com (WPF cannot select weights inside the variable font). -->
+  <!-- Outfit (SIL OFL 1.1, see Assets/Fonts/OFL.txt): the static 400, 500 and 600 instances of the official release,
+       github.com/Outfitio/Outfit-Fonts fonts/ttf (WPF cannot select weights inside the variable font). -->
   <ItemGroup>
-    <Resource Include="Assets\Fonts\GoogleSansFlex-Regular.ttf" />
-    <Resource Include="Assets\Fonts\GoogleSansFlex-SemiBold.ttf" />
+    <Resource Include="Assets\Fonts\Outfit-Regular.ttf" />
+    <Resource Include="Assets\Fonts\Outfit-Medium.ttf" />
+    <Resource Include="Assets\Fonts\Outfit-SemiBold.ttf" />
     <!-- Shown in the welcome / install window. -->
     <Resource Include="Assets\app.ico" />
   </ItemGroup>

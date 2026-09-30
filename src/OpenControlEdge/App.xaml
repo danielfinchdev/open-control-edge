@@ -13,9 +13,9 @@
 
             <!-- Edge widget sizes are the original design scaled to 85 %; EdgeWindow scales the whole canvas on top. -->
 
-            <!-- Google Sans Flex (SIL OFL 1.1, Assets/Fonts/OFL.txt), static 400 and 600 instances embedded;
+            <!-- Outfit (SIL OFL 1.1, Assets/Fonts/OFL.txt), static 400, 500 and 600 instances embedded;
                  Segoe UI only covers glyphs it lacks. -->
-            <FontFamily x:Key="UiFont">pack://application:,,,/Assets/Fonts/#Google Sans Flex, Segoe UI</FontFamily>
+            <FontFamily x:Key="UiFont">pack://application:,,,/Assets/Fonts/#Outfit, Segoe UI</FontFamily>
 
             <!-- Colour tokens: the dark theme until ThemeManager.Apply replaces them (see ThemeManager for the rest). -->
             <SolidColorBrush x:Key="Theme.Background" Color="#000000" />
@@ -80,8 +80,10 @@
                 <Setter Property="Opacity" Value="0.8" />
             </Style>
 
+            <!-- Tabular figures (Outfit's tnum): a reading that changes from 64 to 71 keeps its width. -->
             <Style x:Key="RingLabel" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="16" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
                 <Setter Property="Foreground" Value="{DynamicResource Theme.Text}" />
                 <Setter Property="HorizontalAlignment" Value="Center" />
                 <Setter Property="Margin" Value="0,7,0,0" />
@@ -117,7 +119,7 @@
                 <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="FontSize" Value="11" />
-                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontWeight" Value="Medium" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="RadioButton">

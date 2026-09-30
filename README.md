@@ -516,7 +516,7 @@ Algunas decisiones que quizá no son obvias:
 
 Sensores: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL-2.0).
 
-Tipografía: [Google Sans Flex](https://github.com/google/fonts/tree/main/ofl/googlesansflex) de Google, incrustada en el ejecutable
+Tipografía: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (pesos 400, 500 y 600), incrustada en el ejecutable
 (SIL Open Font License 1.1, ver [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
 
 Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está

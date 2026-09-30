@@ -17,7 +17,8 @@ SQLite native library (SQLitePCLRaw / e_sqlite3)
 Public domain
 https://www.sqlite.org/copyright.html
 
-Google Sans Flex font files in Assets/Fonts
+Outfit font files in Assets/Fonts (Regular, Medium, SemiBold)
+Copyright 2021 The Outfit Project Authors (https://github.com/Outfitio/Outfit-Fonts)
 SIL Open Font License 1.1
 See Assets/Fonts/OFL.txt.
 
