@@ -67,7 +67,8 @@ internal sealed class SettingsWindow : Window
 
         var header = new DockPanel { Margin = new Thickness(20, 12, 12, 12), Background = Brushes.Transparent };
         var close = new Button { Style = (Style)Application.Current.FindResource("PanelRoundButton"), Width = 30, Height = 30,
-            Content = Glyph(Icons.Close, 14), ToolTip = T("Cerrar", "Close"), VerticalAlignment = VerticalAlignment.Center };
+            Content = Glyph(Icons.Close, 14), VerticalAlignment = VerticalAlignment.Center };
+        close.SetResourceReference(ToolTipProperty, "Settings.Close");
         close.Click += (_, _) => Close(); DockPanel.SetDock(close, Dock.Right); header.Children.Add(close);
         _title.FontSize = 15; _title.FontWeight = FontWeights.SemiBold; _title.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(_title);
@@ -154,18 +155,15 @@ internal sealed class SettingsWindow : Window
         RenderPage();
         BringToFront();
     }
-    private static string T(string es, string en) => Loc.Language == UiLanguage.English ? en : es;
     private static Style StyleOf(string key) => (Style)Application.Current.FindResource(key);
-    private string Category(string c) => c switch { "Personalización" => T(c, "Appearance"), "Agentes" => T(c, "Agents"), "Información" => T(c, "About"), "Actualizaciones" => T(c, "Updates"), "Feedback" => c, _ => T(c, "General") };
-    private string CategoryHint(string c) => c switch
+    /// Dictionary suffix of a category (Settings.Nav.* and Settings.Hint.*); the Spanish names are only identifiers.
+    private static string CategoryKey(string c) => c switch
     {
-        "Personalización" => T("Idioma, tema, colores de los anillos y tamaño del widget.", "Language, theme, ring colours and widget size."),
-        "Agentes" => T("Qué IAs aparecen en el panel y el estado de su conexión.", "Which AIs appear in the panel and how they are connected."),
-        "Información" => T("Versión, sensores de temperatura y licencias.", "Version, temperature sensors and licenses."),
-        "Actualizaciones" => T("Busca e instala versiones nuevas verificadas.", "Find and install verified new versions."),
-        "Feedback" => T("Cuéntanos un error o una idea.", "Report a bug or share an idea."),
-        _ => T("Arranque, modo del panel y frecuencia de actualización.", "Startup, panel mode and refresh rate."),
+        "Personalización" => "Appearance", "Agentes" => "Agents", "Información" => "About",
+        "Actualizaciones" => "Updates", "Feedback" => "Feedback", _ => "General",
     };
+    private static string Category(string c) => Loc.Get("Settings.Nav." + CategoryKey(c));
+    private static string CategoryHint(string c) => Loc.Get("Settings.Hint." + CategoryKey(c));
     private static Drawing CategoryIcon(string c) => c switch
     {
         "General" => Icons.Gear, "Personalización" => Icons.Swatch, "Agentes" => Icons.Bot,
@@ -188,7 +186,7 @@ internal sealed class SettingsWindow : Window
 
     private void RenderPage()
     {
-        _title.Text = "Open Control Edge · " + T("Ajustes", "Settings");
+        _title.Text = Loc.Get("Settings.Title");
         Title = _title.Text;
         foreach (Button button in _navigation.Children)
         {
@@ -255,42 +253,42 @@ internal sealed class SettingsWindow : Window
     }
     private void General()
     {
-        Settings s = SettingsStore.Load(); var card = Card(T("Preferencias", "Preferences")); var p = Inside(card);
+        Settings s = SettingsStore.Load(); var card = Card(Loc.Get("Settings.Preferences")); var p = Inside(card);
         if (Installer.IsInstalledCopy)
             AddStartupToggle(p);
-        AddChoice(p, T("Modo del panel", "Panel mode"), [T("Fijado", "Pinned"), T("Automático", "Automatic")], s.PanelMode == PanelMode.Auto ? 1 : 0, i => { var updated = SettingsStore.Update(x => x with { PanelMode = i == 0 ? PanelMode.Pinned : PanelMode.Auto }); if (updated != null) _apply(updated); });
+        AddChoice(p, Loc.Get("Settings.PanelMode"), [Loc.Get("Settings.Pinned"), Loc.Get("Settings.Automatic")], s.PanelMode == PanelMode.Auto ? 1 : 0, i => { var updated = SettingsStore.Update(x => x with { PanelMode = i == 0 ? PanelMode.Pinned : PanelMode.Auto }); if (updated != null) _apply(updated); });
         int[] intervals = [2, 5, 10, 15];
-        AddChoice(p, T("Intervalo de actualización", "Usage refresh interval"), intervals.Select(i => $"{i} min").ToArray(),
+        AddChoice(p, Loc.Get("Settings.RefreshInterval"), intervals.Select(i => $"{i} min").ToArray(),
             Array.IndexOf(intervals, s.UsageRefreshMinutes), i => { var updated = SettingsStore.Update(x => x with { UsageRefreshMinutes = intervals[i] }); if (updated != null) _apply(updated); });
         var lastValue = _lastRefresh();
-        var last = Muted(T("Última actualización: ", "Last updated: ") + (lastValue?.ToLocalTime().ToString("t", Loc.Culture) ?? "—"), new Thickness(0, 6, 0, 0));
+        var last = Muted(Loc.Format("Settings.LastUpdated", lastValue?.ToLocalTime().ToString("t", Loc.Culture) ?? "—"), new Thickness(0, 6, 0, 0));
         p.Children.Add(last);
-        Actions(p, Button(T("Refrescar ahora", "Refresh now"), async (_, _) =>
+        Actions(p, Button(Loc.Get("Settings.RefreshNow"), async (_, _) =>
         {
-            last.Text = T("Actualizando…", "Refreshing…");
+            last.Text = Loc.Get("Settings.Refreshing");
             await _refresh();
-            last.Text = T("Última actualización: ", "Last updated: ") + (_lastRefresh()?.ToLocalTime().ToString("t", Loc.Culture) ?? DateTime.Now.ToString("t", Loc.Culture));
+            last.Text = Loc.Format("Settings.LastUpdated", _lastRefresh()?.ToLocalTime().ToString("t", Loc.Culture) ?? DateTime.Now.ToString("t", Loc.Culture));
         }, true));
 
-        var extra = Card(T("Opciones", "Options")); var ep = Inside(extra);
-        AddToggle(ep, T("Renovar la sesión de Claude automáticamente", "Automatically renew Claude session"), s.AutoRenewClaude,
+        var extra = Card(Loc.Get("Settings.Options")); var ep = Inside(extra);
+        AddToggle(ep, Loc.Get("Settings.AutoRenewClaude"), s.AutoRenewClaude,
             (x, v) => x with { AutoRenewClaude = v }, x => x.AutoRenewClaude);
-        AddToggle(ep, T("Permitir liberar RAM con un clic", "Allow one-click RAM cleanup"), s.RamCleanup,
+        AddToggle(ep, Loc.Get("Settings.RamCleanup"), s.RamCleanup,
             (x, v) => x with { RamCleanup = v }, x => x.RamCleanup);
-        Actions(ep, Button(T("Restablecer ajustes", "Reset settings"), (_, _) =>
+        Actions(ep, Button(Loc.Get("Settings.Reset"), (_, _) =>
         {
-            if (MessageBox.Show(T("¿Restablecer todos los ajustes?", "Reset all settings?"), "Open Control Edge",
+            if (MessageBox.Show(Loc.Get("Settings.ResetConfirm"), "Open Control Edge",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             Settings? reset = SettingsStore.Update(_ => Settings.Defaults);
             if (reset is null) return;
             ThemeManager.Apply(reset.Theme, reset.ColorTheme); Loc.Apply(reset.Language); _apply(reset); RenderPage();
         }, variant: "Secondary"));
 
-        var danger = Inside(Card(T("Desinstalar", "Uninstall"), T("Quita Open Control Edge de este equipo. Se completa al reiniciar.", "Removes Open Control Edge from this PC. It completes after a restart.")));
+        var danger = Inside(Card(Loc.Get("Settings.Uninstall"), Loc.Get("Settings.UninstallHint")));
         danger.Children.RemoveAt(danger.Children.Count - 1);
-        Actions(danger, Button(T("Desinstalar…", "Uninstall…"), (_, _) =>
+        Actions(danger, Button(Loc.Get("Settings.UninstallButton"), (_, _) =>
         {
-            if (MessageBox.Show(T("¿Desinstalar Open Control Edge?", "Uninstall Open Control Edge?"), "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.Get("Settings.UninstallConfirm"), "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             var uninstall = new InstallWindow(InstallWindow.Mode.Uninstall) { Owner = this };
             uninstall.ShowDialog();
             if (uninstall.Result == InstallWindow.Outcome.Uninstalled) Application.Current.Shutdown();
@@ -298,9 +296,9 @@ internal sealed class SettingsWindow : Window
     }
     private void Appearance()
     {
-        Settings s = SettingsStore.Load(); var p = Inside(Card(T("Aspecto", "Appearance")));
-        AddChoice(p, T("Idioma", "Language"), ["Español", "English"], s.Language == UiLanguage.English ? 1 : 0, i => { var n = SettingsStore.Update(x => x with { Language = i == 0 ? UiLanguage.Spanish : UiLanguage.English }); if (n != null) Loc.Apply(n.Language); });
-        AddChoice(p, T("Tema", "Theme"), [T("Oscuro", "Dark"), T("Claro", "Light"), T("Sistema", "System")], (int)s.Theme, i => { var n = SettingsStore.Update(x => x with { Theme = (AppTheme)i }); if (n != null) ThemeManager.Apply(n.Theme, n.ColorTheme); });
+        Settings s = SettingsStore.Load(); var p = Inside(Card(Loc.Get("Settings.Look")));
+        AddChoice(p, Loc.Get("Settings.Language"), ["Español", "English"], s.Language == UiLanguage.English ? 1 : 0, i => { var n = SettingsStore.Update(x => x with { Language = i == 0 ? UiLanguage.Spanish : UiLanguage.English }); if (n != null) Loc.Apply(n.Language); });
+        AddChoice(p, Loc.Get("Settings.Theme"), [Loc.Get("Settings.Theme.Dark"), Loc.Get("Settings.Theme.Light"), Loc.Get("Settings.Theme.System")], (int)s.Theme, i => { var n = SettingsStore.Update(x => x with { Theme = (AppTheme)i }); if (n != null) ThemeManager.Apply(n.Theme, n.ColorTheme); });
         AddRingThemes(s);
         AddScale(s);
     }
@@ -343,14 +341,14 @@ internal sealed class SettingsWindow : Window
             enabled = state;
             toggle!.IsChecked = state;
             toggle.IsEnabled = true;
-            hint!.Text = error is not null ? DisplayError(error) : state ? T("Activado", "On") : T("Desactivado", "Off");
+            hint!.Text = error is not null ? DisplayError(error) : Loc.Get(state ? "Settings.On" : "Settings.Off");
             if (error is not null) hint.SetResourceReference(TextBlock.ForegroundProperty, "Oce.Danger");
             else hint.SetResourceReference(TextBlock.ForegroundProperty, "Set.Muted");
         }
         toggle = Switch(false, value =>
         {
             toggle!.IsEnabled = false;
-            hint!.Text = T("Aplicando…", "Applying…");
+            hint!.Text = Loc.Get("Settings.Applying");
             Task.Run(() => value ? AutoStartService.Enable() : AutoStartService.Disable()).ContinueWith(task =>
             {
                 string? error = task.IsCompletedSuccessfully ? task.Result
@@ -360,7 +358,7 @@ internal sealed class SettingsWindow : Window
             return value;
         });
         toggle.IsEnabled = false;
-        DockPanel row = Row(panel, T("Iniciar con Windows", "Start with Windows"), toggle, T("Comprobando…", "Checking…"));
+        DockPanel row = Row(panel, Loc.Get("Settings.StartWithWindows"), toggle, Loc.Get("Settings.Checking"));
         hint = (TextBlock)((StackPanel)row.Children[1]).Children[1];
         Task.Run(AutoStartService.Query).ContinueWith(task =>
         {
@@ -370,7 +368,7 @@ internal sealed class SettingsWindow : Window
     }
     private void AddRingThemes(Settings s)
     {
-        var card = Card(T("Color de los anillos", "Ring colors"), T("Paleta de los anillos del panel.", "Palette of the panel rings."));
+        var card = Card(Loc.Get("Settings.RingColors"), Loc.Get("Settings.RingColorsHint"));
         var choices = new WrapPanel();
         Color[][] swatches =
         [
@@ -404,7 +402,7 @@ internal sealed class SettingsWindow : Window
     }
     private void AddScale(Settings s)
     {
-        var card = Card(T("Tamaño del widget", "Widget size"));
+        var card = Card(Loc.Get("Settings.WidgetSize"));
         var slider = new Slider { Style = StyleOf("Oce.ScaleSlider"), Value = s.UiScale ?? 1, IsEnabled = s.UiScale is not null, Margin = new Thickness(0, 6, 0, 0) };
         var saveTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         saveTimer.Tick += (_, _) =>
@@ -413,7 +411,7 @@ internal sealed class SettingsWindow : Window
             SettingsStore.Update(x => x with { UiScale = slider.IsEnabled ? slider.Value : null });
         };
         Closed += (_, _) => saveTimer.Stop();
-        string ScaleText() => T("Escala manual: ", "Manual scale: ") + $"{slider.Value:P0}";
+        string ScaleText() => Loc.Format("Settings.ManualScale", slider.Value);
         TextBlock? value = null;
         var auto = SettingSwitch(s.UiScale is null, (x, on) =>
         {
@@ -422,10 +420,10 @@ internal sealed class SettingsWindow : Window
         }, x => x.UiScale is null, updated =>
         {
             slider.IsEnabled = updated.UiScale is not null;
-            value!.Text = updated.UiScale is null ? T("Escala automática", "Automatic scale") : ScaleText();
+            value!.Text = updated.UiScale is null ? Loc.Get("Settings.AutoScale") : ScaleText();
             _apply(updated);
         });
-        var row = Row(Inside(card), T("Automático", "Automatic"), auto, s.UiScale is null ? T("Escala automática", "Automatic scale") : ScaleText());
+        var row = Row(Inside(card), Loc.Get("Settings.Automatic"), auto, s.UiScale is null ? Loc.Get("Settings.AutoScale") : ScaleText());
         value = (TextBlock)((StackPanel)row.Children[1]).Children[1];
         Inside(card).Children.Add(slider);
         slider.ValueChanged += (_, _) =>
@@ -464,19 +462,19 @@ internal sealed class SettingsWindow : Window
                     return x with { Providers = map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase) };
                 },
                 x => !x.Providers.TryGetValue(name, out ProviderVisibility stored) || stored != ProviderVisibility.Hide, _apply);
-            show.ToolTip = T("Mostrar en el panel", "Show in the panel");
+            show.ToolTip = Loc.Get("Settings.ShowInPanel");
             var showBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
-            showBox.Children.Add(Muted(T("Mostrar", "Show"), new Thickness(0, 0, 8, 1), 12.5));
+            showBox.Children.Add(Muted(Loc.Get("Settings.Show"), new Thickness(0, 0, 8, 1), 12.5));
             ((TextBlock)showBox.Children[0]).VerticalAlignment = VerticalAlignment.Center;
             showBox.Children.Add(show);
             DockPanel.SetDock(showBox, Dock.Right); row.Children.Add(showBox);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (id is AiProviderId.DeepSeek or AiProviderId.OpenRouter)
-                actions.Children.Add(SmallButton(T("Clave API", "API key"), (_, _) => { _keyEditor = _keyEditor == id ? null : id; RenderPage(); }));
+                actions.Children.Add(SmallButton(Loc.Get("Settings.ApiKey"), (_, _) => { _keyEditor = _keyEditor == id ? null : id; RenderPage(); }));
             else if (id is AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor && status.Kind is "session" or "missing")
             {
-                actions.Children.Add(SmallButton(T("Conectar", "Connect"), (_, _) =>
+                actions.Children.Add(SmallButton(Loc.Get("Settings.Connect"), (_, _) =>
                 {
                     if (id == AiProviderId.Claude)
                     {
@@ -505,19 +503,19 @@ internal sealed class SettingsWindow : Window
                                 candidates.Add(IOPath.Combine(folder, name + ".cmd"));
                             }
                     string? cli = candidates.FirstOrDefault(File.Exists);
-                    if (cli is null) { MessageBox.Show(T("No se encuentra la CLI del agente.", "The agent CLI could not be found.")); return; }
+                    if (cli is null) { MessageBox.Show(Loc.Get("Settings.CliMissing")); return; }
                     const string login = "login";
                     bool script = IOPath.GetExtension(cli).Equals(".cmd", StringComparison.OrdinalIgnoreCase);
                     string application = script ? IOPath.Combine(Environment.SystemDirectory, "cmd.exe") : cli;
                     string arguments = script ? $"/d /s /c \"{UnelevatedLauncher.Quote(cli)} {login}\"" : login;
                     var result = UnelevatedLauncher.Run(application, arguments, profile, hidden: false, wait: null);
-                    if (!result.Started) MessageBox.Show(DisplayError(result.Error ?? T("No se pudo iniciar el login.", "Could not start login.")));
+                    if (!result.Started) MessageBox.Show(result.Error is string error ? DisplayError(error) : Loc.Get("Settings.LoginFailed"));
                 }));
             }
             if (status.Kind == "error" || (status.Kind == "session" && id is not (AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor)))
             {
                 if (actions.Children.Count > 0) ((FrameworkElement)actions.Children[^1]).Margin = new Thickness(0, 0, 6, 0);
-                actions.Children.Add(SmallButton(T("Reintentar", "Retry"), async (_, _) => { await _retry(id); RenderPage(); }));
+                actions.Children.Add(SmallButton(Loc.Get("Settings.Retry"), async (_, _) => { await _retry(id); RenderPage(); }));
             }
             DockPanel.SetDock(actions, Dock.Right); row.Children.Add(actions);
 
@@ -550,10 +548,10 @@ internal sealed class SettingsWindow : Window
     {
         (string text, string? dot) = status.Kind switch
         {
-            "connected" => (T("Conectado", "Connected") + (string.IsNullOrWhiteSpace(status.Plan) ? "" : " · " + status.Plan), "Oce.Success"),
-            "missing" => (T("No instalado", "Not installed"), null),
-            "session" => (T("Sin sesión", "No session"), "Oce.Warning"),
-            _ => (T("Error de sincronización", "Sync error"), "Oce.Danger"),
+            "connected" => (Loc.Get("Settings.Connected") + (string.IsNullOrWhiteSpace(status.Plan) ? "" : " · " + status.Plan), "Oce.Success"),
+            "missing" => (Loc.Get("Settings.NotInstalled"), null),
+            "session" => (Loc.Get("Settings.NoSession"), "Oce.Warning"),
+            _ => (Loc.Get("Settings.SyncError"), "Oce.Danger"),
         };
         var content = new StackPanel { Orientation = Orientation.Horizontal };
         if (dot is not null) content.Children.Add(new Ellipse { Width = 6, Height = 6, Fill = (Brush)Application.Current.FindResource(dot), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 6, 0) });
@@ -566,16 +564,16 @@ internal sealed class SettingsWindow : Window
     private DockPanel KeyEditor(AiProviderId id, string name)
     {
         var editor = new DockPanel { Margin = new Thickness(46, 12, 0, 0) };
-        var box = new PasswordBox { Style = StyleOf("Oce.Password"), ToolTip = T("Clave API de ", "API key for ") + name };
-        var save = Button(T("Guardar", "Save"), async (_, _) =>
+        var box = new PasswordBox { Style = StyleOf("Oce.Password"), ToolTip = Loc.Format("Settings.ApiKeyFor", name) };
+        var save = Button(Loc.Get("Settings.Save"), async (_, _) =>
         {
             byte[] bytes = System.Text.Encoding.UTF8.GetBytes(box.Password);
             bool ok = ProviderKeyStore.Save(name.ToLowerInvariant(), bytes);
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
-            MessageBox.Show(ok ? T("Clave guardada", "Key saved") : T("No se pudo guardar", "Could not save"));
+            MessageBox.Show(Loc.Get(ok ? "Settings.KeySaved" : "Settings.KeySaveFailed"));
             if (ok) { _keyEditor = null; await _retry(id); RenderPage(); }
         }, true);
-        var delete = Button(T("Borrar", "Delete"), async (_, _) => { ProviderKeyStore.Delete(name.ToLowerInvariant()); await _retry(id); RenderPage(); });
+        var delete = Button(Loc.Get("Settings.Delete"), async (_, _) => { ProviderKeyStore.Delete(name.ToLowerInvariant()); await _retry(id); RenderPage(); });
         save.Margin = new Thickness(8, 0, 0, 0); delete.Margin = new Thickness(8, 0, 0, 0);
         DockPanel.SetDock(delete, Dock.Right); DockPanel.SetDock(save, Dock.Right);
         editor.Children.Add(delete); editor.Children.Add(save); editor.Children.Add(box);
@@ -595,55 +593,55 @@ internal sealed class SettingsWindow : Window
         var pawnState = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var pawnLed = new Ellipse { Style = StyleOf(pawnRunning ? "Oce.Led.On" : "Oce.Led"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) };
         var pawnLabel = new TextBlock { VerticalAlignment = VerticalAlignment.Center,
-            Text = pawnInstalled ? T("Comprobando…", "Checking…") : T("Falta", "Missing") };
+            Text = Loc.Get(pawnInstalled ? "Settings.Checking" : "Settings.PawnMissing") };
         pawnState.Children.Add(pawnLed);
         pawnState.Children.Add(pawnLabel);
         if (pawnInstalled)
             _ = Task.Run(() => PawnIoInstaller.ServiceRunning).ContinueWith(task => Dispatcher.Invoke(() =>
             {
                 pawnLed.Style = StyleOf(task.Result ? "Oce.Led.On" : "Oce.Led");
-                pawnLabel.Text = task.Result ? T("Instalado y en marcha", "Installed and running") : T("Instalado, servicio detenido", "Installed, service stopped");
+                pawnLabel.Text = Loc.Get(task.Result ? "Settings.PawnRunning" : "Settings.PawnStopped");
             }));
         UIElement pawnControl = pawnState;
         if (!pawnInstalled)
         {
             var install = new StackPanel { Orientation = Orientation.Horizontal };
             install.Children.Add(pawnState); pawnState.Margin = new Thickness(0, 0, 12, 0);
-            install.Children.Add(SmallButton(T("Descargar e instalar", "Download and install"), async (sender, _) => { var b = (Button)sender; b.IsEnabled = false; b.Content = T("Verificando e instalando…", "Verifying and installing…"); string? error = await PawnIoInstaller.InstallAsync(); MessageBox.Show(error is null ? T("PawnIO instalado.", "PawnIO installed.") : DisplayError(error)); RenderPage(); }));
+            install.Children.Add(SmallButton(Loc.Get("Settings.DownloadInstall"), async (sender, _) => { var b = (Button)sender; b.IsEnabled = false; b.Content = Loc.Get("Settings.PawnInstalling"); string? error = await PawnIoInstaller.InstallAsync(); MessageBox.Show(error is null ? Loc.Get("Settings.PawnInstalled") : DisplayError(error)); RenderPage(); }));
             pawnControl = install;
         }
-        Row(p, "PawnIO", pawnControl, T("Controlador para leer las temperaturas de CPU y GPU.", "Driver used to read CPU and GPU temperatures."));
+        Row(p, "PawnIO", pawnControl, Loc.Get("Settings.PawnHint"));
         bool sensors = _sensorsAvailable();
-        Row(p, T("Lecturas de temperatura disponibles", "Temperature readings available"), new TextBlock { Text = T(sensors ? "Sí" : "No", sensors ? "Yes" : "No"), VerticalAlignment = VerticalAlignment.Center });
-        var links = new[] { (T("Repositorio", "Repository"), "https://github.com/danielfinchdev/open-control-edge"), (T("Licencia", "License"), "https://github.com/danielfinchdev/open-control-edge/blob/main/LICENSE"), (T("Licencias de terceros", "Third-party licenses"), "https://github.com/danielfinchdev/open-control-edge/blob/main/THIRD-PARTY-NOTICES.txt") }
+        Row(p, Loc.Get("Settings.TemperatureReadings"), new TextBlock { Text = Loc.Get(sensors ? "Settings.Yes" : "Settings.No"), VerticalAlignment = VerticalAlignment.Center });
+        var links = new[] { (Loc.Get("Settings.Repository"), "https://github.com/danielfinchdev/open-control-edge"), (Loc.Get("Settings.License"), "https://github.com/danielfinchdev/open-control-edge/blob/main/LICENSE"), (Loc.Get("Settings.ThirdParty"), "https://github.com/danielfinchdev/open-control-edge/blob/main/THIRD-PARTY-NOTICES.txt") }
             .Select(link => Button(link.Item1, (_, _) => OpenUnelevated(link.Item2))).ToList();
-        links.Add(Button(T("Abrir registro", "Open log"), (_, _) => { string log = IOPath.Combine(DataFolder.Path, "widget.log"); UnelevatedLauncher.Run(IOPath.Combine(Environment.SystemDirectory, "explorer.exe"), "/select," + UnelevatedLauncher.Quote(log), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), false, null); }));
+        links.Add(Button(Loc.Get("Settings.OpenLog"), (_, _) => { string log = IOPath.Combine(DataFolder.Path, "widget.log"); UnelevatedLauncher.Run(IOPath.Combine(Environment.SystemDirectory, "explorer.exe"), "/select," + UnelevatedLauncher.Quote(log), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), false, null); }));
         p.Children.Add(new Border { Style = StyleOf("Oce.Separator") });
         Actions(p, links.ToArray()).Margin = new Thickness(0);
     }
     private void Updates()
     {
-        var p = Inside(Card(T("Actualizaciones", "Updates")));
+        var p = Inside(Card(Loc.Get("Settings.Nav.Updates")));
         var status = Muted(_release is null
-            ? _noUpdateAvailable ? T("No hay actualizaciones disponibles", "No updates available") : T("Versión actual: ", "Current version: ") + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown")
-            : T("Actualización ", "Update ") + _release.Tag + T(" encontrada", " found"), new Thickness(0, 0, 0, 4));
+            ? _noUpdateAvailable ? Loc.Get("Settings.NoUpdates") : Loc.Format("Settings.CurrentVersion", typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown")
+            : Loc.Format("Settings.UpdateFound", _release.Tag), new Thickness(0, 0, 0, 4));
         p.Children.Add(status);
         var notes = new TextBox { Style = StyleOf("Oce.Textarea"), Text = _release?.Notes ?? "", IsReadOnly = true,
             TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Height = 140, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 8, 0, 0) };
         if (_release is not null) p.Children.Add(notes);
-        var install = Button(T("Descargar e instalar", "Download and install"), async (_, _) =>
+        var install = Button(Loc.Get("Settings.DownloadInstall"), async (_, _) =>
         {
             if (_release is null) return;
-            if (MessageBox.Show(T("Se verificará el SHA-256 y se reiniciará la aplicación para instalar la versión.", "SHA-256 will be verified and the app will restart to install this version."),
-                T("Instalar actualización", "Install update"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            status.Text = T("Descargando y verificando…", "Downloading and verifying…");
+            if (MessageBox.Show(Loc.Get("Settings.UpdateConfirm"),
+                Loc.Get("Settings.InstallUpdate"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            status.Text = Loc.Get("Settings.Downloading");
             string? error = await UpdateInstaller.DownloadAndRestartAsync(_release);
             if (error is null) Application.Current.Shutdown();
             else status.Text = DisplayError(error);
         }, true);
-        var check = Button(T("Buscar actualizaciones", "Check for updates"), async (_, _) =>
+        var check = Button(Loc.Get("Settings.CheckUpdates"), async (_, _) =>
         {
-            status.Text = T("Buscando…", "Checking…");
+            status.Text = Loc.Get("Settings.Searching");
             UpdateCheckResult result = await UpdateService.CheckAsync();
             if (result.Error is not null) status.Text = DisplayError(result.Error);
             else if (result.Release is null) { _release = null; _noUpdateAvailable = true; RenderPage(); }
@@ -652,22 +650,22 @@ internal sealed class SettingsWindow : Window
         if (_release is not null) Actions(p, install, check); else Actions(p, check);
         p.Children.Add(new Border { Style = StyleOf("Oce.Separator") });
         Settings settings = SettingsStore.Load();
-        AddToggle(p, T("Buscar actualizaciones automáticamente (una vez al día)", "Check automatically (once a day)"), settings.AutoCheckUpdates,
+        AddToggle(p, Loc.Get("Settings.AutoCheck"), settings.AutoCheckUpdates,
             (x, enabled) => x with { AutoCheckUpdates = enabled, LastAutoUpdateCheck = enabled ? null : x.LastAutoUpdateCheck },
             x => x.AutoCheckUpdates, _apply);
     }
     private void Feedback()
     {
-        var p = Inside(Card(T("Cuéntanos", "Tell us"), T("El formulario de GitHub es público. No incluyas datos personales. El navegador abrirá un borrador que podrás revisar y editar antes de enviarlo.", "GitHub issues are public. Do not include personal information. Your browser will open a draft you can review and edit before submitting.")));
-        var type = new ComboBox { ItemsSource = new[] { T("Error", "Bug"), T("Idea", "Idea"), T("Otro", "Other") }, SelectedIndex = 0, Width = 180,
+        var p = Inside(Card(Loc.Get("Settings.TellUs"), Loc.Get("Settings.FeedbackHint")));
+        var type = new ComboBox { ItemsSource = new[] { Loc.Get("Settings.Type.Bug"), Loc.Get("Settings.Type.Idea"), Loc.Get("Settings.Type.Other") }, SelectedIndex = 0, Width = 180,
             Style = StyleOf("Oce.Select"), ItemContainerStyle = StyleOf("Oce.Select.Item") };
-        Row(p, T("Tipo", "Type"), type);
-        p.Children.Add(FieldLabel(T("Mensaje", "Message")));
+        Row(p, Loc.Get("Settings.Type"), type);
+        p.Children.Add(FieldLabel(Loc.Get("Settings.Message")));
         var body = new TextBox { Style = StyleOf("Oce.Textarea"), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 120, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; p.Children.Add(body);
         string Payload() => $"Type: {type.Text}\nVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}\nOS: {Environment.OSVersion.VersionString}\nScale: {SettingsStore.Load().UiScale?.ToString("0.00") ?? "auto"}\n\n{body.Text}";
         Actions(p,
-            Button(T("Abrir formulario", "Open form"), (_, _) => { Clipboard.SetText(Payload()); OpenUnelevated("https://github.com/danielfinchdev/open-control-edge/issues/new"); }, true),
-            Button(T("Copiar borrador", "Copy draft"), (_, _) => Clipboard.SetText(Payload()), variant: "Secondary")).Margin = new Thickness(0, 14, 0, 0);
+            Button(Loc.Get("Settings.OpenForm"), (_, _) => { Clipboard.SetText(Payload()); OpenUnelevated("https://github.com/danielfinchdev/open-control-edge/issues/new"); }, true),
+            Button(Loc.Get("Settings.CopyDraft"), (_, _) => Clipboard.SetText(Payload()), variant: "Secondary")).Margin = new Thickness(0, 14, 0, 0);
     }
 
     private static void OpenUnelevated(string url) =>
