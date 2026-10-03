@@ -1,6 +1,6 @@
 # Registro de cambios
 
-## 2.1.0 — sin publicar
+## 2.1.0 — 2026-10-03
 
 - **Tipografía Outfit** (400, 500 y 600; SIL OFL) en toda la app en lugar de Google Sans Flex, con cifras tabulares
   en los anillos para que no bailen.
