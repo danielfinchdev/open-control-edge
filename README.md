@@ -123,6 +123,9 @@ Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanale
 
 Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente con el usuario de la sesión interactiva.
 
+Firma: [Code signing policy](#code-signing-policy) (free code signing provided by SignPath.io, certificate by
+SignPath Foundation).
+
 1. Descarga el ZIP de la aplicación de la [última versión](../../releases/latest), o compílala (ver abajo).
    Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
    El flujo publica una attestation verificable con
@@ -131,7 +134,7 @@ Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente c
    - su SHA-256 coincide con el `digest` que GitHub publica para ese archivo;
    - contiene exactamente `OpenControlEdge.exe` y sus 8 librerías nativas: ni un archivo más ni uno menos;
    - el ejecutable tiene una firma Authenticode válida de SignPath Foundation (nombre exacto) y su recurso de versión
-     dice OpenControlEdge y la versión anunciada. SignPath Foundation firma muchos proyectos con esa misma
+     dice «Open Control Edge» y la versión anunciada. SignPath Foundation firma muchos proyectos con esa misma
      identidad, así que esta comprobación se apoya también en que la descarga solo puede venir de las Releases de
      este repositorio;
    - cada librería es byte a byte la que trae la versión instalada o está firmada por su editor (Microsoft para
@@ -446,11 +449,15 @@ Pasos para activarla (los tiene que dar el dueño del repositorio; ninguna IA pu
    construidas en GitHub Actions y la política de firma publicada (sección siguiente).
 2. Cuando lo aprueben, en SignPath: instalar la aplicación de GitHub de SignPath en el repositorio, crear el proyecto
    (por ejemplo `open-control-edge`) con un *trusted build system* de GitHub y una **configuración de artefacto** que
-   firme el ejecutable dentro del ZIP del artefacto:
+   firme el ejecutable dentro del ZIP del artefacto, solo si su recurso de versión dice el nombre del proyecto y la
+   versión de la etiqueta (el flujo la pasa como parámetro `version` y comprueba que coincide con el csproj):
    ```xml
    <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+     <parameters>
+       <parameter name="version" />
+     </parameters>
      <zip-file>
-       <pe-file path="OpenControlEdge.exe">
+       <pe-file path="OpenControlEdge.exe" product-name="Open Control Edge" product-version="${version}">
          <authenticode-sign />
        </pe-file>
      </zip-file>
@@ -481,7 +488,8 @@ commits are submitted for signing, and each signing request is approved manually
 **Privacy:** this program will not transfer any information to other networked systems unless specifically requested
 by the user or the person installing or operating it. It only sends HTTPS requests to the usage endpoints of the AI
 services the user is signed in to or has added an API key for (listed in «De dónde salen los datos»), carrying the
-user's own credentials; it has no telemetry.
+user's own credentials; it has no telemetry. The daily update check against this repository's GitHub Releases is
+optional and off by default, and PawnIO is downloaded from its official release only when the user asks for it.
 
 ---
 

@@ -25,7 +25,7 @@ internal static class AuthenticodeVerifier
     };
 
     /// An Open Control Edge executable of exactly this version, signed for the official releases: trusted signature
-    /// whose signer is SignPath Foundation (exact name), and a version resource that says OpenControlEdge and version.
+    /// whose signer is SignPath Foundation (exact name), and a version resource that says Open Control Edge and version.
     internal static bool IsOfficialExecutable(string path, Version version)
     {
         using X509Certificate2? signer = TrustedSigner(path);
@@ -33,7 +33,7 @@ internal static class AuthenticodeVerifier
         try
         {
             FileVersionInfo info = FileVersionInfo.GetVersionInfo(path);
-            return info.ProductName == "OpenControlEdge"
+            return info.ProductName == "Open Control Edge"
                    && new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart) == Normalize(version);
         }
         catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)

@@ -24,6 +24,16 @@ jobs:
 
       # Same publish as README / build.yml. Release csproj keeps DebugType=none. The executable installs itself
       # (welcome window), so the folder carries no script.
+      # The tag must be the csproj version: SignPath only signs an executable whose product version is that value.
+      - name: Check version
+        id: version
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          [xml]$project = Get-Content src/OpenControlEdge/OpenControlEdge.csproj
+          $declared = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          if ($declared -ne $version) { throw "La etiqueta v$version no coincide con <Version>$declared</Version> del csproj." }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
       - name: Publish
         run: dotnet publish src/OpenControlEdge/OpenControlEdge.csproj -c Release -r win-x64 -o dist
 
@@ -66,6 +76,8 @@ jobs:
           github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: signed
+          parameters: |
+            version: "${{ steps.version.outputs.value }}"
 
       - name: Use the signed application
         if: steps.signing.outputs.enabled == 'true'
@@ -92,5 +104,6 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag OpenControlEdge-win-x64.zip --clobber
           } else {
-            gh release create $tag OpenControlEdge-win-x64.zip --title $title --generate-notes
+            $notes = "[Code signing policy](https://github.com/$env:GITHUB_REPOSITORY#code-signing-policy): free code signing provided by SignPath.io, certificate by SignPath Foundation."
+            gh release create $tag OpenControlEdge-win-x64.zip --title $title --notes $notes --generate-notes
           }

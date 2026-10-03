@@ -12,6 +12,13 @@
     <AssemblyName>OpenControlEdge</AssemblyName>
     <RootNamespace>OpenControlEdge</RootNamespace>
     <Version>2.1.0</Version>
+    <!-- Version resource: SignPath Foundation requires the product name to be the project's name and the same product
+         version in every build (no "+commit" suffix); its artifact configuration enforces both. -->
+    <Product>Open Control Edge</Product>
+    <AssemblyTitle>Open Control Edge</AssemblyTitle>
+    <Company>Open Control Edge</Company>
+    <Copyright>Copyright (c) 2026 danielfinchdev</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

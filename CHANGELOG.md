@@ -37,13 +37,16 @@
   - El ZIP debe contener exactamente el ejecutable y sus 8 librerías nativas, ni un archivo más. Antes solo se
     comprobaba la firma del ejecutable y cualquier otra DLL del ZIP se habría instalado y cargado como administrador.
   - El ejecutable debe estar firmado por SignPath Foundation (nombre exacto, no «contiene») y su recurso de versión
-    decir OpenControlEdge y la versión anunciada. Cada librería debe ser la que trae la versión instalada o estar
+    decir «Open Control Edge» y la versión anunciada. Cada librería debe ser la que trae la versión instalada o estar
     firmada por su editor (Microsoft, Xamarin o SignPath Foundation).
 - **Instalación local**: el ejecutable lleva compilados los SHA-256 de sus 8 librerías nativas (se calculan al
   compilar a partir de los archivos que se publican) y el instalador solo copia librerías idénticas.
 - Las bases SQLite de Cursor y OpenCode se abren en modo defensivo (solo lectura y consulta, `trusted_schema`
   desactivado, comprobación de celdas, sin mapear en memoria, solo archivos normales). Un proveedor oculto en
   Ajustes → Agentes ya no se lee nunca, tampoco al abrir esa página, que lo marca como «Oculto».
+- Firma con SignPath Foundation preparada: el recurso de versión del ejecutable dice «Open Control Edge» y la versión
+  sin sufijo de commit, la Release comprueba que la etiqueta coincide con la versión del proyecto, pasa esa versión
+  a SignPath para que solo firme ese ejecutable y enlaza la política de firma.
 - **SQLite nativo 3.53.3** (SQLitePCLRaw 2.1.13) en lugar del 3.41 que traía Microsoft.Data.Sqlite 8.0.11
   (SQLitePCLRaw 2.1.6), afectado por CVE-2025-6965.
 - Las peticiones de uso (Claude, Codex, Cursor, DeepSeek, OpenRouter) ya no siguen redirecciones: la cookie de
