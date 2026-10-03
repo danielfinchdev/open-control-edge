@@ -16,9 +16,6 @@ namespace OpenControlEdge.Services;
 /// running as the user could plant a link and redirect an elevated write elsewhere.
 internal static class DataFolder
 {
-    /// Users, Everyone and Authenticated Users: groups without administrator rights.
-    private static readonly string[] NonAdminSids = { "S-1-5-32-545", "S-1-1-0", "S-1-5-11" };
-
     /// Owner Administrators; protected DACL: SYSTEM and Administrators full control, Users read + execute; High label
     /// with no-write-up. The directory form carries inheritance to children.
     private const string DirectorySddl = "O:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)S:(ML;OICI;NW;;;HI)";
@@ -94,9 +91,21 @@ internal static class DataFolder
     private static readonly string[] AdminOwners =
         { "S-1-5-32-544", "S-1-5-18", "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" };
 
-    /// True when Users, Everyone, Authenticated Users or this very account (whose unelevated programs are the ones to
-    /// keep out) hold any write right on the file or directory, or own it (ported and widened from
-    /// Test-EscrituraNoAdmin in instalar.ps1). Inherit-only entries count too: they reach every child.
+    /// Trustees that may hold write rights: the AdminOwners, plus CREATOR OWNER and OWNER RIGHTS, which only ever grant
+    /// to the owner, and the owner must be one of the AdminOwners.
+    private static readonly string[] AdminWriters = AdminOwners.Concat(new[] { "S-1-3-0", "S-1-3-4" }).ToArray();
+
+    /// Write rights, generic ones included: GENERIC_WRITE (0x40000000) and GENERIC_ALL (0x10000000) appear unmapped in
+    /// inherit-only entries. Read and execute rights never match, whatever the trustee.
+    private const FileSystemRights WriteMask = FileSystemRights.WriteData | FileSystemRights.AppendData
+        | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Delete
+        | FileSystemRights.DeleteSubdirectoriesAndFiles | FileSystemRights.ChangePermissions
+        | FileSystemRights.TakeOwnership | (FileSystemRights)0x40000000 | (FileSystemRights)0x10000000;
+
+    /// True when the file or directory is owned by anyone but Administrators, SYSTEM or TrustedInstaller, or any other
+    /// trustee (Users, this very account, another account, any group) holds a write right on it (ported and widened
+    /// from Test-EscrituraNoAdmin in instalar.ps1). An allow list, so an unexpected trustee counts as unsafe; Deny
+    /// entries are ignored, which can only make the answer stricter. Inherit-only entries count too: they reach every child.
     public static bool NonAdminsCanWrite(string path, bool directory)
     {
         FileSystemSecurity security = directory
@@ -106,20 +115,11 @@ internal static class DataFolder
         if (security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner
             || Array.IndexOf(AdminOwners, owner.Value) < 0) return true;
 
-        using var self = WindowsIdentity.GetCurrent();
-        string? selfSid = self.User?.Value;
-
-        FileSystemRights writeMask = FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteAttributes
-                                     | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Delete
-                                     | FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
-        if (directory) writeMask |= FileSystemRights.DeleteSubdirectoriesAndFiles;
-
         foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
         {
             if (rule.AccessControlType != AccessControlType.Allow) continue;
-            string sid = ((SecurityIdentifier)rule.IdentityReference).Value;
-            if (Array.IndexOf(NonAdminSids, sid) < 0 && sid != selfSid) continue;
-            if ((rule.FileSystemRights & writeMask) != 0) return true;
+            if (Array.IndexOf(AdminWriters, ((SecurityIdentifier)rule.IdentityReference).Value) >= 0) continue;
+            if ((rule.FileSystemRights & WriteMask) != 0) return true;
         }
         return false;
     }

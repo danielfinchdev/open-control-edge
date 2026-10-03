@@ -6,6 +6,8 @@ namespace OpenControlEdge.Services;
 /// every 2 to 15 minutes paid a new TCP + TLS handshake per host each time (about two thirds of its CPU, measured).
 /// Idle connections now outlive the longest refresh interval; a connection the server closed meanwhile is simply
 /// replaced, and none lives more than an hour so DNS changes are still picked up.
+/// Redirects are never followed: every request carries a credential (the Cursor cookie, API keys) set by hand as a
+/// header, and HttpClient keeps such headers when it follows a redirect, even to another host. A 3xx is just an error.
 internal static class UsageHttp
 {
     /// "OpenControlEdge/2.1.0": the version of this build, for every request the app sends.
@@ -14,6 +16,7 @@ internal static class UsageHttp
 
     public static HttpClient Create() => new(new SocketsHttpHandler
     {
+        AllowAutoRedirect = false,
         PooledConnectionIdleTimeout = TimeSpan.FromMinutes(16),
         PooledConnectionLifetime = TimeSpan.FromHours(1),
     })

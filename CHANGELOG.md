@@ -44,6 +44,14 @@
 - Las bases SQLite de Cursor y OpenCode se abren en modo defensivo (solo lectura y consulta, `trusted_schema`
   desactivado, comprobación de celdas, sin mapear en memoria, solo archivos normales). Un proveedor oculto en
   Ajustes → Agentes ya no se lee nunca, tampoco al abrir esa página, que lo marca como «Oculto».
+- **SQLite nativo 3.53.3** (SQLitePCLRaw 2.1.13) en lugar del 3.41 que traía Microsoft.Data.Sqlite 8.0.11
+  (SQLitePCLRaw 2.1.6), afectado por CVE-2025-6965.
+- Las peticiones de uso (Claude, Codex, Cursor, DeepSeek, OpenRouter) ya no siguen redirecciones: la cookie de
+  Cursor y las claves API van en cabeceras que HttpClient conserva al redirigir, también a otro dominio.
+- El instalador comprueba los permisos de Program Files, de la carpeta y de cada archivo **antes** de sustituir la
+  copia anterior, y cancela si alguien que no sea Administradores, SYSTEM o TrustedInstaller puede modificarlos
+  (antes solo miraba tres grupos, la carpeta y el exe, y se limitaba a avisar). Los permisos de solo lectura y
+  ejecución ya no cuentan como escritura.
 - Pegar una clave API con espacios o saltos de línea ya no la invalida. Un valor de proveedor desconocido en el
   archivo de ajustes se ignora en vez de impedir que se guarde cualquier cambio.
 - La X del panel dice «Salir de Open Control Edge». «Liberar RAM» informa solo de la memoria en uso liberada y ya

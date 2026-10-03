@@ -24,8 +24,8 @@ internal sealed record InstallResult(bool Ok, string? Error, IReadOnlyList<strin
 ///   1. stops the widget (Open Control Edge and the old EdgeWidget) and their tasks;
 ///   2. copies OpenControlEdge.exe and its native libraries (NativeLibraries, nothing else) to
 ///      C:\Program Files\OpenControlEdge through a staging folder, checks every copy with SHA-256 and swaps it in (the
-///      previous copy comes back if the swap fails), then checks that no non-administrator can write to the folder or
-///      the executable;
+///      previous copy comes back if the swap fails); before the swap it stops if anyone but an administrator could
+///      write to Program Files, the folder or any of its files;
 ///   3. protects the data folder %ProgramData%\OpenControlEdge\{SID} (DataFolder.Harden: no links, admins-only
 ///      writes, High label);
 ///   4. registers the sign-in task (AutoStartService) and removes the old ones: EdgeWidget, and
@@ -66,8 +66,6 @@ internal static class Installer
 
             progress.Report(InstallStep.Copy);
             CopyApplication(sourceDir);
-            if (DataFolder.NonAdminsCanWrite(InstallDir, directory: true) || DataFolder.NonAdminsCanWrite(InstalledExe, directory: false))
-                warnings.Add("Usuarios sin privilegios pueden escribir en la carpeta de instalación.");
 
             progress.Report(InstallStep.Data);
             PrepareDataFolder();
@@ -164,6 +162,21 @@ internal static class Installer
                 : NativeLibraries.IsExpected(copy);
             if (!intact)
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");
+        }
+
+        // The elevated widget loads every one of these files: if anyone but an administrator could replace one, or the
+        // folder holding them, the installation stops here, before the previous copy is touched. The move below keeps
+        // these permissions (same volume).
+        string programFiles = Path.GetDirectoryName(InstallDir)!;
+        string? unsafePath = DataFolder.NonAdminsCanWrite(programFiles, directory: true) ? programFiles
+            : DataFolder.NonAdminsCanWrite(staging, directory: true) ? staging
+            : files.Select(file => Path.Combine(staging, Path.GetRelativePath(sourceDir, file)))
+                   .FirstOrDefault(copy => DataFolder.NonAdminsCanWrite(copy, directory: false));
+        if (unsafePath is not null)
+        {
+            Directory.Delete(staging, recursive: true);
+            throw new InvalidOperationException(
+                $"Una cuenta sin privilegios de administrador podría modificar {unsafePath}; se cancela la instalación.");
         }
 
         string backup = $"{InstallDir}.previous-{Guid.NewGuid():N}";

@@ -96,6 +96,8 @@
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <!-- Microsoft.Data.Sqlite 8.0.11 pulls SQLitePCLRaw 2.1.6 (native SQLite 3.41, CVE-2025-6965). 2.1.13 ships a fixed SQLite. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
