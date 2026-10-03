@@ -25,3 +25,13 @@ desktop.ini
 # Handoff / locks del equipo (local; no publicar)
 handoff/
 
+# Bitácora privada del proyecto (nunca se sube)
+BITACORA.md
+
+# Herramientas y reglas locales de los asistentes de código (no se publican)
+AGENTS.md
+CLAUDE.md
+.claude/
+.gitattributes
+tools/git-hooks/
+tools/instalar-hooks.ps1

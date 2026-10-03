@@ -442,7 +442,7 @@ gratis para proyectos de código abierto: sube la carpeta publicada como artefac
 a que termine, comprueba la firma Authenticode y adjunta a la Release el ZIP con el ejecutable firmado. Mientras no
 existan los datos de SignPath, el paso se salta con un aviso y la Release sale sin firmar.
 
-Pasos para activarla (los tiene que dar el dueño del repositorio; ninguna IA puede crear la cuenta):
+Pasos para activarla (los da el dueño del repositorio):
 
 1. Solicitar el alta del proyecto en [signpath.org/foundation](https://signpath.org/foundation) (formulario de
    proyectos de código abierto). Piden que el repositorio sea público, con licencia OSI (MIT vale), releases
@@ -495,18 +495,9 @@ optional and off by default, and PawnIO is downloaded from its official release 
 
 ## Contribuir
 
-Después de clonar, instala el hook que quita las firmas de IA (`Co-authored-by: Claude/Cursor/Codex`,
-«Generated with…») de los mensajes de commit:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\instalar-hooks.ps1
-```
-
-Los mensajes de commit van en español, cortos y en imperativo. Escríbelos a mano o genéralos desde el botón
-del IDE (Cursor / VS Code → **Control de código fuente** → **Generar mensaje de commit**, el icono de destellos
-junto al cuadro del mensaje) y revísalos antes de confirmar. `.claude/settings.json` desactiva además la
-atribución automática de Claude Code en commits y PR. Las reglas para las IAs que trabajan en el repositorio
-están en [AGENTS.md](AGENTS.md).
+Las propuestas llegan como *pull request* contra `main` y las revisa el mantenedor antes de fusionarlas (ver
+[Code signing policy](#code-signing-policy)). Los mensajes de commit van en español, cortos y en imperativo.
+Antes de enviar un cambio, comprueba que `dotnet build -c Release` termina sin avisos ni errores.
 
 ---
 
