@@ -252,7 +252,7 @@
     <sys:String x:Key="Msg.OpenCodeNotDetected">OpenCode not detected</sys:String>
     <sys:String x:Key="Msg.AddDeepSeekKey">Add the DeepSeek API key</sys:String>
     <sys:String x:Key="Msg.AddOpenRouterKey">Add the OpenRouter API key</sys:String>
-    <sys:String x:Key="Msg.AddKeyFromMenu">Add the API key from API keys…</sys:String>
+    <sys:String x:Key="Msg.AddKeyFromMenu">Add the API key from Agents &amp; API keys…</sys:String>
     <sys:String x:Key="Msg.InvalidKey">Invalid API key</sys:String>
     <sys:String x:Key="Msg.CursorBusy">Cursor is busy, will retry</sys:String>
     <sys:String x:Key="Msg.ClaudeLogin">Sign in to Claude Code</sys:String>

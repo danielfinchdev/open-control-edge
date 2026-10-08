@@ -5,7 +5,7 @@ Open Control Edge is published self-contained: the release ZIP carries the .NET 
 and the components below. Each keeps its own license; the source of the MPL-2.0 ones
 is available at the addresses given.
 
-.NET 8 runtime and Windows Desktop runtime (WPF), including the native libraries
+.NET 10 runtime and Windows Desktop runtime (WPF), including the native libraries
 D3DCompiler_47_cor3.dll, PenImc_cor3.dll, PresentationNative_cor3.dll,
 vcruntime140_cor3.dll and wpfgfx_cor3.dll
 Copyright (c) .NET Foundation and Contributors
@@ -39,24 +39,14 @@ Copyright Microsoft Corporation and Xamarin Inc.
 MIT License
 https://github.com/mono/mono/blob/main/LICENSE
 
-Microsoft.Data.Sqlite 8.0.11 and Microsoft.Data.Sqlite.Core
-Copyright (c) .NET Foundation and Contributors
-MIT License
-https://github.com/dotnet/efcore/blob/main/LICENSE.txt
-
-SQLitePCLRaw 2.1.6 (core, provider, bundle and lib.e_sqlite3)
+SQLitePCLRaw 3.0.5 (core, provider, bundle and lib.e_sqlite3), used through its raw API
 Copyright 2014-2023 SourceGear, LLC
 Apache License 2.0
 https://github.com/ericsink/SQLitePCL.raw
 
-SQLite (e_sqlite3.dll)
+SQLite 3.53.4 (e_sqlite3.dll)
 Public domain
 https://www.sqlite.org/copyright.html
-
-System.Security.Cryptography.ProtectedData 8.0.0
-Copyright (c) .NET Foundation and Contributors
-MIT License
-https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
 
 Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
 Mozilla Public License 2.0: https://www.mozilla.org/MPL/2.0/

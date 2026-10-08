@@ -1,5 +1,70 @@
 # Registro de cambios
 
+## 2.2.0 — 2026-10-08
+
+- **Vistas del panel.** El panel enseña una sola vista: **IA** (los anillos de las IA), **PC** (FPS, CPU, GPU, Modo juego
+  y RAM) o **Personalizada** (la mezcla que quieras). Un cuarto botón redondo cambia de vista (IA → PC → Personalizada)
+  con un fundido, y los botones pasan a ir de dos en dos: fijar/ocultar y vista arriba, ajustes y cerrar abajo. En
+  Ajustes → Personalización eliges la vista activa y, por vista, qué anillos se ven y su orden con ↑↓ (por defecto
+  alfabético; en PC, FPS primero). La escala del panel se calcula para la vista más grande (con lo que haya disponible)
+  para que no salte al cambiar de vista.
+- **Color de fondo del panel** (Ajustes → Personalización → Fondo del widget): colores predefinidos, `#RRGGBB` o
+  deslizadores R/G/B; negro por defecto. Sobre fondos claros, el texto y los anillos pasan solos a la variante oscura.
+- **Anillo de FPS** (el primero de la vista PC): los FPS del programa en primer plano, contados como PresentMon a partir
+  de los eventos de presentación de ETW (Microsoft-Windows-DXGI 42/55, D3D9 1 y DxgKrnl con el filtro de eventos
+  166/168/171/184/252); por proceso gana el tipo de evento más frecuente, y las apps Electron/Chromium se cuentan por su
+  proceso hijo de GPU. La sesión de ETW solo existe mientras el anillo está a la vista y se muestrea una vez por
+  segundo. Necesita la copia elevada (instalada); sin ella, o si nada presenta, enseña los FPS de composición del
+  escritorio (`DwmGetCompositionTimingInfo`). El arco es FPS / frecuencia del monitor; la tarjeta enseña el proceso, la
+  barra de FPS, el tiempo de fotograma y los Hz.
+- **Modo juego** (anillo con un mando; vacío = apagado, lleno = encendido). Desactivado por defecto; se activa en la
+  nueva página Ajustes → Modo juego, donde editas los programas que se cierran (por defecto: sincronización en la nube,
+  Phone Link, Teams y los auxiliares de la Xbox Game Bar), los servicios que se detienen (por defecto WSearch,
+  SysMain y DiagTrack), el plan de energía (Equilibrado por defecto, Alto rendimiento o No cambiarlo), si se
+  desactivan las capturas de la Xbox Game Bar (valores de HKCU) y si al apagarlo se vuelven a abrir los programas
+  cerrados, como usuario normal. Nunca cierra procesos protegidos ni del sistema, el proceso de la ventana en primer
+  plano, el propio widget ni `claude.exe`, y hay una lista de servicios protegidos (seclogon, PawnIO…). El estado
+  anterior se guarda en `gamemode.json`, en la carpeta de datos, antes de cada cambio; se restaura al salir y, si el
+  equipo se apagó a medias, al volver a abrir el widget.
+- **Varias cuentas por IA** (Claude, Codex y Cursor). En Ajustes → Agentes → Cuentas se añade otra cuenta con su carpeta
+  de configuración (`CLAUDE_CONFIG_DIR` con `.credentials.json`, `CODEX_HOME` con `auth.json`, o el
+  `--user-data-dir` de Cursor con `User\globalStorage\state.vscdb`) y un nombre. Sigue habiendo un anillo por IA y la
+  tarjeta lleva pestañas de cuenta (Principal · Trabajo) para elegir cuál enseña el anillo; la elección se recuerda.
+  Renovar la sesión con un clic en el anillo de Claude solo vale para la cuenta principal.
+- **Cursor y OpenCode ya no se leen con permisos de administrador.** Antes el proceso elevado abría `state.vscdb` y
+  `opencode.db` con SQLite. Ahora la app instalada arranca su propio ejecutable como usuario normal
+  (`--read-database cursor|opencode <ruta|auto>`, con `__COMPAT_LAYER=RunAsInvoker`, oculto, dentro de un *job* que lo
+  cierra y con un límite de 20 s): lee el archivo en solo lectura y en modo defensivo y escribe un JSON pequeño por una
+  tubería. Cuesta un arranque corto por cada refresco de Cursor u OpenCode (~0,1 s de CPU y ~30 MB durante menos de
+  un segundo) y nada entre refrescos. Las copias sin elevar (Debug) leen en el propio proceso.
+- **SQLite sin Microsoft.Data.Sqlite.** Se usa SQLitePCLRaw 3.0.5 con el SQLite nativo **3.53.4** por su API directa
+  (`UntrustedSqlite`), en lugar del 3.53.3 de la 2.1.0. Desaparecen también la referencia a
+  `System.Security.Cryptography.ProtectedData` (viene con .NET 10) y `Microsoft.Data.Sqlite` de las librerías que se
+  publican.
+- **Actualizaciones con aviso y firma propia.** La comprobación automática viene **activada** por defecto (clave
+  `checkUpdates`, que sustituye a `autoCheckUpdates`), al arrancar y cada 6 h. Una versión nueva pone un punto rojo en
+  el botón de ajustes y un aviso en Ajustes («Nueva versión disponible · Descargar e instalar»); un clic descarga,
+  verifica e instala, y el widget se reinicia. El flujo de Release firma ahora el ZIP con una clave ECDSA P-256 del
+  proyecto (secreto `UPDATE_SIGNING_KEY`) y publica `OpenControlEdge-win-x64.zip.sig`: la app instala un archivo
+  firmado si la firma coincide con la clave pública que lleva dentro (entonces no hacen falta las comprobaciones
+  Authenticode ni por DLL; el recurso de versión del ejecutable debe seguir diciendo «Open Control Edge» y la
+  versión). Sin `.sig`, sigue exigiendo la firma Authenticode de SignPath. **Quien tenga la 2.1.0 debe instalar la
+  2.2.0 a mano una vez**: la 2.1.0 solo acepta actualizaciones firmadas por SignPath.
+- **Feedback sin cuenta y con capturas.** Ajustes → Feedback → «Enviar» publica el mensaje en FormSubmit
+  (formsubmit.co), que lo reenvía por correo al autor (su dirección queda detrás de un alias de FormSubmit), con hasta
+  3 imágenes (PNG o JPEG de hasta 5 MB: «Capturar pantalla» fotografía la pantalla principal y «Añadir imagen…» elige
+  un archivo) y un correo de contacto opcional para responderte. «Abrir en GitHub» abre un issue ya rellenado y copia al
+  portapapeles la primera captura para pegarla.
+- **Comprobación del sistema al instalar.** La ventana de instalación empieza con «Comprobando tu sistema…»: Windows
+  10/11 de 64 bits, permisos de administrador, servicio Inicio de sesión secundario (se vuelve a activar si estaba
+  desactivado), PawnIO (se instala solo con `-install`) e IA detectadas. Después, «Aceptar e instalar». Si PawnIO falla,
+  la instalación sigue.
+- **Ajustes y datos.** Nueva categoría «Modo juego» (ya son 7). La página Información enseña la versión mayor real de
+  .NET.
+- **.NET 10.** SDK 10.0.401 (`global.json`) y `net10.0-windows`. Los flujos de GitHub Actions pasan a versiones que
+  corren en Node 24 (`actions/checkout@v7`, `actions/setup-dotnet@v6`, `actions/upload-artifact@v7` y
+  `signpath/github-action-submit-signing-request@v2`) y el de Build solo se ejecuta en `main`.
+
 ## 2.1.0 — 2026-10-03
 
 - **Tipografía Outfit** (400, 500 y 600; SIL OFL) en toda la app en lugar de Google Sans Flex, con cifras tabulares

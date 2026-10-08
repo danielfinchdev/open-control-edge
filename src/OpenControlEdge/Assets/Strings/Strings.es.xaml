@@ -252,7 +252,7 @@
     <sys:String x:Key="Msg.OpenCodeNotDetected">No se detecta OpenCode</sys:String>
     <sys:String x:Key="Msg.AddDeepSeekKey">Añade la clave API de DeepSeek</sys:String>
     <sys:String x:Key="Msg.AddOpenRouterKey">Añade la clave API de OpenRouter</sys:String>
-    <sys:String x:Key="Msg.AddKeyFromMenu">Añade la clave API desde Claves de API…</sys:String>
+    <sys:String x:Key="Msg.AddKeyFromMenu">Añade la clave API desde Agentes y claves de API…</sys:String>
     <sys:String x:Key="Msg.InvalidKey">Clave API no válida</sys:String>
     <sys:String x:Key="Msg.CursorBusy">Cursor ocupado, se reintentará</sys:String>
     <sys:String x:Key="Msg.ClaudeLogin">Inicia sesión en Claude Code</sys:String>
