@@ -45,11 +45,10 @@
   `checkUpdates`, que sustituye a `autoCheckUpdates`), al arrancar y cada 6 h. Una versión nueva pone un punto rojo en
   el botón de ajustes y un aviso en Ajustes («Nueva versión disponible · Descargar e instalar»); un clic descarga,
   verifica e instala, y el widget se reinicia. El flujo de Release firma ahora el ZIP con una clave ECDSA P-256 del
-  proyecto (secreto `UPDATE_SIGNING_KEY`) y publica `OpenControlEdge-win-x64.zip.sig`: la app instala un archivo
-  firmado si la firma coincide con la clave pública que lleva dentro (entonces no hacen falta las comprobaciones
-  Authenticode ni por DLL; el recurso de versión del ejecutable debe seguir diciendo «Open Control Edge» y la
-  versión). Sin `.sig`, sigue exigiendo la firma Authenticode de SignPath. **Quien tenga la 2.1.0 debe instalar la
-  2.2.0 a mano una vez**: la 2.1.0 solo acepta actualizaciones firmadas por SignPath.
+  proyecto (secreto `UPDATE_SIGNING_KEY`) y publica `OpenControlEdge-win-x64.zip.sig`: la app solo instala un archivo
+  cuya firma coincide con la clave pública que lleva dentro, y cuyo ejecutable dice «Open Control Edge» y la versión
+  anunciada; una Release sin `.sig` no se instala. **Quien tenga la 2.1.0 debe instalar la 2.2.0 a mano una vez**: la
+  2.1.0 solo acepta actualizaciones firmadas por SignPath. Un `autoCheckUpdates: false` guardado por la 2.1 se ignora.
 - **Feedback sin cuenta y con capturas.** Ajustes → Feedback → «Enviar» publica el mensaje en FormSubmit
   (formsubmit.co), que lo reenvía por correo al autor (su dirección queda detrás de un alias de FormSubmit), con hasta
   3 imágenes (PNG o JPEG de hasta 5 MB: «Capturar pantalla» fotografía la pantalla principal y «Añadir imagen…» elige
@@ -59,6 +58,13 @@
   10/11 de 64 bits, permisos de administrador, servicio Inicio de sesión secundario (se vuelve a activar si estaba
   desactivado), PawnIO (se instala solo con `-install`) e IA detectadas. Después, «Aceptar e instalar». Si PawnIO falla,
   la instalación sigue.
+- **Endurecido para la copia elevada** (auditoría de la 2.2): .NET ya no carga *startup hooks*
+  (`DOTNET_STARTUP_HOOKS` del entorno del usuario no entra en el proceso elevado); las DLL que se piden por nombre solo
+  se buscan en System32 y en la carpeta de la app, nunca en el `PATH`; al instalar desde el ZIP, el ejecutable queda
+  bloqueado desde que arranca y se instala exactamente ese; las Actions van fijadas a commits concretos.
+- **Funciona en más equipos.** El anillo de GPU también aparece con gráficas AMD y con Intel que tengan sensor de
+  temperatura, no solo NVIDIA. Con el control de cuentas (UAC) desactivado, Cursor, OpenCode y la renovación de
+  Claude funcionan (no hay usuario sin privilegios al que pasarlo, y se hace con el propio).
 - **Ajustes y datos.** Nueva categoría «Modo juego» (ya son 7). La página Información enseña la versión mayor real de
   .NET.
 - **.NET 10.** SDK 10.0.401 (`global.json`) y `net10.0-windows`. Los flujos de GitHub Actions pasan a versiones que

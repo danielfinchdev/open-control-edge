@@ -101,8 +101,6 @@
     <!-- Welcome / install and uninstall window -->
     <sys:String x:Key="Install.Title">Instalar Open Control Edge</sys:String>
     <sys:String x:Key="Install.Intro">Open Control Edge se instalará en Archivos de programa, donde solo un administrador puede modificarlo, y arrancará solo al iniciar sesión, sin volver a pedir permiso.</sys:String>
-    <sys:String x:Key="Install.PawnIo">Descargar e instalar PawnIO</sys:String>
-    <sys:String x:Key="Install.PawnIoDone">PawnIO está instalado y disponible.</sys:String>
     <sys:String x:Key="Install.Step.Stop">Cerrar la versión en marcha (también EdgeWidget)</sys:String>
     <sys:String x:Key="Install.Step.Copy">Copiar la aplicación a C:\Program Files\OpenControlEdge y comprobarla</sys:String>
     <sys:String x:Key="Install.Step.Data">Proteger tus ajustes y conservar los de versiones anteriores</sys:String>
@@ -218,8 +216,6 @@
     <sys:String x:Key="Settings.NoUpdates">No hay actualizaciones disponibles</sys:String>
     <sys:String x:Key="Settings.CurrentVersion">Versión actual: {0}</sys:String>
     <sys:String x:Key="Settings.UpdateFound">Actualización {0} encontrada</sys:String>
-    <sys:String x:Key="Settings.UpdateConfirm">Se verificará el SHA-256 y se reiniciará la aplicación para instalar la versión.</sys:String>
-    <sys:String x:Key="Settings.InstallUpdate">Instalar actualización</sys:String>
     <sys:String x:Key="Settings.Downloading">Descargando y verificando…</sys:String>
     <sys:String x:Key="Settings.CheckUpdates">Buscar actualizaciones</sys:String>
     <sys:String x:Key="Settings.Searching">Buscando…</sys:String>
@@ -320,10 +316,9 @@
     <sys:String x:Key="Msg.UpdUnsafePath">El ZIP contiene una ruta o enlace no seguro.</sys:String>
     <sys:String x:Key="Msg.UpdTooLarge">El contenido extraído supera el límite permitido.</sys:String>
     <sys:String x:Key="Msg.UpdEscapes">El ZIP intenta salir de staging.</sys:String>
-    <sys:String x:Key="Msg.UpdUnsigned">El ejecutable no es el de esta versión de Open Control Edge; no se instalará.</sys:String>
+    <sys:String x:Key="Msg.UpdUnsigned">El ejecutable no corresponde a esta versión; no se instalará.</sys:String>
     <sys:String x:Key="Msg.UpdUnexpectedFiles">El ZIP contiene archivos que no son de Open Control Edge; no se instalará.</sys:String>
     <sys:String x:Key="Msg.UpdIncomplete">El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.</sys:String>
-    <sys:String x:Key="Msg.UpdLibraryUntrusted">{0} no es el de Open Control Edge ni tiene una firma de confianza; no se instalará.</sys:String>
     <sys:String x:Key="Msg.UpdInstallFirst">Instala Open Control Edge antes de actualizar.</sys:String>
     <sys:String x:Key="Msg.UpdNeedsAdmin">La actualización requiere iniciar la app instalada con permisos de administrador.</sys:String>
     <sys:String x:Key="Msg.UpdUnprotected">La carpeta de instalación no está protegida; se cancela la actualización.</sys:String>
@@ -384,7 +379,7 @@
     <sys:String x:Key="RingName.gamemode">Modo juego</sys:String>
     <sys:String x:Key="Check.Title">Comprobando tu sistema…</sys:String>
     <sys:String x:Key="Check.TitleReady">Tu sistema está listo. Lo que falte se instala al aceptar.</sys:String>
-    <sys:String x:Key="Check.TitleProblems">Hay algo que no se puede arreglar desde aquí (en rojo).</sys:String>
+    <sys:String x:Key="Check.TitleProblems">Lo que está en rojo hay que arreglarlo antes de instalar.</sys:String>
     <sys:String x:Key="Check.Windows">Windows 10 u 11 de 64 bits</sys:String>
     <sys:String x:Key="Check.Admin">Permisos de administrador</sys:String>
     <sys:String x:Key="Check.Seclogon">Servicio Inicio de sesión secundario</sys:String>
@@ -400,7 +395,7 @@
     <sys:String x:Key="Check.Installed">Instalado</sys:String>
     <sys:String x:Key="Check.Fixing">Activando…</sys:String>
     <sys:String x:Key="Check.Enabled">Activado</sys:String>
-    <sys:String x:Key="Check.Failed">Falló (se sigue sin ello)</sys:String>
+    <sys:String x:Key="Check.Failed">No se pudo preparar; se instala igualmente</sys:String>
     <sys:String x:Key="Settings.Nav.GameMode">Modo juego</sys:String>
     <sys:String x:Key="Settings.Hint.GameMode">Qué cierra, qué detiene y cómo ajusta la energía el anillo Modo juego.</sys:String>
     <sys:String x:Key="Settings.Views">Vistas</sys:String>
@@ -421,7 +416,7 @@
     <sys:String x:Key="Settings.AccountsCount">Cuentas ({0})</sys:String>
     <sys:String x:Key="Settings.AccountsHint.claude">Otra cuenta de Claude Code es otra carpeta de configuración (la de CLAUDE_CONFIG_DIR, con su .credentials.json). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
     <sys:String x:Key="Settings.AccountsHint.codex">Otra cuenta de Codex es otra carpeta de configuración (la de CODEX_HOME, con su auth.json). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.cursor">Otra cuenta de Cursor es otra carpeta de datos (la de --user-data-dir, con User\globalStorage\state.vscdb). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.cursor">Otra cuenta de Cursor es otra carpeta de datos de Cursor (la que abres con --user-data-dir). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
     <sys:String x:Key="Settings.AccountFolder.claude">Carpeta de configuración de la otra cuenta de Claude Code</sys:String>
     <sys:String x:Key="Settings.AccountFolder.codex">Carpeta de configuración de la otra cuenta de Codex</sys:String>
     <sys:String x:Key="Settings.AccountFolder.cursor">Carpeta de datos de la otra cuenta de Cursor</sys:String>
@@ -450,7 +445,7 @@
     <sys:String x:Key="Settings.Saved">Guardado.</sys:String>
     <sys:String x:Key="Settings.NamesRejected">Guardado. No se aceptan: {0}</sys:String>
     <sys:String x:Key="Settings.UpdateBanner">Nueva versión disponible: {0}</sys:String>
-    <sys:String x:Key="Settings.UpdateBannerHint">Se descarga, se comprueba su firma y se instala sola; el widget se reinicia.</sys:String>
+    <sys:String x:Key="Settings.UpdateBannerHint">Se descarga, se verifica su firma y se instala; después el widget se reinicia.</sys:String>
     <sys:String x:Key="Settings.UpdateDownload">Descargar e instalar</sys:String>
     <sys:String x:Key="Settings.UpdateNotes">Ver novedades</sys:String>
     <sys:String x:Key="Settings.Contact">Tu correo (opcional, solo si quieres respuesta)</sys:String>
@@ -471,6 +466,7 @@
     <sys:String x:Key="Msg.CursorDbInvalid">Base de datos de Cursor no válida</sys:String>
     <sys:String x:Key="Msg.ReaderUnavailable">No se pudo leer sin permisos de administrador</sys:String>
     <sys:String x:Key="Msg.UpdUnsignedRelease">La versión publicada no lleva la firma de Open Control Edge; no se instalará.</sys:String>
+    <sys:String x:Key="Msg.InstallPinFailed">No se pudo bloquear el ejecutable mientras se instalaba; vuelve a abrirlo e inténtalo de nuevo.</sys:String>
     <sys:String x:Key="Msg.UpdSignature">La firma de la actualización no es válida; no se instalará.</sys:String>
     <sys:String x:Key="Msg.GameStopFailed">No se pudo detener</sys:String>
     <sys:String x:Key="Msg.GameStartFailed">No se pudo iniciar</sys:String>

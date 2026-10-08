@@ -150,6 +150,7 @@ internal static class Installer
     /// Staging copy, SHA-256 of every file, then an atomic-as-possible swap with rollback.
     private static void CopyApplication(string sourceDir)
     {
+        if (_pinned is null) throw new InvalidOperationException("No se pudo bloquear el ejecutable mientras se instalaba; vuelve a abrirlo e inténtalo de nuevo.");
         string staging = InstallDir + ".new";
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
 

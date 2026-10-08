@@ -249,7 +249,7 @@
                                    Margin="0,14,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
-                    <!-- GPU (NVIDIA) -->
+                    <!-- GPU (NVIDIA, AMD or Intel) -->
                     <StackPanel x:Name="GpuCard" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <ui:IconView Icon="{x:Static ui:Icons.Gpu}" Style="{StaticResource CardIcon}" />
@@ -438,7 +438,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
+                        <!-- Hidden until a GPU is detected (see HardwareSensorService). -->
                         <Grid x:Name="GpuItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
                             <StackPanel>
                                 <ui:RingGauge x:Name="GpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gpu}">
@@ -483,7 +483,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <!-- Round buttons, two by two: fijar / vista above, ajustes / cerrar below (EdgeWindow.LayOutButtons). -->
+                    <!-- Round buttons, two by two: pin and view above, settings and close below (EdgeWindow.LayOutButtons). -->
                     <StackPanel x:Name="PanelButtons" Margin="0,14,0,0" HorizontalAlignment="Center">
                         <StackPanel x:Name="ButtonRowTop" Orientation="Horizontal" HorizontalAlignment="Center">
                             <!-- Fijar / ocultar: the chevron points where the panel goes. -->

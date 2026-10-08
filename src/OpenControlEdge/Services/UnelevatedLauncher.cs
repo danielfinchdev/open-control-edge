@@ -12,7 +12,8 @@ namespace OpenControlEdge.Services;
 /// Elevated (the installed copy, started by its scheduled task): the shell's own token is borrowed — the process
 /// behind GetShellWindow (explorer.exe of the interactive session) — duplicated as a primary token and handed to
 /// CreateProcessWithTokenW, with the user's own environment block. It must belong to the same account as this
-/// process and must not be elevated itself; otherwise nothing is started (never falls back to this process's token).
+/// process; otherwise nothing is started. The one exception: with UAC off the shell itself is elevated, there is no
+/// plain-user token at all, and the program starts with this process's token, as anything the user opens would.
 /// Not elevated (Debug, or a copy started by hand): CreateProcessW with this process's token, which already is the
 /// plain user's. Everything else — command line, flags, hidden window, job and timeout — is the same code path.
 ///
@@ -36,6 +37,9 @@ internal static partial class UnelevatedLauncher
     public const string SeclogonMessage = "El servicio Inicio de sesión secundario (seclogon) está desactivado: actívalo para abrir programas sin permisos de administrador";
 
     public static bool IsElevated { get; } = IsCurrentProcessElevated();
+
+    /// UAC is off: the desktop itself runs as administrator, so there is no plain-user token to borrow.
+    internal const string ShellElevatedMessage = "el escritorio corre como administrador";
 
     private const int MaxCapturedBytes = 8 * 1024;
 
@@ -151,7 +155,12 @@ internal static partial class UnelevatedLauncher
             if (elevated)
             {
                 string? error = ShellToken(out token);
-                if (error is not null) return error;
+                // With UAC off every program of the user runs as administrator anyway: start it like the desktop would.
+                if (error == ShellElevatedMessage) elevated = false;
+                else if (error is not null) return error;
+            }
+            if (elevated)
+            {
                 if (!CreateEnvironmentBlock(out userEnvironment, token, false))
                     return $"sin entorno del usuario (error {Marshal.GetLastWin32Error()})";
                 if (environment is not null) customEnvironment = BuildEnvironment(ReadEnvironment(userEnvironment), environment);
@@ -215,8 +224,9 @@ internal static partial class UnelevatedLauncher
         return line.Length <= 160 ? line : line[..160] + "…";
     }
 
+    /// A run of 24 or more token-like characters (keys, tokens, hashes).
     [System.Text.RegularExpressions.GeneratedRegex(@"[A-Za-z0-9_\-\.+/=]{24,}")]
-    private static partial System.Text.RegularExpressions.Regex SecretLike();
+    internal static partial System.Text.RegularExpressions.Regex SecretLike();
 
     /// Fire-and-forget: let it run and drop our handles.
     private static Result Release(PROCESS_INFORMATION info)
@@ -298,7 +308,7 @@ internal static partial class UnelevatedLauncher
             }
 
             // UAC off: the shell itself is elevated, so there is no plain-user token to hand out.
-            if (IsTokenElevated(token)) return "el escritorio corre como administrador; no se lanza nada";
+            if (IsTokenElevated(token)) return ShellElevatedMessage;
             if (!IsMediumIntegrity(token)) return "el escritorio no tiene nivel de integridad medio; no se lanza nada";
 
             const uint access = TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_SESSIONID;

@@ -77,7 +77,7 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 | **OpenRouter** | % usado si la clave tiene límite; si no, gasto acumulado en USD |
 | **FPS** | FPS del programa en primer plano (ver [Anillo de FPS](#anillo-de-fps)); la tarjeta enseña el proceso, los FPS, el tiempo de fotograma y los Hz del monitor |
 | **CPU** | Temperatura actual, máxima de la sesión y carga |
-| **GPU** | Temperatura, uso y memoria (NVIDIA) |
+| **GPU** | Temperatura, uso y memoria (NVIDIA o AMD; Intel si tiene sensor de temperatura) |
 | **Modo juego** | Interruptor con un mando: vacío = apagado, lleno = encendido (ver [Modo juego](#modo-juego)) |
 | **RAM** | % de memoria física usada; en la tarjeta, GB usados / totales, en caché y confirmada |
 
@@ -85,7 +85,7 @@ El gasto solo aparece cuando la respuesta del proveedor trae una cifra real mayo
 
 Los anillos de OpenCode aparecen si se detecta su CLI o sus datos locales; DeepSeek y OpenRouter aparecen al guardar una clave.
 Claude, Codex y Cursor se detectan por sus clientes o credenciales. Puedes forzar u ocultar cada anillo en ajustes.
-El anillo de GPU sigue ocultándose cuando no hay NVIDIA detectada. El panel se recentra con una animación
+El anillo de GPU se oculta cuando no se detecta ninguna gráfica compatible. El panel se recentra con una animación
 al mostrar u ocultar anillos.
 
 ### Vistas
@@ -261,6 +261,13 @@ Leer la temperatura de la CPU requiere acceso a los registros MSR del procesador
 hacer con privilegios elevados; contar los FPS de otros programas con ETW, también. Son las dos razones. Si prefieres no
 dárselos, la compilación en modo Debug funciona sin elevar: verás todo menos la temperatura de la CPU y los FPS reales
 del programa en primer plano (el anillo de FPS enseña entonces los de composición del escritorio).
+
+Un límite que conviene conocer: la copia instalada arranca con la tarea programada y hereda el entorno de tu usuario.
+Desde la 2.2 ignora `DOTNET_STARTUP_HOOKS` y no busca DLL en el `PATH`, pero .NET sigue leyendo del entorno las variables
+de *profiler* (`CORECLR_ENABLE_PROFILING`, `CORECLR_PROFILER_PATH`) antes de que la aplicación arranque, y ningún ajuste
+de la aplicación lo evita. Un programa que ya se ejecute con tu usuario podría usarlas para cargar código con permisos de
+administrador al iniciar sesión; es la misma clase de riesgo que Microsoft no considera una frontera de seguridad del
+control de cuentas (UAC), pero si te preocupa, no instales la copia elevada.
 
 ---
 
@@ -611,8 +618,7 @@ compilada en la aplicación. Si falta el secreto, el flujo avisa y la Release sa
 Al actualizarse, la app instala un ZIP cuya firma coincide con esa clave pública: la firma cubre todos los archivos, así
 que ya no hacen falta la firma Authenticode ni las comprobaciones por DLL. Se siguen exigiendo el SHA-256 que publica
 GitHub, la lista cerrada de archivos y que el recurso de versión del ejecutable diga «Open Control Edge» y la versión
-anunciada. Si hay `.sig` y no coincide, la actualización se rechaza (no se recurre a SignPath). Sin `.sig`, la app sigue
-pidiendo la firma Authenticode de SignPath Foundation, como en la 2.1.0.
+anunciada. Si la `.sig` no coincide, o la Release no la lleva, la actualización se rechaza.
 
 ## Code signing policy
 

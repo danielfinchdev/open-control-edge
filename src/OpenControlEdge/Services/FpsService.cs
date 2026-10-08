@@ -310,7 +310,8 @@ internal sealed class FpsService : IDisposable
 
     private string? ProcessName(uint pid)
     {
-        if (_name.Pid == pid) return _name.Name;
+        if (_name.Pid == pid && _children.Pid == pid && Environment.TickCount64 - _children.At < ChildrenRefresh.TotalMilliseconds)
+            return _name.Name;
         string? name = null;
         IntPtr handle = Interop.ProcessNative.OpenProcess(Interop.ProcessNative.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
         if (handle != IntPtr.Zero)

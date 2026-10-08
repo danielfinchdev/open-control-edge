@@ -4,7 +4,7 @@ using SQLitePCL;
 namespace OpenControlEdge.Services;
 
 /// Opens a SQLite database written by another program that runs as the plain user (Cursor's state.vscdb, OpenCode's
-/// opencode.db). The installed copy never does this itself: it runs elevated, so SqliteHelper reads the file in a
+/// opencode.db). The installed copy never does this itself: it runs elevated, so LocalDatabaseReader reads the file in a
 /// short-lived copy of the executable started as the plain user, and only a copy that already runs unelevated (Debug,
 /// portable) opens it in-process. Either way it is opened the way SQLite recommends for untrusted databases: read-only
 /// and query-only, defensive mode, no functions or virtual tables run from the schema (trusted_schema off), cell size

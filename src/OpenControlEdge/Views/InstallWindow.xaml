@@ -91,8 +91,6 @@
 
                 <TextBlock x:Name="IntroText" Text="{DynamicResource Install.Intro}" FontSize="13" TextWrapping="Wrap"
                            Foreground="{DynamicResource Theme.TextSecondary}" Margin="0,14,0,0" LineHeight="19" />
-                <Button x:Name="PawnIoButton" Style="{StaticResource PillButton}" Click="OnPawnIoClick"
-                        Content="{DynamicResource Install.PawnIo}" HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="Collapsed" />
 
                 <!-- "Comprobando tu sistema…": one row per check (InstallWindow.ShowChecks), fixed on install. -->
                 <StackPanel x:Name="ChecksPanel" Margin="0,18,0,0" Visibility="Collapsed">

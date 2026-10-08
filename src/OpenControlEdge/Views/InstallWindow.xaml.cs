@@ -48,7 +48,7 @@ public partial class InstallWindow : Window
 #if !DEBUG
             if (UnelevatedLauncher.IsElevated) SecondaryButton.Visibility = Visibility.Collapsed;
 #endif
-            // PawnIO is now installed on its own with the rest (see the checks); the button stays for the snapshots only.
+            // "Comprobando tu sistema…": PawnIO and the Secondary Logon service are set up with the installation.
             Loaded += async (_, _) => ShowChecks(await Task.Run(SystemCheck.Run));
         }
 
@@ -100,19 +100,6 @@ public partial class InstallWindow : Window
         if (_busy) return;
         if (_mode == Mode.Install && !_finished) Result = Outcome.Portable;
         Close();
-    }
-
-    private async void OnPawnIoClick(object sender, RoutedEventArgs e)
-    {
-        PawnIoButton.IsEnabled = false;
-        try
-        {
-            string? error = await PawnIoInstaller.InstallAsync();
-            MessageBox.Show(Loc.Message(error) ?? Loc.Get("Install.PawnIoDone"), "Open Control Edge", MessageBoxButton.OK,
-                error is null ? MessageBoxImage.Information : MessageBoxImage.Warning);
-            if (error is null) PawnIoButton.Visibility = Visibility.Collapsed;
-        }
-        finally { PawnIoButton.IsEnabled = true; }
     }
 
     /// One row per check: a dot (green ready, amber to fix, red missing, grey for information) and its status.

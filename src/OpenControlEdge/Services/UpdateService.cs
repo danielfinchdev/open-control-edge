@@ -195,7 +195,7 @@ internal static class UpdateService
         return files;
     }
 
-    internal const string UnsignedMessage = "El ejecutable no es el de esta versión de Open Control Edge; no se instalará.";
+    internal const string VersionMismatchMessage = "El ejecutable no corresponde a esta versión; no se instalará.";
     internal const string UnsignedReleaseMessage = "La versión publicada no lleva la firma de Open Control Edge; no se instalará.";
     internal const string UnexpectedFileMessage = "El ZIP contiene archivos que no son de Open Control Edge; no se instalará.";
     internal const string IncompleteMessage = "El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.";
@@ -206,7 +206,7 @@ internal static class UpdateService
     {
         if (IsFixture(release.ZipUri)) return;
         if (!AuthenticodeVerifier.DeclaresVersion(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
-            throw new InvalidDataException(UnsignedMessage);
+            throw new InvalidDataException(VersionMismatchMessage);
     }
 
     /// Debug only: the local release fixture (--test-update-fixture) serves unsigned test archives over loopback HTTP.

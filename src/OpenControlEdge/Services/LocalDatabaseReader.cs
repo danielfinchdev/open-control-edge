@@ -13,8 +13,8 @@ namespace OpenControlEdge.Services;
 /// unelevated (Debug) reads in-process: there is no privilege to protect.
 ///
 /// It costs one process start (~0.1 s of CPU, ~30 MB for under a second) when a database changed since the last read
-/// (its size or time, or its -wal file's), and nothing otherwise: the previous answer is reused. The elevated process
-/// no longer loads the native SQLite library at all.
+/// (its size or time, or its -wal file's), and nothing otherwise: the previous answer is reused. With UAC off there is
+/// no plain user to read as (every program of the user is elevated), and the file is read in-process.
 internal static class LocalDatabaseReader
 {
     internal const string HelperArgument = "--read-database";
@@ -72,8 +72,9 @@ internal static class LocalDatabaseReader
     /// Cursor's session token and membership; null when Cursor holds no session.
     public static CursorSession? ReadCursor(string path)
     {
-        if (!UnelevatedLauncher.IsElevated) return CursorInProcess(path);
-        return Cached("cursor|" + path, [path], () => CursorFromHelper(path));
+        if (!UnelevatedLauncher.IsElevated || _uacOff) return CursorInProcess(path);
+        try { return Cached("cursor|" + path, [path], () => CursorFromHelper(path)); }
+        catch (ReadException) when (_uacOff) { return CursorInProcess(path); }
     }
 
     private static CursorSession? CursorFromHelper(string path)
@@ -93,10 +94,12 @@ internal static class LocalDatabaseReader
     /// OpenCode's session totals; path null finds the database the way OpenCode does (OPENCODE_DB, XDG_DATA_HOME…).
     public static OpenCodeTotals ReadOpenCode(string? path)
     {
-        if (!UnelevatedLauncher.IsElevated) return OpenCodeInProcess(path);
+        if (!UnelevatedLauncher.IsElevated || _uacOff) return OpenCodeInProcess(path);
         // Only the files' metadata is looked at here, to know whether anything changed; the helper finds and reads them.
         string[] files = path is not null and not "auto" ? [path] : OpenCodeDatabasePaths();
-        return Cached("opencode|" + (path ?? "auto"), files, () => OpenCodeFromHelper(path));
+        if (files.Length == 0) throw new ReadException(Failure.Missing, "sin base de datos de sesiones");
+        try { return Cached("opencode|" + (path ?? "auto"), files, () => OpenCodeFromHelper(path)); }
+        catch (ReadException) when (_uacOff) { return OpenCodeInProcess(path); }
     }
 
     private static OpenCodeTotals OpenCodeFromHelper(string? path)
@@ -114,6 +117,9 @@ internal static class LocalDatabaseReader
 
     // ───────────────────────────── Elevated side ─────────────────────────────
 
+    /// Set once the helper started with this process's own token because UAC is off (UnelevatedLauncher).
+    private static bool _uacOff;
+
     private static JsonDocument AskHelper(string kind, string path)
     {
         if (path != "auto" && (!Path.IsPathFullyQualified(path) || path.Contains('"')))
@@ -126,6 +132,8 @@ internal static class LocalDatabaseReader
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), hidden: true, wait: HelperTimeout,
             captureOutput: true, environment: new Dictionary<string, string> { ["__COMPAT_LAYER"] = "RunAsInvoker" });
         if (!result.Started) throw new ReadException(Failure.Unavailable, result.Error ?? "no se pudo iniciar el lector");
+        // UAC off: the helper ran elevated and refused; from now on the files are read here.
+        if (result.ExitCode == 0 && result.RawOutput?.Contains("\"elevated\"") == true) _uacOff = true;
         if (result.TimedOut) throw new ReadException(Failure.Busy, "el lector tardó demasiado");
         string? output = result.RawOutput?.Trim();
         if (string.IsNullOrEmpty(output) || output.Length >= 8 * 1024 - 1)
@@ -148,6 +156,7 @@ internal static class LocalDatabaseReader
                 "missing" => new ReadException(Failure.Missing, "no existe la base de datos"),
                 "busy" => new ReadException(Failure.Busy, "base de datos ocupada"),
                 "incompatible" => new ReadException(Failure.Incompatible, "versión no compatible"),
+                "elevated" => new ReadException(Failure.Busy, "el lector corrió elevado (UAC desactivado); se lee directamente"),
                 _ => new ReadException(Failure.Invalid, "el lector no pudo leer la base de datos"),
             };
         }
@@ -252,7 +261,13 @@ internal static class LocalDatabaseReader
         writer.WriteStartObject();
         try
         {
-            if (UnelevatedLauncher.IsElevated) throw new ReadException(Failure.Unavailable, "elevated");
+            if (UnelevatedLauncher.IsElevated)
+            {
+                writer.WriteString("error", "elevated");
+                writer.WriteEndObject();
+                writer.Flush();
+                return 0;
+            }
             if (args.Length != 3 || args[0] != HelperArgument) throw new ReadException(Failure.Invalid, "arguments");
             string path = args[2];
             if (path != "auto" && !Path.IsPathFullyQualified(path)) throw new ReadException(Failure.Missing, "path");

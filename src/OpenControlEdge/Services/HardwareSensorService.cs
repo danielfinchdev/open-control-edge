@@ -3,7 +3,8 @@ using LibreHardwareMonitor.Hardware;
 
 namespace OpenControlEdge.Services;
 
-/// CPU and NVIDIA GPU sensors through LibreHardwareMonitorLib 0.9.6, sharing one Computer instance.
+/// CPU and GPU sensors (NVIDIA, AMD, or an Intel GPU that reports a temperature) through LibreHardwareMonitorLib 0.9.6,
+/// sharing one Computer instance.
 ///
 /// CPU, verified on this machine (Intel Core i7-8750H, /intelcpu/0):
 ///   Temperature "CPU Package", "CPU Core #1" .. "CPU Core #6" (plus "Core Max", "Core Average", "... Distance to TjMax"),
@@ -94,7 +95,11 @@ internal sealed class HardwareSensorService : IDisposable
     {
         try
         {
-            IHardware? gpu = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuNvidia);
+            // A discrete GPU first; an integrated Intel one only when it has a temperature sensor to show.
+            IHardware? gpu = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuNvidia)
+                             ?? computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuAmd)
+                             ?? computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.GpuIntel
+                                                                      && h.Sensors.Any(s => s.SensorType == SensorType.Temperature));
             if (gpu is null) return GpuSnapshot.NotDetected;
 
             gpu.Update();

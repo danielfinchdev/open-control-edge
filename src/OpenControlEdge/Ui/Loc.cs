@@ -31,6 +31,7 @@ internal static partial class Loc
         ["El envío sin cuenta no está disponible en esta versión"] = "Msg.FeedbackNoForm",
         ["Escribe un mensaje antes de enviarlo"] = "Msg.FeedbackEmpty",
         ["No se pudo enviar el mensaje"] = "Msg.FeedbackFailed",
+        ["No se pudo bloquear el ejecutable mientras se instalaba; vuelve a abrirlo e inténtalo de nuevo."] = "Msg.InstallPinFailed",
         ["Cargando…"] = "Msg.Loading",
         ["Sin conexión"] = "Msg.NoConnection",
         ["Tiempo de espera agotado"] = "Msg.Timeout",
@@ -104,7 +105,7 @@ internal static partial class Loc
         ["El ZIP contiene una ruta o enlace no seguro."] = "Msg.UpdUnsafePath",
         ["El contenido extraído supera el límite permitido."] = "Msg.UpdTooLarge",
         ["El ZIP intenta salir de staging."] = "Msg.UpdEscapes",
-        [UpdateService.UnsignedMessage] = "Msg.UpdUnsigned",
+        [UpdateService.VersionMismatchMessage] = "Msg.UpdUnsigned",
         [UpdateService.UnsignedReleaseMessage] = "Msg.UpdUnsignedRelease",
         [UpdateService.UnexpectedFileMessage] = "Msg.UpdUnexpectedFiles",
         [UpdateService.IncompleteMessage] = "Msg.UpdIncomplete",
@@ -139,7 +140,6 @@ internal static partial class Loc
         (new Regex(@"^(.+) tiene varios vínculos duros; se cancela\.$"), "Msg.DataHardLinks"),
         (new Regex(@"^Descriptor de seguridad no válido \(error (\d+)\)\.$"), "Msg.DataBadDescriptor"),
         (new Regex(@"^No se pudo proteger (.+) \(error (\d+)\)\.$"), "Msg.DataProtectFailed"),
-        (new Regex(@"^(.+) no es el de Open Control Edge ni tiene una firma de confianza; no se instalará\.$"), "Msg.UpdLibraryUntrusted"),
     };
 
     public static UiLanguage Language { get; private set; } = UiLanguage.Spanish;

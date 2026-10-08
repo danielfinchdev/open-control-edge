@@ -15,8 +15,7 @@ internal sealed record GameModeResult(bool Active, int ClosedApps, int StoppedSe
     bool GameBarOff, IReadOnlyList<string> Errors);
 
 /// "Modo juego": closes the background programs and stops the services listed in the settings, switches the power
-/// plan (Balanced by default: smooth without running a laptop hot, the choice of the LoL script it replaces) and turns
-/// off Xbox Game Bar captures. Switching it off undoes exactly what it did: the previous plan, the previous registry
+/// plan (Balanced by default: smooth without running a laptop hot) and turns off Xbox Game Bar captures. Switching it off undoes exactly what it did: the previous plan, the previous registry
 /// values, only the services it stopped, and the programs it closed are opened again as the plain user.
 ///
 /// Before changing anything it writes what it is about to change to gamemode.json in the data folder, and updates it
@@ -38,8 +37,8 @@ internal static partial class GameModeService
         (@"System\GameConfigStore", "GameDVR_Enabled"),
     ];
 
-    /// Never closed, whatever the settings say: Windows itself, security software, the widget, the shell, and the
-    /// Claude Code CLI and OpenLogi agent the LoL script also spared.
+    /// Never closed, whatever the settings say: Windows itself, security software, the shell, the widget, the Claude Code
+    /// CLI (it renews the session the Claude ring reads) and the OpenLogi agent (mouse buttons stop working without it).
     private static readonly HashSet<string> ProtectedProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
         "System", "Registry", "smss.exe", "csrss.exe", "wininit.exe", "winlogon.exe", "services.exe", "lsass.exe", "lsaiso.exe",
@@ -74,10 +73,6 @@ internal static partial class GameModeService
 
     [GeneratedRegex(@"^[A-Za-z0-9_\-\.]{1,80}$")]
     private static partial Regex ServiceNamePattern();
-
-    /// A run of 24 or more token-like characters (keys, tokens, hashes), as UnelevatedLauncher.Summarize treats them.
-    [GeneratedRegex(@"[A-Za-z0-9_\-\.+/=]{24,}")]
-    private static partial Regex SecretLike();
 
     public static bool IsValidProcessName(string name) => ProcessNamePattern().IsMatch(name) && !ProtectedProcesses.Contains(name);
 
@@ -258,7 +253,7 @@ internal static partial class GameModeService
     /// At start-up: a gamemode.json left by a crash or a power cut means the PC is still in game mode; undo it, off the
     /// UI thread. The widget starts with the session, often before the desktop exists, and the programs it closed can
     /// only be opened as the user once it does: the relaunch waits for it (up to RelaunchWait).
-    public static Task RestoreLeftoverAsync() => Task.Run(() =>
+    public static Task RestoreLeftoverAsync() => Task.Run(async () =>
     {
         State? state;
         lock (Gate)
@@ -273,7 +268,17 @@ internal static partial class GameModeService
         }
         if (state.Relaunch.Count == 0) return;
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        while (Interop.ProcessNative.GetShellWindow() == IntPtr.Zero && clock.Elapsed < RelaunchWait) Thread.Sleep(2000);
+        while (Interop.ProcessNative.GetShellWindow() == IntPtr.Zero && clock.Elapsed < RelaunchWait) await Task.Delay(2000);
+        lock (Gate)
+        {
+            // Turned on again meanwhile: these programs come back with the ones it closes now.
+            if (IsActive && LoadState() is State current)
+            {
+                current.Relaunch.AddRange(state.Relaunch.Where(r => !current.Relaunch.Any(c => c.Path.Equals(r.Path, StringComparison.OrdinalIgnoreCase))));
+                Save(current);
+                return;
+            }
+        }
         Relaunch(state);
     });
 
@@ -427,7 +432,7 @@ internal static partial class GameModeService
             else if (line.StartsWith(image, StringComparison.OrdinalIgnoreCase)) arguments = line[image.Length..];
             else arguments = line.IndexOf(' ') is int space and > 0 ? line[space..] : "";
             arguments = arguments.Trim();
-            return SecretLike().IsMatch(arguments) ? "" : arguments;
+            return UnelevatedLauncher.SecretLike().IsMatch(arguments) ? "" : arguments;
         }
         catch (Exception) { return ""; }
         finally { Marshal.FreeHGlobal(buffer); }

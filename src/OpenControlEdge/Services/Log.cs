@@ -24,16 +24,15 @@ internal static class Log
     public static void Trace(string area, string message) => Write("TRACE", area, message);
 
     /// The data folder's permissions, checked again at most once a minute (two ACL reads per log line otherwise).
-    private static long _safeCheckedAt;
-    private static bool _safe, _safeChecked;
+    private static long _safeUntil;   // 0: not checked yet
+    private static bool _safe;
 
     private static bool SafeForWrites()
     {
         long now = Environment.TickCount64;
-        if (_safeChecked && now - _safeCheckedAt < 60_000) return _safe;
-        _safeChecked = true;
+        if (now < _safeUntil) return _safe;
         _safe = DataFolder.IsSafeForWrites();
-        _safeCheckedAt = now;
+        _safeUntil = now + 60_000;
         return _safe;
     }
 
