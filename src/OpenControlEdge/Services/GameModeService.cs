@@ -355,7 +355,8 @@ internal static partial class GameModeService
                 string? image = ImagePath(handle);
                 if (image is null || !Path.GetFileName(image).Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
                 // A child of another closed program (syncthing under SyncTrayzor, an editor's helper) comes back with it.
-                if (options.Relaunch && !NoRelaunch.Contains(name) && !matchedIds.Contains(parent) && !IsElevated(handle)
+                if (options.Relaunch && !NoRelaunch.Contains(name) && !matchedIds.Contains(parent)
+                    && (UnelevatedLauncher.UacOff || !IsElevated(handle))
                     && relaunched.Add(image))
                 {
                     state.Relaunch.Add((image, Arguments(handle, image), AppId(handle)));

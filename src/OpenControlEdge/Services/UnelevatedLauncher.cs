@@ -38,8 +38,23 @@ internal static partial class UnelevatedLauncher
 
     public static bool IsElevated { get; } = IsCurrentProcessElevated();
 
-    /// UAC is off: the desktop itself runs as administrator, so there is no plain-user token to borrow.
+    /// The desktop runs as administrator. With UAC off (UacOff) that is normal and programs start with this process's
+    /// token; with UAC on (someone ran explorer elevated) nothing is started.
     internal const string ShellElevatedMessage = "el escritorio corre como administrador";
+
+    /// UAC is off (or this is the built-in Administrator without Admin Approval Mode): this process is elevated but its
+    /// token has no linked limited token (TokenElevationTypeDefault), so no program of the user runs without admin rights.
+    public static bool UacOff { get; } = IsElevated && OwnElevationType() == TokenElevationTypeDefault;
+
+    private const int TokenElevationTypeInfo = 18;
+    private const int TokenElevationTypeDefault = 1;
+
+    private static int OwnElevationType()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr token)) return 0;
+        try { return GetTokenInformation(token, TokenElevationTypeInfo, out int type, sizeof(int), out _) ? type : 0; }
+        finally { CloseHandle(token); }
+    }
 
     private const int MaxCapturedBytes = 8 * 1024;
 
@@ -156,7 +171,7 @@ internal static partial class UnelevatedLauncher
             {
                 string? error = ShellToken(out token);
                 // With UAC off every program of the user runs as administrator anyway: start it like the desktop would.
-                if (error == ShellElevatedMessage) elevated = false;
+                if (error == ShellElevatedMessage && UacOff) elevated = false;
                 else if (error is not null) return error;
             }
             if (elevated)

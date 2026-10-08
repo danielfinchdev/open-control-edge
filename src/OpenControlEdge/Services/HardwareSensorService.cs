@@ -110,7 +110,8 @@ internal sealed class HardwareSensorService : IDisposable
             double? memoryTotal = Finite(FindValue(gpu, SensorType.SmallData, "GPU Memory Total"));
 
             string? message = temperature is null
-                ? !LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled ? PawnIoMissingMessage : "Sensor de temperatura no disponible"
+                ? gpu.HardwareType == HardwareType.GpuNvidia && !LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled
+                    ? PawnIoMissingMessage : "Sensor de temperatura no disponible"
                 : null;
             return new GpuSnapshot(true, gpu.Name, temperature, load, memoryUsed, memoryTotal, message);
         }

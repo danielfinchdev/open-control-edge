@@ -66,6 +66,7 @@ internal static class Installer
         {
             if (!UnelevatedLauncher.IsElevated) return Fail("Hace falta ejecutar como administrador.");
             if (IsInstalledCopy) return Fail("Esta ya es la copia instalada.");
+            if (_pinned is null) return Fail("No se pudo bloquear el ejecutable mientras se instalaba; vuelve a abrirlo e inténtalo de nuevo.");
             string sourceDir = Path.GetDirectoryName(Path.GetFullPath(CurrentExe))!;
             if (!UnelevatedLauncher.ShellBelongsToThisAccount())
                 return Fail("La instalación debe aceptarse con la misma cuenta que tiene la sesión abierta.");
@@ -139,18 +140,16 @@ internal static class Installer
 
     private static bool IsExe(string file) => Path.GetFileName(file).Equals("OpenControlEdge.exe", StringComparison.OrdinalIgnoreCase);
 
-    /// SHA-256 of the exe as held open since start-up (PinExecutable), or of the file when it could not be held.
-    private static byte[] PinnedOrFileHash(string file)
+    /// SHA-256 of the exe as held open since start-up (PinExecutable; Install refuses to run without it).
+    private static byte[] PinnedHash()
     {
-        if (_pinned is null) return Hash(file);
-        _pinned.Position = 0;
-        return System.Security.Cryptography.SHA256.HashData(_pinned);
+        _pinned!.Position = 0;
+        return SHA256.HashData(_pinned);
     }
 
     /// Staging copy, SHA-256 of every file, then an atomic-as-possible swap with rollback.
     private static void CopyApplication(string sourceDir)
     {
-        if (_pinned is null) throw new InvalidOperationException("No se pudo bloquear el ejecutable mientras se instalaba; vuelve a abrirlo e inténtalo de nuevo.");
         string staging = InstallDir + ".new";
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
 
@@ -164,9 +163,9 @@ internal static class Installer
                 {
                     string target = Path.Combine(staging, Path.GetRelativePath(sourceDir, file));
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    if (_pinned is not null && IsExe(file))
+                    if (IsExe(file))
                     {
-                        _pinned.Position = 0;
+                        _pinned!.Position = 0;
                         using FileStream copy = File.Create(target);
                         _pinned.CopyTo(copy);
                     }
@@ -188,7 +187,7 @@ internal static class Installer
         {
             string copy = Path.Combine(staging, Path.GetRelativePath(sourceDir, file));
             bool intact = IsExe(file)
-                ? PinnedOrFileHash(file).AsSpan().SequenceEqual(Hash(copy))
+                ? PinnedHash().AsSpan().SequenceEqual(Hash(copy))
                 : NativeLibraries.IsExpected(copy);
             if (!intact)
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");

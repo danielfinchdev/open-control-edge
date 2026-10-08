@@ -305,13 +305,13 @@ internal sealed class FpsService : IDisposable
     // The foreground program rarely changes: its name and its children are looked up again only when it does, or
     // every ChildrenRefresh (a browser starts its GPU process late).
     private static readonly TimeSpan ChildrenRefresh = TimeSpan.FromSeconds(5);
-    private (uint Pid, string? Name) _name;
+    private (uint Pid, string? Name, long At) _name;
     private (uint Pid, HashSet<uint> Children, long At) _children = (0, new HashSet<uint>(), 0);
 
     private string? ProcessName(uint pid)
     {
-        if (_name.Pid == pid && _children.Pid == pid && Environment.TickCount64 - _children.At < ChildrenRefresh.TotalMilliseconds)
-            return _name.Name;
+        long now = Environment.TickCount64;
+        if (_name.Pid == pid && now - _name.At < ChildrenRefresh.TotalMilliseconds) return _name.Name;
         string? name = null;
         IntPtr handle = Interop.ProcessNative.OpenProcess(Interop.ProcessNative.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
         if (handle != IntPtr.Zero)
@@ -325,7 +325,7 @@ internal sealed class FpsService : IDisposable
             }
             finally { Interop.ProcessNative.CloseHandle(handle); }
         }
-        _name = (pid, name);
+        _name = (pid, name, now);
         return name;
     }
 
