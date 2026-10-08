@@ -452,6 +452,41 @@ internal static class Snapshot
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, Color.FromRgb(0xF4, 0xE9, 0xD8));
         window.SaveSnapshot(Path.Combine(directory, "81_background_light_custom.png"));
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, null);
+
+        // The README showcase: transparent shots composed over a background of its own (docs/showcase).
+        string showcase = Path.Combine(directory, "showcase");
+        Directory.CreateDirectory(showcase);
+        DateTimeOffset now = DateTimeOffset.Now;
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        window.SetClaude(claude with { Session = new UsageWindow(42, now.AddMinutes(132)), Plan = "max" });
+        window.SetCodex(new CodexSnapshot(false, new CodexWindow(23, TimeSpan.FromHours(5), now.AddHours(3)),
+            new CodexWindow(61, TimeSpan.FromDays(7), now.AddDays(4)), null) { Plan = "plus" });
+        window.SetAccounts(AiProviderId.Claude, ["Personal", "Trabajo"], 0);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(showcase, "ia_claude.png"), transparent: true);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(showcase, "ia_codex.png"), transparent: true);
+        window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
+        window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", 68, 81, 34, null));
+        window.SetFps(new FpsService.Sample(143, "League of Legends", false, 144, null));
+        window.ShowCardNow(EdgeWindow.RingFps);
+        window.SaveSnapshot(Path.Combine(showcase, "pc_fps.png"), transparent: true);
+        window.SetGameMode(new GameModeSnapshot(true, true, false, new GameModeResult(true, 5, 3, GamePowerPlan.Balanced, true, Array.Empty<string>())));
+        window.ShowCardNow(EdgeWindow.RingGameMode);
+        window.SaveSnapshot(Path.Combine(showcase, "pc_game_mode.png"), transparent: true);
+        window.ShowCardNow(EdgeWindow.RingCpu);
+        window.SaveSnapshot(Path.Combine(showcase, "pc_cpu.png"), transparent: true);
+        window.ApplyMode(PanelMode.Auto);
+        window.ApplyMode(PanelMode.Pinned);
+        ThemeManager.Apply(AppTheme.Light, RingColorTheme.Classic, null);
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(showcase, "ia_claude_light.png"), transparent: true);
+        window.SetAccounts(AiProviderId.Claude, ["Principal"], 0);
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, null);
+        window.SetGameMode(new GameModeSnapshot(false, false, false, null));
+        window.SetFps(fps);
+        window.SetClaude(claude);
         window.ApplyViews(everything, animate: false);
     }
 

@@ -1,24 +1,72 @@
-# Open Control Edge (antes EdgeWidget)
+# Open Control Edge
 
-**Un widget de escritorio para Windows 11 que muestra, pegado al borde de la pantalla, cuánto te queda
-de cada IA, a qué temperatura está tu portátil y a cuántos FPS va tu juego.**
+![Open Control Edge](docs/showcase/hero.png)
 
-> *A Windows 11 edge widget showing your remaining Claude / Codex / Cursor quota, your CPU & GPU
-> temperature and your game's FPS at a glance. Interface and documentation are in Spanish.*
+Lo hice porque me pasaba el día mirando cuánto me quedaba de Claude y de Codex, y a qué temperatura iba el portátil
+cuando jugaba. Ahora lo tengo todo en una columna de anillos pegada al borde de la pantalla: le pasas el ratón por
+encima y te lo cuenta. Es gratis, es de código abierto y no te espía.
 
-![versión](https://img.shields.io/badge/versión-2.2.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-11-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+> *A Windows edge widget that shows your remaining Claude / Codex / Cursor quota, your CPU & GPU temperature and your
+> game's FPS at a glance. The app speaks Spanish and English.*
 
-<p align="center">
-  <img src="docs/screenshots/tarjeta-claude.png" alt="Tarjeta de uso de Claude junto al panel" height="520">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/panel-real.png" alt="El panel funcionando en un escritorio real" height="520">
-</p>
+![versión](https://img.shields.io/badge/versión-2.2.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-10%20y%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-Programa nativo: el propio ejecutable se instala (sin scripts), sin servicios en segundo plano ni telemetría. Solo
-consulta los endpoints documentados abajo para actualizar tarjetas y buscar actualizaciones, y lee los datos de
-OpenCode localmente.
+## Descárgalo
+
+### **[⬇ Descargar Open Control Edge](https://github.com/danielfinchdev/open-control-edge/releases/latest)**
+
+Dentro está `OpenControlEdge-win-x64.zip`. Para instalarlo:
+
+1. **Descomprime el ZIP** donde quieras (la carpeta Descargas vale).
+2. **Abre `OpenControlEdge.exe`** y dile que sí a Windows cuando te pida permiso. Si te sale «Windows protegió tu PC»,
+   pulsa «Más información» y luego «Ejecutar de todas formas»: sale porque el programa todavía no tiene un certificado de
+   pago, no porque haga nada raro.
+3. Verás **«Comprobando tu sistema…»**: revisa tu PC y prepara lo que falte (por ejemplo, el controlador para leer la
+   temperatura). Pulsa **«Aceptar e instalar»** y ya está: aparece en el borde derecho y arranca solo con Windows.
+
+A partir de ahí no tienes que volver por aquí: cuando saque una versión nueva verás **un punto rojo en el botón de
+ajustes** y la instalas con un clic. (Si vienes de la 2.1.0, esta vez instálala a mano una sola vez.)
+
+## Qué te enseña
+
+- **Lo que te queda de cada IA**: Claude, Codex, Cursor, OpenCode, DeepSeek y OpenRouter. Cuánto llevas gastado de la
+  sesión y de la semana, cuándo se reinicia y, si pagas aparte, lo que llevas gastado.
+- **Cómo va tu PC**: temperatura de la CPU y de la gráfica, la RAM y los **FPS** del juego que tengas delante.
+- **Modo juego**: un clic cierra lo que sobra en segundo plano, ajusta la energía para que no se caliente y, al
+  quitarlo, lo deja todo como estaba.
+- **Dos vistas y un botón**: una para tus IA, otra para el PC, y una a tu gusto. Así no se te llena la pantalla de anillos.
+- **Varias cuentas**: si tienes una cuenta personal y otra del trabajo, eliges cuál ver al pasar el ratón.
+- Lo pones a tu gusto: tema claro u oscuro, colores, **color de fondo**, tamaño, orden de los anillos.
+
+![Vistas IA y PC](docs/showcase/vistas.png)
+
+![FPS y modo juego](docs/showcase/juego.png)
+
+![Varias cuentas](docs/showcase/cuentas.png)
+
+## ¿Es de fiar?
+
+- **Tu sesión solo va a su propio servicio.** Lee la sesión de Claude Code, Codex o Cursor únicamente para preguntarle
+  a Anthropic, OpenAI o Cursor cuánto has usado; no la manda a nadie más y nunca la modifica.
+- **Nada de telemetría.** No hay estadísticas, ni anuncios, ni cuentas. Solo habla con los servicios de tus IA, con
+  GitHub para saber si hay versión nueva y, si tú pulsas «Enviar» en el feedback, con el servicio que me lo hace llegar.
+- **El código está aquí**, a la vista de cualquiera. Las actualizaciones van firmadas y la app no instala nada que no
+  lleve esa firma.
+
+Todos los detalles, para quien los quiera, están más abajo, en [Privacidad y seguridad](#privacidad-y-seguridad).
+
+## ¿Dudas, errores o ideas?
+
+Desde la propia app: **Ajustes › Feedback**. Me escribes, añades una captura si quieres y pulsas «Enviar»; no hace
+falta cuenta de nada. Si tienes cuenta de GitHub, también puedes abrir un
+[issue](https://github.com/danielfinchdev/open-control-edge/issues).
 
 ---
+
+# Para curiosos y desarrolladores
+
+Todo lo de aquí abajo es el detalle técnico: requisitos, cómo funciona por dentro, de dónde salen los datos, seguridad y
+cómo compilarlo.
 
 ## Requisitos
 
@@ -38,7 +86,7 @@ OpenCode localmente.
 **Comprobar que PawnIO está instalado:** `winget list --id namazso.PawnIO` debe listarlo. Después, reinicia el widget:
 el anillo de CPU debe mostrar grados en vez del aviso.
 
-## Capturas
+## Más capturas
 
 | Panel real (datos reales) | Pestaña «Sesión» | Pestaña «Total» |
 |---|---|---|

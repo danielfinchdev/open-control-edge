@@ -1726,8 +1726,9 @@ public partial class EdgeWindow : Window
         ShowCard(index);
     }
 
-    /// Renders the window at 2× over a wallpaper-like backdrop (teal top, blue middle, warm bottom).
-    internal void SaveSnapshot(string path)
+    /// Renders the window at 2× over a wallpaper-like backdrop (teal top, blue middle, warm bottom), or with nothing
+    /// behind it (transparent: the README showcase composes it over its own background).
+    internal void SaveSnapshot(string path, bool transparent = false)
     {
         const double scale = 2;
         double width = WindowWidthDip * _scale, height = _windowHeightDip;
@@ -1752,7 +1753,7 @@ public partial class EdgeWindow : Window
             }, 90);
             dc.DrawRectangle(gradient, null, new Rect(0, 0, width, height));
         }
-        bitmap.Render(backdrop);
+        if (!transparent) bitmap.Render(backdrop);
         bitmap.Render(Host);
 
         var encoder = new PngBitmapEncoder();
