@@ -95,3 +95,6 @@ internal sealed record OpenRouterSnapshot(bool Hidden, decimal UsageUsd, decimal
     public static OpenRouterSnapshot Absent() => new(true, 0, null, null, null);
     public static OpenRouterSnapshot Failed(string message) => new(false, 0, null, null, message);
 }
+
+/// Modo juego as the panel shows it: Allowed is the switch in Settings, Busy while it is being switched.
+internal sealed record GameModeSnapshot(bool Allowed, bool Active, bool Busy, GameModeResult? Result);

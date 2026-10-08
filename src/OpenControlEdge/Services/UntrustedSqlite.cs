@@ -13,6 +13,8 @@ internal sealed class UntrustedSqlite : IDisposable
 {
     private const long MaxBytes = 2L * 1024 * 1024 * 1024;
     private const int MaxRows = 10_000;
+    private const int MaxCellBytes = 64 * 1024;
+    private const int SQLITE_LIMIT_LENGTH = 0;
 
     private const int SQLITE_DBCONFIG_DEFENSIVE = 1010;
     private const int SQLITE_DBCONFIG_TRUSTED_SCHEMA = 1017;
@@ -33,7 +35,7 @@ internal sealed class UntrustedSqlite : IDisposable
         int rc = raw.sqlite3_open_v2(path, out sqlite3 db, raw.SQLITE_OPEN_READONLY | raw.SQLITE_OPEN_NOMUTEX, null);
         if (rc != raw.SQLITE_OK)
         {
-            string error = db is null ? $"cÃ³digo {rc}" : raw.sqlite3_errmsg(db).utf8_to_string();
+            string error = db is null ? $"código {rc}" : raw.sqlite3_errmsg(db).utf8_to_string();
             db?.Dispose();
             throw new SqliteFailure(rc, error);
         }
@@ -41,8 +43,12 @@ internal sealed class UntrustedSqlite : IDisposable
         try
         {
             raw.sqlite3_busy_timeout(db, 2000);
-            raw.sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, out _);
-            raw.sqlite3_db_config(db, SQLITE_DBCONFIG_TRUSTED_SCHEMA, 0, out _);
+            // There is no PRAGMA for defensive mode: if it cannot be set, the file is not read at all.
+            if ((rc = raw.sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, out _)) != raw.SQLITE_OK
+                || (rc = raw.sqlite3_db_config(db, SQLITE_DBCONFIG_TRUSTED_SCHEMA, 0, out _)) != raw.SQLITE_OK)
+                throw new SqliteFailure(rc, "no se pudo activar el modo defensivo");
+            // No string or blob above MaxCellBytes: a crafted cell cannot make the reader allocate gigabytes.
+            raw.sqlite3_limit(db, SQLITE_LIMIT_LENGTH, MaxCellBytes);
             connection.Execute("PRAGMA query_only = ON; PRAGMA trusted_schema = OFF; PRAGMA cell_size_check = ON; PRAGMA mmap_size = 0;");
             return connection;
         }

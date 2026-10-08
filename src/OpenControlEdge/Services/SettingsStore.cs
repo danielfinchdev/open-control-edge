@@ -1,6 +1,8 @@
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.IO;
 using System.Text.Json;
+using System.Windows.Media;
 
 namespace OpenControlEdge.Services;
 
@@ -69,6 +71,44 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Where the settings window was last closed; null opens it at its default size, centred on the panel's monitor.
     public WindowBounds? SettingsWindow { get; init; }
 
+    /// The view the panel shows, and the order and visibility of the rings of each view.
+    public WidgetView View { get; init; } = WidgetView.Ai;
+    public ViewLayout AiLayout { get; init; } = ViewLayout.Default(WidgetView.Ai);
+    public ViewLayout PcLayout { get; init; } = ViewLayout.Default(WidgetView.Pc);
+    public ViewLayout CustomLayout { get; init; } = ViewLayout.Default(WidgetView.Custom);
+
+    public ViewLayout Layout(WidgetView view) => view switch
+    {
+        WidgetView.Ai => AiLayout,
+        WidgetView.Pc => PcLayout,
+        _ => CustomLayout,
+    };
+
+    public Settings WithLayout(WidgetView view, ViewLayout layout) => view switch
+    {
+        WidgetView.Ai => this with { AiLayout = layout },
+        WidgetView.Pc => this with { PcLayout = layout },
+        _ => this with { CustomLayout = layout },
+    };
+
+    /// Background of the panel and the card; null is the theme's own (black on the dark theme).
+    public Color? PanelBackground { get; init; }
+
+    public GameModeOptions GameMode { get; init; } = new();
+
+    /// More accounts per provider ("claude", "codex", "cursor"), shown after the default one, and which one each
+    /// ring shows (0 = the default account).
+    public FrozenDictionary<string, ImmutableArray<ExtraAccount>> Accounts { get; init; } =
+        FrozenDictionary<string, ImmutableArray<ExtraAccount>>.Empty;
+    public FrozenDictionary<string, int> SelectedAccounts { get; init; } = FrozenDictionary<string, int>.Empty;
+
+    public ImmutableArray<ExtraAccount> AccountsOf(string provider) =>
+        Accounts.TryGetValue(provider, out ImmutableArray<ExtraAccount> list) ? list : ImmutableArray<ExtraAccount>.Empty;
+
+    /// The account a ring shows: 0 is the default one, 1… the extra ones; an index that no longer exists is 0.
+    public int SelectedAccount(string provider) =>
+        SelectedAccounts.TryGetValue(provider, out int index) && index > 0 && index <= AccountsOf(provider).Length ? index : 0;
+
     public static Settings Defaults { get; } = new(PanelMode.Pinned, FrozenDictionary<string, ProviderVisibility>.Empty);
 }
 
@@ -92,6 +132,13 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "lastAutoUpdateCheck": "ISO-8601", // optional
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
+///     "view": "ai" | "pc" | "custom",
+///     "layouts": { "ai" | "pc" | "custom": { "order": ["claude", …], "hidden": ["opencode", …] } },
+///     "panelBackground": "#RRGGBB", // optional; the theme's background otherwise
+///     "gameMode": { "enabled": false, "processes": ["OneDrive.exe", …], "services": ["WSearch", …],
+///                   "powerPlan": "balanced" | "high" | "keep", "disableGameBar": true, "relaunch": true },
+///     "accounts": { "claude" | "codex" | "cursor": [ { "name": "Trabajo", "folder": "D:\\…" } ] },
+///     "selectedAccounts": { "claude": 0 | 1 | … },
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
@@ -158,6 +205,14 @@ internal static class SettingsStore
                 AutoCheckUpdates = GetBool(root, "autoCheckUpdates") ?? false,
                 LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
                 SettingsWindow = ParseBounds(root, "settingsWindow"),
+                View = RingKeys.ParseView(GetString(root, "view")) ?? WidgetView.Ai,
+                AiLayout = ParseLayout(root, WidgetView.Ai),
+                PcLayout = ParseLayout(root, WidgetView.Pc),
+                CustomLayout = ParseLayout(root, WidgetView.Custom),
+                PanelBackground = ParseColor(GetString(root, "panelBackground")),
+                GameMode = ParseGameMode(root),
+                Accounts = ParseAccounts(root),
+                SelectedAccounts = ParseSelected(root),
             };
         }
         catch (Exception ex)
@@ -243,6 +298,51 @@ internal static class SettingsStore
                     writer.WriteNumber("dpi", bounds.Dpi);
                     writer.WriteEndObject();
                 }
+                writer.WriteString("view", RingKeys.ViewKey(settings.View));
+                writer.WriteStartObject("layouts");
+                foreach (WidgetView view in new[] { WidgetView.Ai, WidgetView.Pc, WidgetView.Custom })
+                {
+                    ViewLayout layout = settings.Layout(view);
+                    writer.WriteStartObject(RingKeys.ViewKey(view));
+                    WriteStrings(writer, "order", layout.Order);
+                    WriteStrings(writer, "hidden", layout.Order.Where(layout.Hidden.Contains));
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndObject();
+                if (settings.PanelBackground is Color background) writer.WriteString("panelBackground", ColorToHex(background));
+                GameModeOptions game = settings.GameMode;
+                writer.WriteStartObject("gameMode");
+                writer.WriteBoolean("enabled", game.Enabled);
+                WriteStrings(writer, "processes", game.Processes);
+                WriteStrings(writer, "services", game.Services);
+                writer.WriteString("powerPlan", game.PowerPlan switch { GamePowerPlan.HighPerformance => "high", GamePowerPlan.Keep => "keep", _ => "balanced" });
+                writer.WriteBoolean("disableGameBar", game.DisableGameBar);
+                writer.WriteBoolean("relaunch", game.Relaunch);
+                writer.WriteEndObject();
+                if (settings.Accounts.Count > 0)
+                {
+                    writer.WriteStartObject("accounts");
+                    foreach (KeyValuePair<string, ImmutableArray<ExtraAccount>> entry in settings.Accounts.OrderBy(p => p.Key, StringComparer.Ordinal))
+                    {
+                        writer.WriteStartArray(entry.Key);
+                        foreach (ExtraAccount account in entry.Value)
+                        {
+                            writer.WriteStartObject();
+                            writer.WriteString("name", account.Name);
+                            writer.WriteString("folder", account.Folder);
+                            writer.WriteEndObject();
+                        }
+                        writer.WriteEndArray();
+                    }
+                    writer.WriteEndObject();
+                }
+                if (settings.SelectedAccounts.Count > 0)
+                {
+                    writer.WriteStartObject("selectedAccounts");
+                    foreach (KeyValuePair<string, int> entry in settings.SelectedAccounts.OrderBy(p => p.Key, StringComparer.Ordinal))
+                        writer.WriteNumber(entry.Key, entry.Value);
+                    writer.WriteEndObject();
+                }
                 if (settings.Providers.Count > 0)
                 {
                     writer.WriteStartObject("providers");
@@ -318,6 +418,98 @@ internal static class SettingsStore
         if (GetInt(value, "x") is not int x || GetInt(value, "y") is not int y || GetInt(value, "width") is not int width
             || GetInt(value, "height") is not int height || GetInt(value, "dpi") is not int dpi) return null;
         return width > 0 && height > 0 && dpi > 0 ? new WindowBounds(x, y, width, height, dpi) : null;
+    }
+
+    private static void WriteStrings(Utf8JsonWriter writer, string name, IEnumerable<string> values)
+    {
+        writer.WriteStartArray(name);
+        foreach (string value in values) writer.WriteStringValue(value);
+        writer.WriteEndArray();
+    }
+
+    /// Strings of an array, at most max of them, each trimmed and at most maxLength long; anything else is skipped.
+    private static List<string> GetStrings(JsonElement obj, string key, int max = 64, int maxLength = 260)
+    {
+        var values = new List<string>();
+        if (!obj.TryGetProperty(key, out JsonElement array) || array.ValueKind != JsonValueKind.Array) return values;
+        foreach (JsonElement item in array.EnumerateArray())
+        {
+            if (values.Count >= max) break;
+            if (item.ValueKind == JsonValueKind.String && item.GetString()?.Trim() is { Length: > 0 } text && text.Length <= maxLength)
+                values.Add(text);
+        }
+        return values;
+    }
+
+    private static ViewLayout ParseLayout(JsonElement root, WidgetView view)
+    {
+        if (!root.TryGetProperty("layouts", out JsonElement layouts) || layouts.ValueKind != JsonValueKind.Object
+            || !layouts.TryGetProperty(RingKeys.ViewKey(view), out JsonElement layout) || layout.ValueKind != JsonValueKind.Object)
+            return ViewLayout.Default(view);
+        return ViewLayout.Normalize(view, GetStrings(layout, "order"), GetStrings(layout, "hidden"));
+    }
+
+    /// "#RRGGBB" (or "RRGGBB"); anything else means the theme's background.
+    internal static Color? ParseColor(string? value)
+    {
+        string? hex = value?.Trim().TrimStart('#');
+        if (hex is not { Length: 6 } || !uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out uint rgb)) return null;
+        return Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+    }
+
+    internal static string ColorToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+    private static GameModeOptions ParseGameMode(JsonElement root)
+    {
+        var defaults = new GameModeOptions();
+        if (!root.TryGetProperty("gameMode", out JsonElement game) || game.ValueKind != JsonValueKind.Object) return defaults;
+        return new GameModeOptions
+        {
+            Enabled = GetBool(game, "enabled") ?? false,
+            Processes = game.TryGetProperty("processes", out _)
+                ? [.. GetStrings(game, "processes").Where(GameModeService.IsValidProcessName).Distinct(StringComparer.OrdinalIgnoreCase)]
+                : defaults.Processes,
+            Services = game.TryGetProperty("services", out _)
+                ? [.. GetStrings(game, "services").Where(GameModeService.IsValidServiceName).Distinct(StringComparer.OrdinalIgnoreCase)]
+                : defaults.Services,
+            PowerPlan = GetString(game, "powerPlan") switch { "high" => GamePowerPlan.HighPerformance, "keep" => GamePowerPlan.Keep, _ => GamePowerPlan.Balanced },
+            DisableGameBar = GetBool(game, "disableGameBar") ?? true,
+            Relaunch = GetBool(game, "relaunch") ?? true,
+        };
+    }
+
+    /// Accounts with a name and a fully qualified folder; at most AccountLimit per provider.
+    public const int AccountLimit = 8;
+
+    private static FrozenDictionary<string, ImmutableArray<ExtraAccount>> ParseAccounts(JsonElement root)
+    {
+        if (!root.TryGetProperty("accounts", out JsonElement accounts) || accounts.ValueKind != JsonValueKind.Object)
+            return FrozenDictionary<string, ImmutableArray<ExtraAccount>>.Empty;
+        var map = new Dictionary<string, ImmutableArray<ExtraAccount>>(StringComparer.Ordinal);
+        foreach (string provider in new[] { AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor })
+        {
+            if (!accounts.TryGetProperty(provider, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
+            var parsed = new List<ExtraAccount>();
+            foreach (JsonElement item in list.EnumerateArray())
+            {
+                if (parsed.Count >= AccountLimit || item.ValueKind != JsonValueKind.Object) continue;
+                string? name = GetString(item, "name")?.Trim(), folder = GetString(item, "folder")?.Trim();
+                if (name is { Length: > 0 and <= 40 } && folder is { Length: > 0 and <= 260 } && Path.IsPathFullyQualified(folder))
+                    parsed.Add(new ExtraAccount(name, folder));
+            }
+            if (parsed.Count > 0) map[provider] = [.. parsed];
+        }
+        return map.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    private static FrozenDictionary<string, int> ParseSelected(JsonElement root)
+    {
+        if (!root.TryGetProperty("selectedAccounts", out JsonElement selected) || selected.ValueKind != JsonValueKind.Object)
+            return FrozenDictionary<string, int>.Empty;
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (string provider in new[] { AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor })
+            if (GetInt(selected, provider) is int index && index is >= 0 and <= AccountLimit) map[provider] = index;
+        return map.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     private static bool? GetBool(JsonElement obj, string key) =>

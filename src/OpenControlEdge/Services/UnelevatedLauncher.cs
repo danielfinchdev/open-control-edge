@@ -39,6 +39,10 @@ internal static partial class UnelevatedLauncher
 
     private const int MaxCapturedBytes = 8 * 1024;
 
+    /// Captured runs are started one at a time: until our copy of a pipe's write end is closed, a second child would
+    /// inherit it and the first read would never see the end of its stream.
+    private static readonly object CaptureGate = new();
+
     /// Starts application with arguments. hidden: no window at all (CREATE_NO_WINDOW, and SW_HIDE for anything that
     /// still asks for one). wait: waits up to that long for it to exit; on timeout the whole process tree is killed
     /// (it runs inside a kill-on-close job). Without wait it is fire-and-forget and outlives nothing of ours.
@@ -67,62 +71,22 @@ internal static partial class UnelevatedLauncher
         }
 
         PROCESS_INFORMATION info;
-        IntPtr token = IntPtr.Zero, userEnvironment = IntPtr.Zero, customEnvironment = IntPtr.Zero;
-        try
+        string? startError;
+        if (pipe is null) startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, false, ref startup, out info);
+        else
         {
-            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr currentToken))
-                return Result.Fail($"sin token propio (error {Marshal.GetLastWin32Error()}); no se lanza nada");
-            bool elevated;
-            try
+            lock (CaptureGate)
             {
-                if (!GetTokenInformation(currentToken, TokenElevation, out int level, sizeof(int), out _))
-                    return Result.Fail($"no se pudo comprobar el nivel del token (error {Marshal.GetLastWin32Error()}); no se lanza nada");
-                elevated = level != 0;
-            }
-            finally { CloseHandle(currentToken); }
-            if (elevated)
-            {
-                string? error = ShellToken(out token);
-                if (error is not null) return Result.Fail(error);
-                if (!CreateEnvironmentBlock(out userEnvironment, token, false))
-                    return Result.Fail($"sin entorno del usuario (error {Marshal.GetLastWin32Error()})");
-                if (environment is not null) customEnvironment = BuildEnvironment(ReadEnvironment(userEnvironment), environment);
-                if (!CreateProcessWithTokenW(token, 0, application, commandLine, flags,
-                        customEnvironment != IntPtr.Zero ? customEnvironment : userEnvironment, workingDirectory,
-                        ref startup, out info))
-                {
-                    int code = Marshal.GetLastWin32Error();
-                    return Result.Fail(code is 1058 or 1060 ? SeclogonMessage : $"CreateProcessWithTokenW error {code}");
-                }
-            }
-            else
-            {
-                // Our own environment, but as a Unicode block like the elevated path: IntPtr.Zero inherits it.
-                // Handles are inherited only for the output pipe.
-                if (environment is not null)
-                {
-                    var own = new List<string>();
-                    foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
-                        own.Add(entry.Key + "=" + entry.Value);
-                    customEnvironment = BuildEnvironment(own, environment);
-                }
-                if (!CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, pipe is not null, flags, customEnvironment,
-                        workingDirectory, ref startup, out info))
-                    return Result.Fail($"CreateProcessW error {Marshal.GetLastWin32Error()}");
+                startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, true, ref startup, out info);
+                // Our copy of the write end must go, or the read below never sees the end of the stream.
+                pipe.DisposeLocalCopyOfClientHandle();
             }
         }
-        finally
-        {
-            if (userEnvironment != IntPtr.Zero) DestroyEnvironmentBlock(userEnvironment);
-            if (customEnvironment != IntPtr.Zero) Marshal.FreeHGlobal(customEnvironment);
-            if (token != IntPtr.Zero) CloseHandle(token);
-        }
+        if (startError is not null) return Result.Fail(startError);
 
         if (wait is not TimeSpan limit) return Release(info);
         if (pipe is null) return RunInJob(info, limit);
 
-        // Our copy of the write end must go, or the read below never sees the end of the stream.
-        pipe.DisposeLocalCopyOfClientHandle();
         Task<string> output = Task.Run(() => ReadCapped(pipe));
         Result result = RunInJob(info, limit);
         string? captured = null;
@@ -159,6 +123,64 @@ internal static partial class UnelevatedLauncher
         foreach ((string name, string value) in overrides) text.Append(name).Append('=').Append(value).Append('\0');
         text.Append('\0');
         return Marshal.StringToHGlobalUni(text.ToString());
+    }
+
+    /// Creates the process suspended: elevated, with the shell's token and the user's environment block; otherwise with
+    /// our own token. Returns null on success, otherwise why not (never falls back to this process's token).
+    private static string? StartSuspended(string application, string commandLine, uint flags,
+        IReadOnlyDictionary<string, string>? environment, string? workingDirectory, bool inheritHandles,
+        ref STARTUPINFO startup, out PROCESS_INFORMATION info)
+    {
+        info = default;
+        IntPtr token = IntPtr.Zero, userEnvironment = IntPtr.Zero, customEnvironment = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr currentToken))
+                return $"sin token propio (error {Marshal.GetLastWin32Error()}); no se lanza nada";
+            bool elevated;
+            try
+            {
+                if (!GetTokenInformation(currentToken, TokenElevation, out int level, sizeof(int), out _))
+                    return $"no se pudo comprobar el nivel del token (error {Marshal.GetLastWin32Error()}); no se lanza nada";
+                elevated = level != 0;
+            }
+            finally { CloseHandle(currentToken); }
+            if (elevated)
+            {
+                string? error = ShellToken(out token);
+                if (error is not null) return error;
+                if (!CreateEnvironmentBlock(out userEnvironment, token, false))
+                    return $"sin entorno del usuario (error {Marshal.GetLastWin32Error()})";
+                if (environment is not null) customEnvironment = BuildEnvironment(ReadEnvironment(userEnvironment), environment);
+                if (!CreateProcessWithTokenW(token, 0, application, commandLine, flags,
+                        customEnvironment != IntPtr.Zero ? customEnvironment : userEnvironment, workingDirectory,
+                        ref startup, out info))
+                {
+                    int code = Marshal.GetLastWin32Error();
+                    return code is 1058 or 1060 ? SeclogonMessage : $"CreateProcessWithTokenW error {code}";
+                }
+                return null;
+            }
+
+            // Our own environment, but as a Unicode block like the elevated path: IntPtr.Zero inherits it.
+            // Inheritable handles reach the child only in a captured run (the pipe; CaptureGate keeps it the only one).
+            if (environment is not null)
+            {
+                var own = new List<string>();
+                foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+                    own.Add(entry.Key + "=" + entry.Value);
+                customEnvironment = BuildEnvironment(own, environment);
+            }
+            return CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, inheritHandles, flags, customEnvironment,
+                workingDirectory, ref startup, out info)
+                ? null : $"CreateProcessW error {Marshal.GetLastWin32Error()}";
+        }
+        finally
+        {
+            if (userEnvironment != IntPtr.Zero) DestroyEnvironmentBlock(userEnvironment);
+            if (customEnvironment != IntPtr.Zero) Marshal.FreeHGlobal(customEnvironment);
+            if (token != IntPtr.Zero) CloseHandle(token);
+        }
     }
 
     /// Reads the pipe to the end, keeping the first MaxCapturedBytes (the rest is drained so the program never blocks).

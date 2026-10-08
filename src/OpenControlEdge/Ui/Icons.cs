@@ -26,6 +26,11 @@ public static class Icons
     public static DrawingGroup Bot { get; } = CreateBot();
     public static DrawingGroup Info { get; } = CreateInfo();
     public static DrawingGroup Message { get; } = CreateMessage();
+    public static DrawingGroup Fps { get; } = CreateFps();
+    public static DrawingGroup Gamepad { get; } = CreateGamepad();
+    public static DrawingGroup Views { get; } = CreateViews();
+    public static DrawingGroup ArrowUp { get; } = CreateArrow(up: true);
+    public static DrawingGroup ArrowDown { get; } = CreateArrow(up: false);
 
     public static DrawingImage ClaudeSparkImage { get; } = ToImage(ClaudeSpark);
     public static DrawingImage CodexImage { get; } = ToImage(Codex);
@@ -383,6 +388,97 @@ public static class Icons
             ctx.ArcTo(new Point(7, 4.5), new Size(3, 3), 0, false, SweepDirection.Clockwise, true, true);
         }
         group.Children.Add(new GeometryDrawing(null, RoundPen(1.8), bubble));
+        group.Freeze();
+        return group;
+    }
+
+    /// FPS ring: a speedometer, the needle towards the fast end.
+    private static DrawingGroup CreateFps()
+    {
+        var group = NewGroup();
+        const double radius = 8.6;
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(Polar(radius, Rad(150)), false, false);
+            ctx.ArcTo(Polar(radius, Rad(30)), new Size(radius, radius), 0, true, SweepDirection.Clockwise, true, true);
+            Line(ctx, new Point(12, 13.6), Polar(6.2, Rad(-45)));
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(1.9), geometry));
+        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(12, 13.6), 1.7, 1.7)));
+        group.Freeze();
+        return group;
+    }
+
+    /// Modo juego: a controller with a cross on the left and two buttons on the right.
+    private static DrawingGroup CreateGamepad()
+    {
+        var group = NewGroup();
+        var body = new StreamGeometry();
+        using (var ctx = body.Open())
+        {
+            ctx.BeginFigure(new Point(7.2, 7), false, true);
+            ctx.LineTo(new Point(16.8, 7), true, true);
+            ctx.ArcTo(new Point(20.6, 10.4), new Size(3.8, 3.6), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(21.6, 16), true, true);
+            ctx.ArcTo(new Point(17.4, 18.6), new Size(2.6, 2.6), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(15.2, 16), true, true);
+            ctx.LineTo(new Point(8.8, 16), true, true);
+            ctx.LineTo(new Point(6.6, 18.6), true, true);
+            ctx.ArcTo(new Point(2.4, 16), new Size(2.6, 2.6), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(3.4, 10.4), true, true);
+            ctx.ArcTo(new Point(7.2, 7), new Size(3.8, 3.6), 0, false, SweepDirection.Clockwise, true, true);
+        }
+        var pen = RoundPen(1.7);
+        group.Children.Add(new GeometryDrawing(null, pen, body));
+        var cross = new StreamGeometry();
+        using (var ctx = cross.Open())
+        {
+            Line(ctx, new Point(6.3, 11.5), new Point(9.7, 11.5));
+            Line(ctx, new Point(8, 9.8), new Point(8, 13.2));
+        }
+        group.Children.Add(new GeometryDrawing(null, pen, cross));
+        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(15.3, 12.4), 1.15, 1.15)));
+        group.Children.Add(new GeometryDrawing(Brushes.White, null, new EllipseGeometry(new Point(17.6, 10.3), 1.15, 1.15)));
+        group.Freeze();
+        return group;
+    }
+
+    /// Panel button "cambiar de vista": two stacked cards.
+    private static DrawingGroup CreateViews()
+    {
+        var group = NewGroup();
+        var pen = RoundPen(1.8);
+        group.Children.Add(new GeometryDrawing(null, pen, new RectangleGeometry(new Rect(4.5, 8.5, 11, 11), 2.6, 2.6)));
+        var back = new StreamGeometry();
+        using (var ctx = back.Open())
+        {
+            ctx.BeginFigure(new Point(8.5, 5.6), false, false);
+            ctx.ArcTo(new Point(10.6, 4.5), new Size(2.4, 2.4), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(17.9, 4.5), true, true);
+            ctx.ArcTo(new Point(19.5, 6.1), new Size(1.6, 1.6), 0, false, SweepDirection.Clockwise, true, true);
+            ctx.LineTo(new Point(19.5, 13.4), true, true);
+            ctx.ArcTo(new Point(18.4, 15.5), new Size(2.4, 2.4), 0, false, SweepDirection.Clockwise, true, true);
+        }
+        group.Children.Add(new GeometryDrawing(null, pen, back));
+        group.Freeze();
+        return group;
+    }
+
+    /// Settings: move a ring up or down in its view.
+    private static DrawingGroup CreateArrow(bool up)
+    {
+        var group = NewGroup();
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            double tip = up ? 6 : 18, tail = up ? 18 : 6, wing = up ? 11.5 : 12.5;
+            Line(ctx, new Point(12, tail), new Point(12, tip));
+            ctx.BeginFigure(new Point(6.5, wing), false, false);
+            ctx.LineTo(new Point(12, tip), true, true);
+            ctx.LineTo(new Point(17.5, wing), true, true);
+        }
+        group.Children.Add(new GeometryDrawing(null, RoundPen(2.0), geometry));
         group.Freeze();
         return group;
     }

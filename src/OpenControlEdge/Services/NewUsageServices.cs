@@ -28,13 +28,14 @@ internal sealed class OpenCodeUsageService
         catch (TimeoutException) { Log.Warn("OpenCode", "timeout"); return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
         catch (LocalDatabaseReader.ReadException ex)
         {
-            Log.Warn("OpenCode", ex.Message);
+            Log.Warn("OpenCode", ex.Kind + ": " + (UnelevatedLauncher.IsElevated ? ex.Message : ex.GetType().Name));
             return ex.Kind switch
             {
                 LocalDatabaseReader.Failure.Missing => OpenCodeSnapshot.Failed("Sin base de datos de sesiones"),
                 LocalDatabaseReader.Failure.Incompatible => OpenCodeSnapshot.Failed("Versión de OpenCode no compatible"),
                 LocalDatabaseReader.Failure.Invalid => OpenCodeSnapshot.Failed("Respuesta local sin datos"),
                 _ when ex.Message == UnelevatedLauncher.SeclogonMessage => OpenCodeSnapshot.Failed(UnelevatedLauncher.SeclogonMessage),
+                LocalDatabaseReader.Failure.Unavailable => OpenCodeSnapshot.Failed(LocalDatabaseReader.UnavailableMessage),
                 _ => OpenCodeSnapshot.Failed("No se pudo leer el uso local"),
             };
         }

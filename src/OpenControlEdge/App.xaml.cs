@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -42,6 +44,21 @@ public partial class App : Application
     private readonly DeepSeekUsageService _deepSeek = new();
     private readonly OpenRouterUsageService _openRouter = new();
     private SingleInstanceLock? _instanceLock;
+
+    // More accounts (Settings > Agentes): one service each, read together with the default account. The ring shows the
+    // account chosen in its card (Settings.SelectedAccounts); everything else (tooltip, agents page) the default one.
+    private (ExtraAccount Account, ClaudeUsageService Service)[] _claudeExtras = [];
+    private (ExtraAccount Account, CodexUsageService Service)[] _codexExtras = [];
+    private (ExtraAccount Account, CursorUsageService Service)[] _cursorExtras = [];
+    private ClaudeSnapshot?[] _claudeExtraReadings = [];
+    private CodexSnapshot?[] _codexExtraReadings = [];
+    private CursorSnapshot?[] _cursorExtraReadings = [];
+
+    /// FPS ring: sampled once a second, only while it is on screen.
+    private static readonly TimeSpan FpsInterval = TimeSpan.FromSeconds(1);
+    private readonly FpsService _fps = new();
+    private DispatcherTimer? _fpsTimer;
+    private GameModeSnapshot _gameMode = new(false, false, false, null);
 
     /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync).
     private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(15);
@@ -153,7 +170,7 @@ public partial class App : Application
 
         // Theme, ring colours and language before any window exists, so nothing paints twice.
         Settings appearance = SettingsStore.Load();
-        ThemeManager.Apply(appearance.Theme, appearance.ColorTheme);
+        ThemeManager.Apply(appearance.Theme, appearance.ColorTheme, appearance.PanelBackground);
         Loc.Apply(appearance.Language);
 
         if (Array.IndexOf(e.Args, "--check-pawnio") >= 0)
@@ -197,6 +214,8 @@ public partial class App : Application
 
         _panelMode = measureMode ?? SettingsStore.Load().PanelMode;
         Log.Info("App", $"started (panel {_panelMode}, {(UnelevatedLauncher.IsElevated ? "elevated" : "not elevated")})");
+        // A crash or a power cut in game mode: the PC is still in it. Undo it before anything else.
+        if (measureMode is null) GameModeService.RestoreLeftover();
 
         // Timers exist before the window is shown: a pinned panel expands during Show() and sets the cadence.
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(SettingsStore.Load().UsageRefreshMinutes) };
@@ -211,18 +230,22 @@ public partial class App : Application
 #endif
         Settings settings = SettingsStore.Load();
         _edge.ApplyScale(settings.UiScale);
+        _edge.ApplyViews(settings, animate: false);
+        _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
+        _edge.SetGameMode(_gameMode);
+        SyncAccounts(settings);
 
         // The last reading, painted before any network request (UsageCache); the first refresh replaces it.
         UsageCache.Cached cached = UsageCache.Load(DateTimeOffset.Now);
         _lastClaude = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, settings)
             ? cached.Claude ?? ClaudeSnapshot.Failed("Cargando…") : ClaudeSnapshot.Absent();
         _claudeReadAt = cached.Claude is not null ? cached.SavedAt : null;
-        _edge.SetClaude(_lastClaude);
+        ShowClaude(settings);
         _edge.ApplyUsageView(settings.UsageView);
         _lastCodex = InitialCodex(settings, cached.Codex);
-        _edge.SetCodex(_lastCodex);
+        ShowCodex(settings);
         _lastCursor = InitialCursor(settings, cached.Cursor);
-        _edge.SetCursor(_lastCursor);
+        ShowCursor(settings);
         _lastRam = MemoryService.Read();
         _edge.SetRam(_lastRam);
         _lastOpenCode = InitialOpenCode(settings);
@@ -245,6 +268,14 @@ public partial class App : Application
         _edge.ClaudeClicked += () => _ = RenewClaudeSessionAsync(automatic: false);
         _edge.CpuClicked += OpenSystemInformation;
         _edge.RamClicked += () => _ = FreeRamAsync();
+        _edge.ViewChangeRequested += view =>
+        {
+            Settings? updated = SettingsStore.Update(x => x with { View = view });
+            _edge.ApplyViews(updated ?? SettingsStore.Load() with { View = view }, animate: true);
+        };
+        _edge.AccountSelected += SelectAccount;
+        _edge.GameModeClicked += () => _ = ToggleGameModeAsync();
+        _edge.VisibleRingsChanged += UpdateFpsSampling;
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.ContentRendered += (_, _) =>
@@ -305,6 +336,10 @@ public partial class App : Application
         _settingsWindow = new SettingsWindow(() => RefreshUsageAsync(), settings =>
         {
             _edge?.ApplyScale(settings.UiScale);
+            _edge?.ApplyViews(settings, animate: true);
+            ThemeManager.ApplyBackground(settings.PanelBackground);
+            ApplyGameModeSetting(settings);
+            bool accountsChanged = SyncAccounts(settings);
             if (_panelMode != settings.PanelMode) SetPanelMode(settings.PanelMode);
             SetInterval(_refreshTimer, TimeSpan.FromMinutes(settings.UsageRefreshMinutes));
             ApplyCurrentSettings(settings);
@@ -314,7 +349,7 @@ public partial class App : Application
             bool providersChanged = !previousSettings.Providers.OrderBy(x => x.Key).SequenceEqual(settings.Providers.OrderBy(x => x.Key));
             bool refreshChanged = previousSettings.UsageRefreshMinutes != settings.UsageRefreshMinutes;
             previousSettings = settings;
-            if (providersChanged || refreshChanged) _ = RefreshUsageAsync();
+            if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release, () => _lastUsageRefresh,
             () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
@@ -440,9 +475,9 @@ public partial class App : Application
         if (!AiDetector.IsInstalled(id) || !AiRingPolicy.ShouldShowRing(id, settings)) return;
         switch (id)
         {
-            case AiProviderId.Claude: _lastClaude = await FetchClaudePreservingAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetClaude(_lastClaude); break;
-            case AiProviderId.Codex: _lastCodex = await _codex.FetchAsync(); TrackAgent(id, _lastCodex.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCodex(_lastCodex); break;
-            case AiProviderId.Cursor: _lastCursor = await _cursor.FetchAsync(); TrackAgent(id, _lastCursor.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetCursor(_lastCursor); break;
+            case AiProviderId.Claude: _lastClaude = await FetchClaudePreservingAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowClaude(settings); break;
+            case AiProviderId.Codex: _lastCodex = await _codex.FetchAsync(); TrackAgent(id, _lastCodex.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowCodex(settings); break;
+            case AiProviderId.Cursor: _lastCursor = await _cursor.FetchAsync(); TrackAgent(id, _lastCursor.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowCursor(settings); break;
             case AiProviderId.OpenCode: _lastOpenCode = await _openCode.FetchAsync(); TrackAgent(id, _lastOpenCode.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetOpenCode(_lastOpenCode); break;
             case AiProviderId.DeepSeek: _lastDeepSeek = await _deepSeek.FetchAsync(); TrackAgent(id, _lastDeepSeek.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetDeepSeek(_lastDeepSeek); break;
             case AiProviderId.OpenRouter: _lastOpenRouter = await _openRouter.FetchAsync(); TrackAgent(id, _lastOpenRouter.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) _edge?.SetOpenRouter(_lastOpenRouter); break;
@@ -533,9 +568,196 @@ public partial class App : Application
         if (!_agentFailures.TryGetValue(id, out var existing) || existing.Message != message)
             _agentFailures[id] = (message, DateTimeOffset.Now);
     }
-    private async Task ApplyClaudeAsync(Settings s) { if (_renewing) return; _lastClaude = await RefreshClaudeAsync(s); TrackAgent(AiProviderId.Claude, _lastClaude.Message); _edge?.SetClaude(_lastClaude); }
-    private async Task ApplyCodexAsync(Settings s) { _lastCodex = await RefreshCodexAsync(s); TrackAgent(AiProviderId.Codex, _lastCodex.Message); _edge?.SetCodex(_lastCodex); }
-    private async Task ApplyCursorAsync(Settings s) { _lastCursor = await RefreshCursorAsync(s); TrackAgent(AiProviderId.Cursor, _lastCursor.Message); _edge?.SetCursor(_lastCursor); }
+    private async Task ApplyClaudeAsync(Settings s)
+    {
+        if (_renewing) return;
+        var extras = _claudeExtras;
+        Task<ClaudeSnapshot[]> others = AiRingPolicy.ShouldShowRing(AiProviderId.Claude, s)
+            ? Task.WhenAll(extras.Select(e => e.Service.FetchAsync())) : Task.FromResult(Array.Empty<ClaudeSnapshot>());
+        _lastClaude = await RefreshClaudeAsync(s);
+        TrackAgent(AiProviderId.Claude, _lastClaude.Message);
+        ClaudeSnapshot[] read = await others;
+        if (ReferenceEquals(extras, _claudeExtras)) _claudeExtraReadings = read;
+        ShowClaude(s);
+    }
+
+    private async Task ApplyCodexAsync(Settings s)
+    {
+        var extras = _codexExtras;
+        Task<CodexSnapshot[]> others = AiRingPolicy.ShouldShowRing(AiProviderId.Codex, s)
+            ? Task.WhenAll(extras.Select(e => e.Service.FetchAsync())) : Task.FromResult(Array.Empty<CodexSnapshot>());
+        _lastCodex = await RefreshCodexAsync(s);
+        TrackAgent(AiProviderId.Codex, _lastCodex.Message);
+        CodexSnapshot[] read = await others;
+        if (ReferenceEquals(extras, _codexExtras)) _codexExtraReadings = read;
+        ShowCodex(s);
+    }
+
+    private async Task ApplyCursorAsync(Settings s)
+    {
+        var extras = _cursorExtras;
+        Task<CursorSnapshot[]> others = AiRingPolicy.ShouldShowRing(AiProviderId.Cursor, s)
+            ? Task.WhenAll(extras.Select(e => e.Service.FetchAsync())) : Task.FromResult(Array.Empty<CursorSnapshot>());
+        _lastCursor = await RefreshCursorAsync(s);
+        TrackAgent(AiProviderId.Cursor, _lastCursor.Message);
+        CursorSnapshot[] read = await others;
+        if (ReferenceEquals(extras, _cursorExtras)) _cursorExtraReadings = read;
+        ShowCursor(s);
+    }
+
+    /// The ring and card show the chosen account: the default one, or an extra one (still loading until first read).
+    private void ShowClaude(Settings s)
+    {
+        if (_edge is null || _lastClaude is null) return;
+        int index = s.SelectedAccount(AiProviderSettings.Claude);
+        _edge.SetClaude(_lastClaude.Hidden || index == 0 ? _lastClaude
+            : _claudeExtraReadings.ElementAtOrDefault(index - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
+    }
+
+    private void ShowCodex(Settings s)
+    {
+        if (_edge is null || _lastCodex is null) return;
+        int index = s.SelectedAccount(AiProviderSettings.Codex);
+        _edge.SetCodex(_lastCodex.Hidden || index == 0 ? _lastCodex
+            : _codexExtraReadings.ElementAtOrDefault(index - 1) ?? CodexSnapshot.Failed("Cargando…"));
+    }
+
+    private void ShowCursor(Settings s)
+    {
+        if (_edge is null || _lastCursor is null) return;
+        int index = s.SelectedAccount(AiProviderSettings.Cursor);
+        _edge.SetCursor(_lastCursor.Hidden || index == 0 ? _lastCursor
+            : _cursorExtraReadings.ElementAtOrDefault(index - 1) ?? CursorSnapshot.Failed("Cargando…"));
+    }
+
+    /// A card's account tab was chosen: saved, then the ring repaints from the readings already in memory.
+    private void SelectAccount(AiProviderId provider, int index)
+    {
+        string key = AiProviderSettings.Key(provider);
+        Settings? updated = SettingsStore.Update(x =>
+        {
+            var map = x.SelectedAccounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+            map[key] = index;
+            return x with { SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+        });
+        Settings settings = updated ?? SettingsStore.Load();
+        switch (provider)
+        {
+            case AiProviderId.Claude: ShowClaude(settings); break;
+            case AiProviderId.Codex: ShowCodex(settings); break;
+            case AiProviderId.Cursor: ShowCursor(settings); break;
+        }
+    }
+
+    /// Rebuilds the services of the extra accounts when they changed and refreshes the account tabs. Returns whether
+    /// the accounts changed (then they have to be read).
+    private bool SyncAccounts(Settings settings)
+    {
+        bool changed = false;
+        ImmutableArray<ExtraAccount> claude = settings.AccountsOf(AiProviderSettings.Claude);
+        if (!claude.SequenceEqual(_claudeExtras.Select(e => e.Account)))
+        {
+            _claudeExtras = [.. claude.Select(a => (a, new ClaudeUsageService(Path.Combine(a.Folder, ".credentials.json"))))];
+            _claudeExtraReadings = [];
+            changed = true;
+        }
+        ImmutableArray<ExtraAccount> codex = settings.AccountsOf(AiProviderSettings.Codex);
+        if (!codex.SequenceEqual(_codexExtras.Select(e => e.Account)))
+        {
+            _codexExtras = [.. codex.Select(a => (a, new CodexUsageService(Path.Combine(a.Folder, "auth.json"))))];
+            _codexExtraReadings = [];
+            changed = true;
+        }
+        ImmutableArray<ExtraAccount> cursor = settings.AccountsOf(AiProviderSettings.Cursor);
+        if (!cursor.SequenceEqual(_cursorExtras.Select(e => e.Account)))
+        {
+            _cursorExtras = [.. cursor.Select(a => (a, new CursorUsageService(Path.Combine(a.Folder, "User", "globalStorage", "state.vscdb"))))];
+            _cursorExtraReadings = [];
+            changed = true;
+        }
+        if (_edge is not null)
+        {
+            string main = Loc.Get("Account.Default");
+            _edge.SetAccounts(AiProviderId.Claude, [main, .. claude.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Claude));
+            _edge.SetAccounts(AiProviderId.Codex, [main, .. codex.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Codex));
+            _edge.SetAccounts(AiProviderId.Cursor, [main, .. cursor.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Cursor));
+            if (changed)
+            {
+                ShowClaude(settings);
+                ShowCodex(settings);
+                ShowCursor(settings);
+            }
+        }
+        return changed;
+    }
+
+    // ───────────────────────────── FPS and Modo juego ─────────────────────────────
+
+    /// The ETW session and the one-second timer exist only while the FPS ring is on screen.
+    private void UpdateFpsSampling()
+    {
+        if (_edge is null) return;
+        bool onScreen = _edge.IsRingOnScreen(EdgeWindow.RingFps);
+        if (onScreen && _fpsTimer is not { IsEnabled: true })
+        {
+            _fps.Start();
+            _fpsTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = FpsInterval };
+            _fpsTimer.Tick -= OnFpsTick;
+            _fpsTimer.Tick += OnFpsTick;
+            _fpsTimer.Start();
+        }
+        else if (!onScreen && _fpsTimer is { IsEnabled: true })
+        {
+            _fpsTimer.Stop();
+            _fps.Stop();
+        }
+    }
+
+    private void OnFpsTick(object? sender, EventArgs e) => _edge?.SetFps(_fps.Read());
+
+    /// The ring switches game mode on and off; while it is not enabled in the settings it opens that page instead.
+    private async Task ToggleGameModeAsync()
+    {
+        if (_edge is null || _gameMode.Busy) return;
+        Settings settings = SettingsStore.Load();
+        if (!settings.GameMode.Enabled)
+        {
+            OpenSettings("Modo juego");
+            return;
+        }
+        bool activate = !GameModeService.IsActive;
+        _gameMode = _gameMode with { Allowed = true, Busy = true };
+        _edge.SetGameMode(_gameMode);
+        GameModeResult result = activate
+            ? await GameModeService.ActivateAsync(settings.GameMode)
+            : await GameModeService.DeactivateAsync();
+        _gameMode = new GameModeSnapshot(true, result.Active, false, result);
+        _edge.SetGameMode(_gameMode);
+        // The power plan and the closed programs change the readings: read the sensors now.
+        _ = RefreshSensorsAsync();
+    }
+
+    /// Settings changed: switching the option off while game mode is on undoes it.
+    private void ApplyGameModeSetting(Settings settings)
+    {
+        if (_edge is null) return;
+        if (!settings.GameMode.Enabled && GameModeService.IsActive && !_gameMode.Busy)
+        {
+            _ = Task.Run(async () =>
+            {
+                GameModeResult result = await GameModeService.DeactivateAsync();
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _gameMode = new GameModeSnapshot(false, false, false, result);
+                    _edge?.SetGameMode(_gameMode);
+                });
+            });
+            return;
+        }
+        if (_gameMode.Allowed == settings.GameMode.Enabled) return;
+        _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
+        _edge.SetGameMode(_gameMode);
+    }
     private async Task ApplyOpenCodeAsync(Settings s) { _lastOpenCode = await RefreshOpenCodeAsync(s); TrackAgent(AiProviderId.OpenCode, _lastOpenCode.Message); _edge?.SetOpenCode(_lastOpenCode); }
     private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); TrackAgent(AiProviderId.DeepSeek, _lastDeepSeek.Message); _edge?.SetDeepSeek(_lastDeepSeek); }
     private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); TrackAgent(AiProviderId.OpenRouter, _lastOpenRouter.Message); _edge?.SetOpenRouter(_lastOpenRouter); }
@@ -744,7 +966,7 @@ public partial class App : Application
         {
             Log.Error("Claude renew", ex);
             _renewing = false;
-            if (_lastClaude is not null) _edge.SetClaude(_lastClaude);
+            ShowClaude(SettingsStore.Load());
             _edge.SetClaudeNote(Loc.Message("No se pudo renovar la sesión"));
         }
         finally
@@ -1029,6 +1251,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        GameModeService.DeactivateOnExit();
+        _fpsTimer?.Stop();
+        _fps.Dispose();
         _refreshTimer?.Stop();
         _sensorTimer?.Stop();
         _warmupTimer?.Stop();

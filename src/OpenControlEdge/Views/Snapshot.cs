@@ -104,22 +104,19 @@ internal static class Snapshot
         window.ApplyMode(PanelMode.Pinned);
         window.SaveSnapshot(Path.Combine(directory, "03_pinned_eight_rings.png"));
 
-        // At scale 1 a row of three would be under 30 DIP, so the buttons sit two above and one below.
-        if (window.ButtonsInOneRow) throw new InvalidDataException("buttons should be 2 + 1 at scale 1");
+        // Four buttons, two by two: fijar / vista above, ajustes / cerrar below.
         PaintHover(window.ModeButton, hovered: true);
-        window.SaveSnapshot(Path.Combine(directory, "04_buttons_2_plus_1_hover_ocultar.png"));
+        window.SaveSnapshot(Path.Combine(directory, "04_buttons_2x2_hover_ocultar.png"));
         PaintHover(window.ModeButton, hovered: false);
 
-        PaintHover(window.CloseButton, hovered: true);
-        window.SaveSnapshot(Path.Combine(directory, "05_buttons_2_plus_1_hover_close.png"));
-        PaintHover(window.CloseButton, hovered: false);
+        PaintHover(window.ViewButton, hovered: true);
+        window.SaveSnapshot(Path.Combine(directory, "05_buttons_2x2_hover_view.png"));
+        PaintHover(window.ViewButton, hovered: false);
 
-        // 1440p work area: scale 1.34, where three in a row already exceed 30 DIP.
         window.PreviewWorkArea(1392);
-        if (!window.ButtonsInOneRow) throw new InvalidDataException("buttons should be in one row at 1440p");
-        PaintHover(window.SettingsButton, hovered: true);
-        window.SaveSnapshot(Path.Combine(directory, "06_buttons_one_row_1440p_hover_settings.png"));
-        PaintHover(window.SettingsButton, hovered: false);
+        PaintHover(window.CloseButton, hovered: true);
+        window.SaveSnapshot(Path.Combine(directory, "06_buttons_2x2_1440p_hover_close.png"));
+        PaintHover(window.CloseButton, hovered: false);
         window.PreviewWorkArea(ReferenceWorkArea);
 
         window.ShowCardNow(EdgeWindow.RingClaude);

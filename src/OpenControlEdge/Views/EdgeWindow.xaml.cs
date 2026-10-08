@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -21,7 +22,9 @@ namespace OpenControlEdge.Views;
 /// animations instead of moving HWNDs.
 ///
 /// Two modes: Pinned (panel always expanded, default) and Auto (collapses to a strip, expands on hover).
-/// The panel ends in three round buttons: pin/hide, settings and close. Provider and sensor rings can come and go.
+/// The panel ends in four round buttons, two by two: pin/hide and view above, settings and close below. It shows the
+/// rings of one view (IA, PC or the user's own mix, in the order set in Settings); a ring is on screen when its view
+/// includes it and it is available (provider installed, GPU detected). Switching views fades the rings out and in.
 /// Everything is laid out in design units and scaled as a whole to the monitor's work area (ApplyScale).
 /// Hover is driven by polling the cursor position: while collapsed the window is click-through
 /// (WS_EX_TRANSPARENT) and receives no mouse input at all, so events could not detect the strip. The poll stops
@@ -38,6 +41,15 @@ public partial class EdgeWindow : Window
     internal const int RingCpu = 6;
     internal const int RingGpu = 7;
     internal const int RingRam = 8;
+    internal const int RingFps = 9;
+    internal const int RingGameMode = 10;
+
+    /// The settings key of each ring, by index.
+    private static readonly string[] RingKeyOf =
+    [
+        RingKeys.Claude, RingKeys.Codex, RingKeys.Cursor, RingKeys.OpenCode, RingKeys.DeepSeek, RingKeys.OpenRouter,
+        RingKeys.Cpu, RingKeys.Gpu, RingKeys.Ram, RingKeys.Fps, RingKeys.GameMode,
+    ];
 
     // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs.
     private const double PanelWidth = 94;
@@ -54,16 +66,17 @@ public partial class EdgeWindow : Window
     private const double ReferenceWorkHeight = 1040;
     private const double MinAutoScale = 0.8;
     private const double MaxAutoScale = 1.4;
-    private const double MinFitScale = 0.6;       // only reached when all nine rings would not fit otherwise
+    private const double MinFitScale = 0.6;       // only reached when the largest view would not fit otherwise
     private const double ScreenMargin = 4;        // DIPs kept free above and below the panel
 
-    // Round buttons: three in a row when that gives at least MinRowButtonDip, otherwise two above and one below.
-    private const double ButtonGap = 5;
-    private const double ButtonSidePadding = 8;
-    private const double RowButtonDiameter = (PanelWidth - 2 * ButtonSidePadding - 2 * ButtonGap) / 3;
-    private const double StackedButtonDiameter = 32;
-    private const double StackedButtonGap = 8;
-    private const double MinRowButtonDip = 30;
+    // Round buttons, two by two.
+    private const double ButtonDiameter = 32;
+    private const double ButtonGap = 8;
+
+    // View switch: the rings fade out (and rise a little), the new ones fade in from below.
+    private const int ViewFadeOutMs = 140;
+    private const int ViewFadeInMs = 220;
+    private const double ViewShift = 8;
 
     private double _scale = 1;
     private double _windowHeightDip = ReferenceWorkHeight;
@@ -121,6 +134,17 @@ public partial class EdgeWindow : Window
     private string? _ramNote;
     private UsageView _usageView = UsageView.Session;
     private bool _syncingTabs;
+    private readonly bool[] _available;
+    private readonly bool[] _inView;
+    private Settings _views = Settings.Defaults;
+    private WidgetView _view = WidgetView.Ai;
+    private ViewLayout _layout = ViewLayout.Default(WidgetView.Ai);
+    private int _maxRings;
+    private DispatcherTimer? _viewSwitch;
+    private Action? _pendingLayout;
+    private FpsService.Sample? _fps;
+    private GameModeSnapshot? _gameMode;
+    private bool _syncingAccounts;
 
     internal bool AnimationsEnabled { get; set; } = true;
 
@@ -140,6 +164,18 @@ public partial class EdgeWindow : Window
 
     /// The "Sesión" / "Total" tab of a card was switched; rings and card already show it. The owner persists it.
     internal event Action<UsageView>? UsageViewChanged;
+
+    /// The view button was pressed: the owner persists the next view and calls ApplyViews.
+    internal event Action<WidgetView>? ViewChangeRequested;
+
+    /// An account tab of a card was chosen (0 = the default account). The owner persists it and repaints the ring.
+    internal event Action<AiProviderId, int>? AccountSelected;
+
+    /// The Modo juego ring was clicked: switch it (or open its settings when it is not enabled).
+    internal event Action? GameModeClicked;
+
+    /// Which rings are on screen changed (view, panel open or closed): the owner starts or stops the FPS sampling.
+    internal event Action? VisibleRingsChanged;
 
     /// The gear button was pressed: the owner opens the settings.
     internal event Action? SettingsRequested;
@@ -162,16 +198,22 @@ public partial class EdgeWindow : Window
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem };
-        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem, FpsItem, GameModeItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing, FpsRing, GameModeRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard, FpsCard, GameModeCard };
+        // What the XAML shows at first is what is available before any reading (Claude, CPU, RAM, FPS, Modo juego).
+        _available = _ringItems.Select(item => item.Visibility == Visibility.Visible).ToArray();
+        _inView = new bool[_ringItems.Length];
         ApplyRingBrushes();
         SetRamNote(null);
+        SetGameMode(new GameModeSnapshot(false, false, false, null));
+        ApplyLayout(_layout);
 
         Left = -32000;
         Top = -32000;
 
         SyncModeButton();
+        SyncViewButton();
         SyncUsageTabs();
         Canvas.SetLeft(EdgePanel, WindowWidthDip - PanelWidth);
         Canvas.SetLeft(Card, CardSideRoom);
@@ -199,6 +241,7 @@ public partial class EdgeWindow : Window
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _pointerWatch.Stop();
         _timeTextTimer.Stop();
+        _viewSwitch?.Stop();
         if (_wakeOnInput) WatchRawPointerInput(IntPtr.Zero, false);
     }
 
@@ -242,6 +285,154 @@ public partial class EdgeWindow : Window
         Log.Trace("Edge", $"mode button clicked -> {target}");
         ModeChangeRequested?.Invoke(target);
     }
+
+    private void OnViewClick(object sender, RoutedEventArgs e)
+    {
+        WidgetView next = RingKeys.Next(_view);
+        Log.Trace("Edge", $"view button clicked -> {next}");
+        ViewChangeRequested?.Invoke(next);
+    }
+
+    /// The tooltip names the view the button leads to.
+    private void SyncViewButton()
+    {
+        string tip = Loc.Format("Tip.View", Loc.Get("View." + RingKeys.Next(_view)));
+        ViewButton.ToolTip = tip;
+        AutomationProperties.SetName(ViewButton, tip);
+    }
+
+    internal WidgetView View => _view;
+
+    /// The view and the layouts of the settings. A different view (or a different order or set of rings in it) fades
+    /// the rings out and the new ones in when animate and the panel is on screen; otherwise it changes in one step.
+    internal void ApplyViews(Settings settings, bool animate)
+    {
+        _views = settings;
+        ViewLayout layout = settings.Layout(settings.View);
+        bool changed = settings.View != _view || !layout.Equals(_layout);
+        _view = settings.View;
+        _layout = layout;
+        SyncViewButton();
+        if (!changed)
+        {
+            UpdateMaxRings();
+            return;
+        }
+        Log.Trace("Edge", $"view -> {_view} ({string.Join(",", layout.Shown)})");
+        if (animate && _expanded && AnimationsEnabled && !PreviewMode) SwitchAnimated(() => ApplyLayout(layout));
+        else
+        {
+            FinishViewSwitch();
+            ApplyLayout(layout);
+        }
+    }
+
+    /// Fade out, swap the rings, fade in. A switch already running jumps to its end first.
+    private void SwitchAnimated(Action apply)
+    {
+        FinishViewSwitch();
+        if (_hoveredRing >= 0) { ScaleRing(_hoveredRing, 1.0); _hoveredRing = -1; }
+        HideCard();
+        _pendingLayout = apply;
+        Animate(RingStack, OpacityProperty, 0, ViewFadeOutMs, ease: EaseIn);
+        Animate(RingShift, TranslateTransform.YProperty, -ViewShift, ViewFadeOutMs, ease: EaseIn);
+        _viewSwitch ??= new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(ViewFadeOutMs) };
+        _viewSwitch.Tick -= OnViewSwitchTick;
+        _viewSwitch.Tick += OnViewSwitchTick;
+        _viewSwitch.Start();
+    }
+
+    private void OnViewSwitchTick(object? sender, EventArgs e)
+    {
+        _viewSwitch?.Stop();
+        Action? apply = _pendingLayout;
+        _pendingLayout = null;
+        apply?.Invoke();
+        Animate(RingShift, TranslateTransform.YProperty, 0, ViewFadeInMs, from: ViewShift);
+        Animate(RingStack, OpacityProperty, 1, ViewFadeInMs);
+    }
+
+    private void FinishViewSwitch()
+    {
+        if (_viewSwitch is { IsEnabled: true }) OnViewSwitchTick(null, EventArgs.Empty);
+        RingStack.BeginAnimation(OpacityProperty, null);
+        RingShift.BeginAnimation(TranslateTransform.YProperty, null);
+        RingStack.Opacity = 1;
+        RingShift.Y = 0;
+    }
+
+    /// The rings in the order of the layout (the ones of other views after them, hidden), then visibility.
+    private void ApplyLayout(ViewLayout layout)
+    {
+        var order = new List<FrameworkElement>();
+        foreach (string key in layout.Order)
+        {
+            int index = Array.IndexOf(RingKeyOf, key);
+            if (index >= 0) order.Add(_ringItems[index]);
+        }
+        foreach (FrameworkElement item in _ringItems)
+            if (!order.Contains(item)) order.Add(item);
+        if (!order.SequenceEqual(RingStack.Children.Cast<FrameworkElement>()))
+        {
+            RingStack.Children.Clear();
+            foreach (FrameworkElement item in order) RingStack.Children.Add(item);
+        }
+        var shown = layout.Shown.ToHashSet();
+        for (int i = 0; i < _inView.Length; i++) _inView[i] = shown.Contains(RingKeyOf[i]);
+        ApplyRingVisibility();
+    }
+
+    /// A ring is on screen when its view shows it and it is available. The first one carries no top margin, so the
+    /// panel starts at the same place whichever it is.
+    private void ApplyRingVisibility()
+    {
+        bool first = true;
+        foreach (FrameworkElement item in RingStack.Children)
+        {
+            int index = Array.IndexOf(_ringItems, item);
+            bool visible = _available[index] && _inView[index];
+            var target = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (item.Visibility != target)
+            {
+                item.Visibility = target;
+                if (!visible)
+                {
+                    if (_hoveredRing == index)
+                    {
+                        ScaleRing(index, 1.0);
+                        _hoveredRing = -1;
+                    }
+                    if (_cardVisible && _activeRing == index) HideCard();
+                }
+            }
+            if (visible)
+            {
+                item.Margin = new Thickness(0, first ? 0 : 10, 0, 0);
+                first = false;
+            }
+        }
+
+        UpdateMaxRings();
+        CenterPanel(animate: _expanded);
+        if (_cardVisible) PlaceCard(animate: true);
+        VisibleRingsChanged?.Invoke();
+    }
+
+    /// The most rings any view shows with what is available now: the scale is chosen for that many, so switching
+    /// views never resizes the panel.
+    private void UpdateMaxRings()
+    {
+        int max = 1;
+        foreach (WidgetView view in new[] { WidgetView.Ai, WidgetView.Pc, WidgetView.Custom })
+            max = Math.Max(max, _views.Layout(view).Shown.Count(key => _available[Array.IndexOf(RingKeyOf, key)]));
+        if (max == _maxRings) return;
+        _maxRings = max;
+        if (PreviewMode || !_hasWindowRect) LayOut(_windowHeightDip);
+        else PositionOnPrimaryScreen();
+    }
+
+    /// Whether a ring is on screen right now (panel out, ring in the view and available).
+    internal bool IsRingOnScreen(int index) => _expanded && _ringItems[index].Visibility == Visibility.Visible;
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
@@ -299,6 +490,9 @@ public partial class EdgeWindow : Window
     {
         ApplyRingBrushes();
         SyncModeButton();
+        SyncViewButton();
+        if (_fps is not null) SetFps(_fps);
+        if (_gameMode is not null) SetGameMode(_gameMode);
         RefreshUsage();
         if (_openCode is not null) SetOpenCode(_openCode);
         if (_deepSeek is not null) SetDeepSeek(_deepSeek);
@@ -338,6 +532,118 @@ public partial class EdgeWindow : Window
     {
         Log.Trace("Edge", "ram ring clicked");
         RamClicked?.Invoke();
+    }
+
+    private void OnGameModeClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        Log.Trace("Edge", "game mode ring clicked");
+        GameModeClicked?.Invoke();
+    }
+
+    // ───────────────────────────── Accounts ─────────────────────────────
+
+    /// The account tabs of a card: one per account (names[0] is the default one), only when there is more than one.
+    internal void SetAccounts(AiProviderId provider, IReadOnlyList<string> names, int selected)
+    {
+        (Border? list, UniformGrid? grid) = provider switch
+        {
+            AiProviderId.Claude => (ClaudeAccounts, ClaudeAccountList),
+            AiProviderId.Codex => (CodexAccounts, CodexAccountList),
+            AiProviderId.Cursor => (CursorAccounts, CursorAccountList),
+            _ => ((Border?)null, (UniformGrid?)null),
+        };
+        if (list is null || grid is null) return;
+        _syncingAccounts = true;
+        grid.Children.Clear();
+        for (int i = 0; i < names.Count; i++)
+        {
+            int index = i;
+            var tab = new RadioButton
+            {
+                Style = (Style)FindResource("UsageTab"), Content = names[i], GroupName = provider + "Account",
+                IsChecked = i == selected, ToolTip = names[i],
+            };
+            AutomationProperties.SetAutomationId(tab, $"{provider}Account{i}");
+            tab.Checked += (_, _) =>
+            {
+                if (_syncingAccounts) return;
+                Log.Trace("Edge", $"{provider} account -> {index}");
+                AccountSelected?.Invoke(provider, index);
+            };
+            grid.Children.Add(tab);
+        }
+        list.Visibility = names.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        _syncingAccounts = false;
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    // ───────────────────────────── FPS and Modo juego ─────────────────────────────
+
+    /// FPS of the foreground program (or the desktop): the arc is the share of the screen's refresh rate.
+    internal void SetFps(FpsService.Sample sample)
+    {
+        _fps = sample;
+        FpsRefresh.Text = $"{sample.RefreshHz:0} Hz";
+        if (sample.Fps is double fps)
+        {
+            double share = sample.RefreshHz > 0 ? Math.Clamp(fps / sample.RefreshHz, 0, 1) : 0;
+            SolidColorBrush brush = share >= 0.75 ? Palette.Low : share >= 0.45 ? Palette.Medium : Palette.High;
+            FpsRing.RingBrush = brush;
+            AnimateRing(FpsRing, share, 300);
+            FpsLabel.Text = fps.ToString("0", Loc.Culture);
+            FpsBar.Fill = brush;
+            AnimateBar(FpsBar, share, 300);
+            FpsValue.Text = Loc.Format("Value.Fps", fps.ToString("0", Loc.Culture));
+            FpsFrameTime.Text = fps >= 1 ? Loc.Format("Value.Milliseconds", (1000 / fps).ToString("0.0", Loc.Culture)) : "--";
+            FpsSource.Text = sample.Desktop ? Loc.Get("Fps.Desktop") : sample.Process ?? "--";
+            FpsMetrics.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ClearRing(FpsRing, FpsLabel);
+            FpsMetrics.Visibility = Visibility.Collapsed;
+        }
+        string? message = Loc.Message(sample.Message);
+        FpsMessage.Text = message ?? string.Empty;
+        FpsMessage.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_cardVisible && _activeRing == RingFps) PlaceCard(animate: false);
+    }
+
+    /// Modo juego: an empty ring while off, a full one while on; the card says what it did.
+    internal void SetGameMode(GameModeSnapshot state)
+    {
+        _gameMode = state;
+        GameModeRing.RingBrush = Palette.Low;
+        AnimateRing(GameModeRing, state.Active ? 1 : 0, 400);
+        GameModeLabel.Text = state.Busy ? "…" : state.Active ? "ON" : "OFF";
+        GameModeItem.SetResourceReference(ToolTipProperty, !state.Allowed ? "Tip.GameModeSettings"
+            : state.Active ? "Tip.GameModeOff" : "Tip.GameModeOn");
+        GameModeState.Text = Loc.Get(state.Busy ? "Game.Applying" : !state.Allowed ? "Game.Disabled"
+            : state.Active ? "Game.Active" : "Game.Inactive");
+
+        GameModeResult? result = state.Result;
+        if (state.Active && result is not null)
+        {
+            var parts = new List<string> { Loc.Format("Game.ClosedApps", result.ClosedApps), Loc.Format("Game.StoppedServices", result.StoppedServices) };
+            if (result.PowerPlan is GamePowerPlan plan && plan != GamePowerPlan.Keep)
+                parts.Add(Loc.Get(plan == GamePowerPlan.HighPerformance ? "Game.PlanHigh" : "Game.PlanBalanced"));
+            if (result.GameBarOff) parts.Add(Loc.Get("Game.GameBarOff"));
+            GameModeSummary.Text = string.Join(" · ", parts);
+        }
+        else GameModeSummary.Text = Loc.Get(state.Allowed ? "Game.Describe" : "Game.EnableFirst");
+
+        IReadOnlyList<string> errors = result?.Errors ?? Array.Empty<string>();
+        GameModeErrors.Text = string.Join("\n", errors.Take(4).Select(TranslateGameError));
+        GameModeErrors.Visibility = errors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        GameModeHint.Text = Loc.Get(!state.Allowed ? "Game.HintSettings" : state.Active ? "Game.HintOff" : "Game.HintOn");
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// "No se pudo detener: WSearch" → the translated text, then the name as it is.
+    private static string TranslateGameError(string error)
+    {
+        int colon = error.IndexOf(": ", StringComparison.Ordinal);
+        return colon < 0 ? Loc.Message(error) ?? error : (Loc.Message(error[..colon]) ?? error[..colon]) + error[colon..];
     }
 
     /// Shown on the Claude card while the session is being renewed.
@@ -392,7 +698,7 @@ public partial class EdgeWindow : Window
 
     /// Picks the scale for a work area of the given height (DIPs) and lays the canvas out in design units.
     /// Automatic: proportional to the work area, limited to MinAutoScale–MaxAutoScale so the vectors stay crisp.
-    /// Either way it never exceeds what fits the panel with all nine rings, so nothing is ever cut off.
+    /// Either way it never exceeds what fits the panel with the rings of its largest view, so nothing is ever cut off.
     private void LayOut(double workHeightDip)
     {
         double preferred = _uiScale ?? Math.Clamp(workHeightDip / ReferenceWorkHeight, MinAutoScale, MaxAutoScale);
@@ -418,15 +724,16 @@ public partial class EdgeWindow : Window
         Log.Trace("Edge", $"scale {_scale} (preferred {preferred:0.###}, fit {fit:0.###}) for {workHeightDip:0} DIP");
     }
 
-    /// Height of the panel (design units) with every ring shown, whatever is visible right now, so the scale does
-    /// not jump when a provider appears.
+    /// Height of the panel (design units) with as many rings as the largest view shows (UpdateMaxRings), whatever is
+    /// visible right now, so the scale does not jump when switching views.
     private double FullPanelHeight()
     {
         var saved = new Visibility[_ringItems.Length];
+        int count = Math.Max(1, _maxRings);
         for (int i = 0; i < _ringItems.Length; i++)
         {
             saved[i] = _ringItems[i].Visibility;
-            _ringItems[i].Visibility = Visibility.Visible;
+            _ringItems[i].Visibility = RingStack.Children.IndexOf(_ringItems[i]) < count ? Visibility.Visible : Visibility.Collapsed;
         }
         LayOutButtons();
         PanelStack.InvalidateMeasure();
@@ -438,31 +745,19 @@ public partial class EdgeWindow : Window
         return height;
     }
 
-    /// Three buttons in one row if each would be at least MinRowButtonDip wide on screen, else two plus one below.
+    /// Four buttons, two by two (four in a row would be under 20 DIP at any scale).
     private void LayOutButtons()
     {
-        bool row = RowButtonDiameter * _scale >= MinRowButtonDip;
-        double diameter = row ? RowButtonDiameter : StackedButtonDiameter;
-        double gap = row ? ButtonGap : StackedButtonGap;
-
-        Panel target = row ? ButtonRowTop : ButtonRowBottom;
-        if (CloseButton.Parent != target)
-        {
-            ((Panel)CloseButton.Parent).Children.Remove(CloseButton);
-            target.Children.Add(CloseButton);
-        }
-
         ModeButton.Margin = new Thickness(0);
-        SettingsButton.Margin = new Thickness(gap, 0, 0, 0);
-        CloseButton.Margin = row ? new Thickness(gap, 0, 0, 0) : new Thickness(0, gap, 0, 0);
-        foreach (Button button in new[] { ModeButton, SettingsButton, CloseButton })
+        ViewButton.Margin = new Thickness(ButtonGap, 0, 0, 0);
+        SettingsButton.Margin = new Thickness(0, ButtonGap, 0, 0);
+        CloseButton.Margin = new Thickness(ButtonGap, ButtonGap, 0, 0);
+        foreach (Button button in new[] { ModeButton, ViewButton, SettingsButton, CloseButton })
         {
-            button.Width = button.Height = diameter;
-            if (button.Content is FrameworkElement icon) icon.Width = icon.Height = Math.Round(diameter * 0.5);
+            button.Width = button.Height = ButtonDiameter;
+            if (button.Content is FrameworkElement icon) icon.Width = icon.Height = Math.Round(ButtonDiameter * 0.5);
         }
     }
-
-    internal bool ButtonsInOneRow => CloseButton.Parent == ButtonRowTop;
 
     // ───────────────────────────── Data ─────────────────────────────
 
@@ -889,35 +1184,13 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
+    /// Whether a ring has something to show (provider installed, GPU detected); its view decides the rest.
     private void SetRingVisible(int index, bool visible)
     {
-        var target = visible ? Visibility.Visible : Visibility.Collapsed;
-        FrameworkElement item = _ringItems[index];
-        if (item.Visibility == target) return;
-        Log.Trace("Edge", $"ring {index} {(visible ? "shown" : "hidden")}");
-
-        item.Visibility = target;
-        if (!visible)
-        {
-            if (_hoveredRing == index)
-            {
-                ScaleRing(index, 1.0);
-                _hoveredRing = -1;
-            }
-            if (_cardVisible && _activeRing == index) HideCard();
-        }
-
-        // The first visible ring carries no top margin, so the panel starts at the same place whichever it is.
-        bool first = true;
-        foreach (FrameworkElement ringItem in _ringItems)
-        {
-            if (ringItem.Visibility != Visibility.Visible) continue;
-            ringItem.Margin = new Thickness(0, first ? 0 : 10, 0, 0);
-            first = false;
-        }
-
-        CenterPanel(animate: _expanded);
-        if (_cardVisible) PlaceCard(animate: true);
+        if (_available[index] == visible) return;
+        Log.Trace("Edge", $"ring {index} {(visible ? "available" : "unavailable")}");
+        _available[index] = visible;
+        ApplyRingVisibility();
     }
 
     private void RefreshTimeTexts()
@@ -1197,6 +1470,7 @@ public partial class EdgeWindow : Window
         Animate(PanelShift, TranslateTransform.XProperty, 0, PanelMs);
         Animate(Strip, OpacityProperty, 0, 150);
         ExpandedChanged?.Invoke(true);
+        VisibleRingsChanged?.Invoke();
     }
 
     /// The reverse of Expand: same 250 ms, the cubic curve mirrored in time (ease-in). The animations must start
@@ -1218,6 +1492,7 @@ public partial class EdgeWindow : Window
         // Click-through from now on: only the poll can see the pointer reach the strip.
         ResumePointerWatch();
         ExpandedChanged?.Invoke(false);
+        VisibleRingsChanged?.Invoke();
     }
 
     /// Slides the panel out before the application quits (the close button, "Salir"), then calls done.

@@ -15,6 +15,10 @@ internal sealed class ClaudeUsageService
     private const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
     private static readonly HttpClient Http = UsageHttp.Create();
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
+    private readonly string _credentialsPath;
+
+    /// credentialsPath: another account's .credentials.json (its CLAUDE_CONFIG_DIR); the default one otherwise.
+    public ClaudeUsageService(string? credentialsPath = null) => _credentialsPath = credentialsPath ?? CredentialReader.DefaultPath;
 
     /// After an HTTP 429 the endpoint is not asked again before this (seen 2026-09-30: 429 every 2 minutes for
     /// hours when retried at the refresh interval).
@@ -24,7 +28,7 @@ internal sealed class ClaudeUsageService
     {
         try
         {
-            var credentials = CredentialReader.Read(CredentialReader.DefaultPath);
+            var credentials = CredentialReader.Read(_credentialsPath);
             // No token (never signed in, or the CLI dropped the session after a failed refresh): sign in again.
             if (credentials is null)
                 return ClaudeSnapshot.Failed(ClaudeSessionRenewer.SignedOutMessage);

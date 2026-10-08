@@ -58,11 +58,17 @@ internal sealed class CursorUsageService
         catch (HttpRequestException ex) { Log.Warn("Cursor", ex.Message); return CursorSnapshot.Failed("Sin conexión"); }
         catch (TaskCanceledException) { Log.Warn("Cursor", "timeout"); return CursorSnapshot.Failed("Tiempo de espera agotado"); }
         catch (System.Text.Json.JsonException ex) { Log.Warn("Cursor", "invalid JSON: " + ex.Message); return CursorSnapshot.Failed("Respuesta no válida"); }
-        catch (LocalDatabaseReader.ReadException ex) when (ex.Kind is LocalDatabaseReader.Failure.Busy or LocalDatabaseReader.Failure.Unavailable or LocalDatabaseReader.Failure.Invalid)
+        catch (LocalDatabaseReader.ReadException ex) when (ex.Kind is not LocalDatabaseReader.Failure.Missing)
         {
             Log.Warn("Cursor", "state.vscdb: " + ex.Message);
-            return ex.Kind == LocalDatabaseReader.Failure.Unavailable && ex.Message == UnelevatedLauncher.SeclogonMessage
-                ? CursorSnapshot.NotAvailable(UnelevatedLauncher.SeclogonMessage) : CursorSnapshot.NotAvailable("Cursor ocupado, se reintentará");
+            return ex.Kind switch
+            {
+                LocalDatabaseReader.Failure.Busy => CursorSnapshot.NotAvailable("Cursor ocupado, se reintentará"),
+                LocalDatabaseReader.Failure.Unavailable when ex.Message == UnelevatedLauncher.SeclogonMessage =>
+                    CursorSnapshot.NotAvailable(UnelevatedLauncher.SeclogonMessage),
+                LocalDatabaseReader.Failure.Unavailable => CursorSnapshot.Failed(LocalDatabaseReader.UnavailableMessage),
+                _ => CursorSnapshot.Failed("Base de datos de Cursor no válida"),
+            };
         }
         catch (UnauthorizedAccessException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
         catch (IOException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }

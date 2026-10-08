@@ -17,6 +17,9 @@ namespace OpenControlEdge.Services;
 internal static class LocalDatabaseReader
 {
     internal const string HelperArgument = "--read-database";
+
+    /// The reader could not be started as the plain user (no desktop, UAC off, another account on the desktop…).
+    public const string UnavailableMessage = "No se pudo leer sin permisos de administrador";
     private static readonly TimeSpan HelperTimeout = TimeSpan.FromSeconds(20);
     private const int MaxTokenLength = 8 * 1024;
 
@@ -44,7 +47,7 @@ internal static class LocalDatabaseReader
             throw new ReadException(Failure.Invalid, "respuesta del lector con un token no válido");
         string? membership = root.TryGetProperty("membership", out JsonElement m) && m.ValueKind == JsonValueKind.String
             ? m.GetString() : null;
-        if (membership is { Length: > 64 }) membership = null;
+        if (membership is not null && (membership.Length > 64 || membership.Any(char.IsControl))) membership = null;
         return new CursorSession(value, membership);
     }
 

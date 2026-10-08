@@ -27,14 +27,28 @@ internal static class ThemeManager
     public static AppTheme Theme { get; private set; } = AppTheme.Dark;
     public static RingColorTheme ColorTheme { get; private set; } = RingColorTheme.Classic;
 
+    /// The panel background chosen in Settings > Personalización; null is the theme's own.
+    public static Color? PanelBackground { get; private set; }
+
     /// True while the light tokens are in use (Light, or System with Windows in light mode).
     public static bool IsLight { get; private set; }
 
     /// Raised on the UI thread after the tokens and Palette have changed.
     public static event Action? Changed;
 
-    public static void Apply(AppTheme theme, RingColorTheme colors)
+    /// Keeps the panel background that is already set.
+    public static void Apply(AppTheme theme, RingColorTheme colors) => Apply(theme, colors, PanelBackground);
+
+    /// A custom background only changes when it is a different colour (no repaint otherwise).
+    public static void ApplyBackground(Color? background)
     {
+        if (background == PanelBackground) return;
+        Apply(Theme, ColorTheme, background);
+    }
+
+    public static void Apply(AppTheme theme, RingColorTheme colors, Color? background)
+    {
+        PanelBackground = background;
         Theme = theme;
         ColorTheme = colors;
         if (theme == AppTheme.System && !_listening)
@@ -93,7 +107,28 @@ internal static class ThemeManager
             r[Menu] = Make(0xFF0A0A0A);
         }
 
-        Palette.Use(ColorTheme, IsLight);
+        // A background of the user's own: text, track and buttons are mixed from it and from the text colour that reads
+        // on it, so a pale background gets dark text (and the light ring colours) whatever the theme.
+        bool lightPanel = IsLight;
+        if (PanelBackground is Color custom)
+        {
+            lightPanel = RelativeLuminance(custom) > 0.4;
+            Color text = lightPanel ? Color.FromRgb(0x11, 0x11, 0x13) : Colors.White;
+            Color secondary = lightPanel ? Color.FromRgb(0x5E, 0x5E, 0x63) : Color.FromRgb(0x9A, 0x9A, 0xA0);
+            r[Background] = Make(custom);
+            r[Surface] = Make(Mix(custom, text, 0.10));
+            r[Raised] = Make(Mix(custom, text, 0.20));
+            r[Border] = Make(Color.FromArgb(0x1F, text.R, text.G, text.B));
+            r[Text] = Make(text);
+            r[TextSecondary] = Make(secondary);
+            r[RingTrack] = Make(Mix(custom, text, 0.14));
+            r[Button] = Make(Mix(custom, text, 0.11));
+            r[ButtonHover] = Make(Mix(custom, text, 0.18));
+            r[ButtonPressed] = Make(Mix(custom, text, 0.06));
+            r[Menu] = Make(Mix(custom, lightPanel ? Colors.White : Colors.Black, 0.35));
+        }
+
+        Palette.Use(ColorTheme, lightPanel);
         Changed?.Invoke();
     }
 
@@ -124,6 +159,23 @@ internal static class ThemeManager
             Log.Warn("Theme", "could not read the Windows app mode: " + ex.GetType().Name);
             return false;
         }
+    }
+
+    private static Color Mix(Color a, Color b, double amount) => Color.FromRgb(
+        (byte)Math.Round(a.R + (b.R - a.R) * amount), (byte)Math.Round(a.G + (b.G - a.G) * amount), (byte)Math.Round(a.B + (b.B - a.B) * amount));
+
+    /// WCAG relative luminance (0 black, 1 white).
+    internal static double RelativeLuminance(Color c)
+    {
+        static double Linear(byte v) { double x = v / 255.0; return x <= 0.03928 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4); }
+        return 0.2126 * Linear(c.R) + 0.7152 * Linear(c.G) + 0.0722 * Linear(c.B);
+    }
+
+    private static SolidColorBrush Make(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private static SolidColorBrush Make(uint argb)

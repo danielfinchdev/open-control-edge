@@ -50,6 +50,10 @@
                                 <TextBlock x:Name="ClaudePlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
                         </StackPanel>
+                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
+                        <Border x:Name="ClaudeAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
+                            <UniformGrid x:Name="ClaudeAccountList" Rows="1" />
+                        </Border>
                         <Border x:Name="ClaudeTabs" Style="{StaticResource UsageTabList}">
                             <UniformGrid Columns="2">
                                 <RadioButton x:Name="ClaudeSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
@@ -108,6 +112,10 @@
                                 <TextBlock x:Name="CodexPlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
                         </StackPanel>
+                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
+                        <Border x:Name="CodexAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
+                            <UniformGrid x:Name="CodexAccountList" Rows="1" />
+                        </Border>
                         <Border x:Name="CodexTabs" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
                             <UniformGrid Columns="2">
                                 <RadioButton x:Name="CodexSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
@@ -145,6 +153,10 @@
                                 <TextBlock x:Name="CursorPlanText" Style="{StaticResource PlanBadgeText}" />
                             </Border>
                         </StackPanel>
+                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
+                        <Border x:Name="CursorAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
+                            <UniformGrid x:Name="CursorAccountList" Rows="1" />
+                        </Border>
                         <StackPanel x:Name="CursorMetrics" Margin="0,11,0,0">
                             <DockPanel>
                                 <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
@@ -293,6 +305,47 @@
                         <TextBlock x:Name="RamNote" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" />
                     </StackPanel>
 
+                    <!-- FPS of the program in the foreground (FpsService), or of the desktop. -->
+                    <StackPanel x:Name="FpsCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="FpsRefresh" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.Fps}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.Fps}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                        <StackPanel x:Name="FpsMetrics" Margin="0,11,0,0">
+                            <DockPanel>
+                                <TextBlock x:Name="FpsSource" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="130" />
+                                <TextBlock Text="{DynamicResource Row.FramesPerSecond}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <ui:LinearBar x:Name="FpsBar" Height="4" Margin="0,6,0,0" />
+                            <TextBlock x:Name="FpsValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
+                            <DockPanel Margin="0,11,0,0">
+                                <TextBlock x:Name="FpsFrameTime" DockPanel.Dock="Right" Text="--" Style="{StaticResource ValueText}" />
+                                <TextBlock Text="{DynamicResource Row.FrameTime}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                        </StackPanel>
+                        <TextBlock x:Name="FpsMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- Modo juego: what it does or did, and how to switch it (GameModeService). -->
+                    <StackPanel x:Name="GameModeCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="GameModeState" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.Gamepad}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.GameMode}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                        <TextBlock x:Name="GameModeSummary" Style="{StaticResource ValueText}" TextWrapping="Wrap" Margin="0,11,0,0" />
+                        <TextBlock x:Name="GameModeErrors" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
+                        <TextBlock x:Name="GameModeHint" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" />
+                    </StackPanel>
+
                 </Grid>
             </Border>
         </Grid>
@@ -307,103 +360,130 @@
 
             <Grid x:Name="PanelRoot" Margin="0,38,0,38">
                 <StackPanel x:Name="PanelStack" Margin="0,20,0,14">
-                    <!-- Un clic renueva la sesión de Claude sin abrir ventanas (ver App.RenewClaudeSessionAsync). -->
-                    <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
-                          ToolTip="{DynamicResource Tip.ClaudeRing}"
-                          MouseLeftButtonUp="OnClaudeClick">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="ClaudeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.ClaudeSpark}">
-                                <ui:RingGauge.RenderTransform>
-                                    <ScaleTransform />
-                                </ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="ClaudeLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
+                    <!-- The rings of the active view, in its order (EdgeWindow.ApplyViews); faded out and in when the view
+                         changes. -->
+                    <StackPanel x:Name="RingStack">
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform x:Name="RingShift" />
+                        </StackPanel.RenderTransform>
+                        <!-- Un clic renueva la sesión de Claude sin abrir ventanas (ver App.RenewClaudeSessionAsync). -->
+                        <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
+                              ToolTip="{DynamicResource Tip.ClaudeRing}"
+                              MouseLeftButtonUp="OnClaudeClick">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="ClaudeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.ClaudeSpark}">
+                                    <ui:RingGauge.RenderTransform>
+                                        <ScaleTransform />
+                                    </ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="ClaudeLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
 
-                    <!-- Hidden when Codex/ChatGPT is not installed (see AiDetector). -->
-                    <Grid x:Name="CodexItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="CodexRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Codex}">
-                                <ui:RingGauge.RenderTransform>
-                                    <ScaleTransform />
-                                </ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="CodexLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
+                        <!-- Hidden when Codex/ChatGPT is not installed (see AiDetector). -->
+                        <Grid x:Name="CodexItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="CodexRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Codex}">
+                                    <ui:RingGauge.RenderTransform>
+                                        <ScaleTransform />
+                                    </ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="CodexLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
 
-                    <!-- Hidden when Cursor is not installed (see AiDetector). -->
-                    <Grid x:Name="CursorItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="CursorRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cursor}">
-                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
-                    <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="OpenCodeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenCode}">
-                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="OpenCodeLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
-                    <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="DeepSeekRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.DeepSeek}">
-                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="DeepSeekLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
-                    <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="OpenRouterRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenRouter}">
-                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
-                    <!-- Un clic abre Configuración > Sistema > Información, sin privilegios de administrador. -->
-                    <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
-                          ToolTip="{DynamicResource Tip.CpuRing}" MouseLeftButtonUp="OnCpuClick">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="CpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cpu}">
-                                <ui:RingGauge.RenderTransform>
-                                    <ScaleTransform />
-                                </ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="CpuLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
+                        <!-- Hidden when Cursor is not installed (see AiDetector). -->
+                        <Grid x:Name="CursorItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="CursorRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cursor}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="CursorLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid x:Name="OpenCodeItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="OpenCodeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenCode}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="OpenCodeLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid x:Name="DeepSeekItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="DeepSeekRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.DeepSeek}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="DeepSeekLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid x:Name="OpenRouterItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="OpenRouterRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.OpenRouter}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+                        <!-- Un clic abre Configuración > Sistema > Información, sin privilegios de administrador. -->
+                        <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
+                              ToolTip="{DynamicResource Tip.CpuRing}" MouseLeftButtonUp="OnCpuClick">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="CpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Cpu}">
+                                    <ui:RingGauge.RenderTransform>
+                                        <ScaleTransform />
+                                    </ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="CpuLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
 
-                    <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
-                    <Grid x:Name="GpuItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="GpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gpu}">
-                                <ui:RingGauge.RenderTransform>
-                                    <ScaleTransform />
-                                </ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="GpuLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
+                        <!-- Hidden until an NVIDIA GPU is detected (see HardwareSensorService). -->
+                        <Grid x:Name="GpuItem" Background="Transparent" Margin="0,10,0,0" Visibility="Collapsed">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="GpuRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gpu}">
+                                    <ui:RingGauge.RenderTransform>
+                                        <ScaleTransform />
+                                    </ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="GpuLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
 
-                    <!-- Physical memory in use; a click frees RAM (App.FreeRamAsync). -->
-                    <Grid x:Name="RamItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
-                          ToolTip="{DynamicResource Tip.RamRing}" MouseLeftButtonUp="OnRamClick">
-                        <StackPanel>
-                            <ui:RingGauge x:Name="RamRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Ram}">
-                                <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                            </ui:RingGauge>
-                            <TextBlock x:Name="RamLabel" Text="--" Style="{StaticResource RingLabel}" />
-                        </StackPanel>
-                    </Grid>
+                        <!-- Physical memory in use; a click frees RAM (App.FreeRamAsync). -->
+                        <Grid x:Name="RamItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
+                              ToolTip="{DynamicResource Tip.RamRing}" MouseLeftButtonUp="OnRamClick">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="RamRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Ram}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="RamLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
 
-                    <!-- Round buttons: in one row when they come out at 30 DIP or more, otherwise two above and close
-                         below (EdgeWindow.LayOutButtons moves CloseButton between the rows). -->
+                        <!-- FPS of the program in the foreground; first ring of the PC view. -->
+                        <Grid x:Name="FpsItem" Background="Transparent" Margin="0,10,0,0">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="FpsRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Fps}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="FpsLabel" Text="--" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Modo juego: a ring that works as a switch (empty off, full on). -->
+                        <Grid x:Name="GameModeItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
+                              ToolTip="{DynamicResource Tip.GameModeOn}" MouseLeftButtonUp="OnGameModeClick">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="GameModeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gamepad}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="GameModeLabel" Text="OFF" Style="{StaticResource RingLabel}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Round buttons, two by two: fijar / vista above, ajustes / cerrar below (EdgeWindow.LayOutButtons). -->
                     <StackPanel x:Name="PanelButtons" Margin="0,14,0,0" HorizontalAlignment="Center">
                         <StackPanel x:Name="ButtonRowTop" Orientation="Horizontal" HorizontalAlignment="Center">
                             <!-- Fijar / ocultar: the chevron points where the panel goes. -->
@@ -411,13 +491,18 @@
                                     AutomationProperties.AutomationId="ModeButton">
                                 <ui:IconView x:Name="ModeIcon" Icon="{x:Static ui:Icons.ChevronRight}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
+                            <!-- Next view: IA → PC → Personalizada. -->
+                            <Button x:Name="ViewButton" Style="{StaticResource PanelRoundButton}" Click="OnViewClick"
+                                    AutomationProperties.AutomationId="ViewButton">
+                                <ui:IconView Icon="{x:Static ui:Icons.Views}" Foreground="{DynamicResource Theme.Text}" />
+                            </Button>
+                        </StackPanel>
+                        <StackPanel x:Name="ButtonRowBottom" Orientation="Horizontal" HorizontalAlignment="Center">
                             <Button x:Name="SettingsButton" Style="{StaticResource PanelRoundButton}" Click="OnSettingsClick"
                                     ToolTip="{DynamicResource Tip.Settings}" AutomationProperties.AutomationId="SettingsButton"
                                     AutomationProperties.Name="{DynamicResource Tip.Settings}">
                                 <ui:IconView Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
-                        </StackPanel>
-                        <StackPanel x:Name="ButtonRowBottom" Orientation="Horizontal" HorizontalAlignment="Center">
                             <!-- Quits the whole application, like "Salir" in the tray menu. -->
                             <Button x:Name="CloseButton" Style="{StaticResource PanelRoundButton}" Click="OnCloseClick"
                                     ToolTip="{DynamicResource Tip.Close}" AutomationProperties.AutomationId="CloseButton"
