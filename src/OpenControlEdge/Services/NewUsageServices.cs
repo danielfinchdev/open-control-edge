@@ -5,82 +5,40 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Data.Sqlite;
 
 namespace OpenControlEdge.Services;
 
-/// Reads only OpenCode's local SQLite session aggregates (UntrustedSqlite); never opens a network connection.
+/// Reads only OpenCode's local SQLite session aggregates (LocalDatabaseReader, without administrator rights); never
+/// opens a network connection.
 internal sealed class OpenCodeUsageService
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(25);
     private readonly string? _databasePath;
 
     internal OpenCodeUsageService(string? databasePath = null) => _databasePath = databasePath;
 
     internal async Task<OpenCodeSnapshot> FetchAsync()
     {
-        try { return await Task.Run(ReadLocal).WaitAsync(Timeout).ConfigureAwait(false); }
-        catch (TimeoutException) { Log.Warn("OpenCode", "timeout"); return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
-        catch (Exception ex) { Log.Warn("OpenCode", ex.GetType().Name + ": " + ex.Message); return OpenCodeSnapshot.Failed("No se pudo leer el uso local"); }
-    }
-
-    private OpenCodeSnapshot ReadLocal()
-    {
-        string[] paths = _databasePath is not null ? new[] { _databasePath } : ResolveDatabasePaths();
-        if (paths.Length == 0) return OpenCodeSnapshot.Failed("Sin base de datos de sesiones");
-
-        long input = 0, output = 0, reasoning = 0, cacheRead = 0, cacheWrite = 0;
-        decimal cost = 0;
-        foreach (string path in paths)
+        try
         {
-            using SqliteConnection connection = UntrustedSqlite.Open(path);
-            using (var schema = connection.CreateCommand())
-            {
-                schema.CommandText = "PRAGMA table_info(session)";
-                schema.CommandTimeout = 2;
-                using var columnsReader = schema.ExecuteReader();
-                var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                while (columnsReader.Read()) columns.Add(columnsReader.GetString(1));
-                string[] required = { "tokens_input", "tokens_output", "tokens_reasoning", "tokens_cache_read", "tokens_cache_write", "cost" };
-                if (required.Any(column => !columns.Contains(column)))
-                    return OpenCodeSnapshot.Failed("Versión de OpenCode no compatible");
-            }
-            using var command = connection.CreateCommand();
-            command.CommandTimeout = 2;
-            command.CommandText = "SELECT COALESCE(SUM(tokens_input), 0), COALESCE(SUM(tokens_output), 0), COALESCE(SUM(tokens_reasoning), 0), COALESCE(SUM(tokens_cache_read), 0), COALESCE(SUM(tokens_cache_write), 0), COALESCE(SUM(cost), 0) FROM session";
-            using SqliteDataReader reader = command.ExecuteReader();
-            if (!reader.Read()) return OpenCodeSnapshot.Failed("Respuesta local sin datos");
-            input = checked(input + NonNegative(reader.GetInt64(0)));
-            output = checked(output + NonNegative(reader.GetInt64(1)));
-            reasoning = checked(reasoning + NonNegative(reader.GetInt64(2)));
-            cacheRead = checked(cacheRead + NonNegative(reader.GetInt64(3)));
-            cacheWrite = checked(cacheWrite + NonNegative(reader.GetInt64(4)));
-            double sessionCost = reader.GetDouble(5);
-            if (!double.IsFinite(sessionCost) || sessionCost < 0) return OpenCodeSnapshot.Failed("Respuesta local sin datos");
-            cost += (decimal)sessionCost;
+            LocalDatabaseReader.OpenCodeTotals totals = await Task.Run(() => LocalDatabaseReader.ReadOpenCode(_databasePath))
+                .WaitAsync(Timeout).ConfigureAwait(false);
+            return new OpenCodeSnapshot(false, totals.Input, totals.Output, totals.Reasoning, totals.CacheRead, totals.CacheWrite, totals.Cost, null);
         }
-        return new OpenCodeSnapshot(false, input, output, reasoning, cacheRead, cacheWrite, cost, null);
-    }
-
-    /// Token counts are never negative; a database that says otherwise is not read.
-    private static long NonNegative(long value) =>
-        value >= 0 ? value : throw new InvalidDataException("OpenCode: recuento de tokens negativo");
-
-    private static string[] ResolveDatabasePaths()
-    {
-        string? overridePath = Environment.GetEnvironmentVariable("OPENCODE_DB");
-        if (!string.IsNullOrWhiteSpace(overridePath) && Path.IsPathFullyQualified(overridePath))
-            return File.Exists(overridePath) ? new[] { overridePath } : Array.Empty<string>();
-        string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string? xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
-        string[] directories =
+        catch (TimeoutException) { Log.Warn("OpenCode", "timeout"); return OpenCodeSnapshot.Failed("Tiempo de espera agotado"); }
+        catch (LocalDatabaseReader.ReadException ex)
         {
-            Path.Combine(string.IsNullOrWhiteSpace(xdg) ? Path.Combine(user, ".local", "share") : xdg, "opencode"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode"),
-        };
-        string? database = directories.Select(dir => Path.Combine(dir, "opencode.db")).FirstOrDefault(File.Exists);
-        return database is null ? Array.Empty<string>() : new[] { Path.GetFullPath(database) };
+            Log.Warn("OpenCode", ex.Message);
+            return ex.Kind switch
+            {
+                LocalDatabaseReader.Failure.Missing => OpenCodeSnapshot.Failed("Sin base de datos de sesiones"),
+                LocalDatabaseReader.Failure.Incompatible => OpenCodeSnapshot.Failed("Versión de OpenCode no compatible"),
+                LocalDatabaseReader.Failure.Invalid => OpenCodeSnapshot.Failed("Respuesta local sin datos"),
+                _ when ex.Message == UnelevatedLauncher.SeclogonMessage => OpenCodeSnapshot.Failed(UnelevatedLauncher.SeclogonMessage),
+                _ => OpenCodeSnapshot.Failed("No se pudo leer el uso local"),
+            };
+        }
+        catch (Exception ex) { Log.Warn("OpenCode", ex.GetType().Name + ": " + ex.Message); return OpenCodeSnapshot.Failed("No se pudo leer el uso local"); }
     }
 }
 

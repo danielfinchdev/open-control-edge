@@ -25,6 +25,10 @@ internal static partial class UnelevatedLauncher
 
         /// captureOutput: the first line the program wrote to stdout or stderr, sanitised (see Summarize).
         public string? Output { get; init; }
+
+        /// captureOutput: everything it wrote (at most MaxCapturedBytes), unsanitised. Never logged: it may hold a
+        /// token (SqliteHelper's answer).
+        public string? RawOutput { get; init; }
     }
 
     /// CreateProcessWithTokenW goes through the Secondary Logon service; disabled (1058) or missing (1060), nothing
@@ -39,8 +43,9 @@ internal static partial class UnelevatedLauncher
     /// still asks for one). wait: waits up to that long for it to exit; on timeout the whole process tree is killed
     /// (it runs inside a kill-on-close job). Without wait it is fire-and-forget and outlives nothing of ours.
     /// captureOutput (with wait only): stdout and stderr go to a pipe and Result.Output keeps a sanitised first line.
+    /// environment: variables added to (or replacing) the user's own environment for this program only.
     public static Result Run(string application, string arguments, string? workingDirectory, bool hidden, TimeSpan? wait,
-        bool captureOutput = false)
+        bool captureOutput = false, IReadOnlyDictionary<string, string>? environment = null)
     {
         string commandLine = Quote(application) + (arguments.Length > 0 ? " " + arguments : string.Empty);
         uint flags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | (hidden ? CREATE_NO_WINDOW : 0);
@@ -62,7 +67,7 @@ internal static partial class UnelevatedLauncher
         }
 
         PROCESS_INFORMATION info;
-        IntPtr token = IntPtr.Zero, environment = IntPtr.Zero;
+        IntPtr token = IntPtr.Zero, userEnvironment = IntPtr.Zero, customEnvironment = IntPtr.Zero;
         try
         {
             if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out IntPtr currentToken))
@@ -79,9 +84,11 @@ internal static partial class UnelevatedLauncher
             {
                 string? error = ShellToken(out token);
                 if (error is not null) return Result.Fail(error);
-                if (!CreateEnvironmentBlock(out environment, token, false))
+                if (!CreateEnvironmentBlock(out userEnvironment, token, false))
                     return Result.Fail($"sin entorno del usuario (error {Marshal.GetLastWin32Error()})");
-                if (!CreateProcessWithTokenW(token, 0, application, commandLine, flags, environment, workingDirectory,
+                if (environment is not null) customEnvironment = BuildEnvironment(ReadEnvironment(userEnvironment), environment);
+                if (!CreateProcessWithTokenW(token, 0, application, commandLine, flags,
+                        customEnvironment != IntPtr.Zero ? customEnvironment : userEnvironment, workingDirectory,
                         ref startup, out info))
                 {
                     int code = Marshal.GetLastWin32Error();
@@ -92,14 +99,22 @@ internal static partial class UnelevatedLauncher
             {
                 // Our own environment, but as a Unicode block like the elevated path: IntPtr.Zero inherits it.
                 // Handles are inherited only for the output pipe.
-                if (!CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, pipe is not null, flags, IntPtr.Zero,
+                if (environment is not null)
+                {
+                    var own = new List<string>();
+                    foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+                        own.Add(entry.Key + "=" + entry.Value);
+                    customEnvironment = BuildEnvironment(own, environment);
+                }
+                if (!CreateProcessW(application, commandLine, IntPtr.Zero, IntPtr.Zero, pipe is not null, flags, customEnvironment,
                         workingDirectory, ref startup, out info))
                     return Result.Fail($"CreateProcessW error {Marshal.GetLastWin32Error()}");
             }
         }
         finally
         {
-            if (environment != IntPtr.Zero) DestroyEnvironmentBlock(environment);
+            if (userEnvironment != IntPtr.Zero) DestroyEnvironmentBlock(userEnvironment);
+            if (customEnvironment != IntPtr.Zero) Marshal.FreeHGlobal(customEnvironment);
             if (token != IntPtr.Zero) CloseHandle(token);
         }
 
@@ -113,7 +128,37 @@ internal static partial class UnelevatedLauncher
         string? captured = null;
         try { if (output.Wait(TimeSpan.FromSeconds(2))) captured = output.Result; }
         catch (AggregateException) { }
-        return result with { Output = Summarize(captured) };
+        return result with { Output = Summarize(captured), RawOutput = captured };
+    }
+
+    /// The NAME=value strings of a Unicode environment block (each ends in a NUL, the block in a second one).
+    private static List<string> ReadEnvironment(IntPtr block)
+    {
+        var entries = new List<string>();
+        for (IntPtr at = block; ;)
+        {
+            string? entry = Marshal.PtrToStringUni(at);
+            if (string.IsNullOrEmpty(entry)) return entries;
+            entries.Add(entry);
+            at += (entry.Length + 1) * sizeof(char);
+        }
+    }
+
+    /// A new Unicode environment block (freed with Marshal.FreeHGlobal): entries, with every variable of overrides
+    /// replacing one of the same name (names compare without case, as Windows does).
+    private static IntPtr BuildEnvironment(List<string> entries, IReadOnlyDictionary<string, string> overrides)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (string entry in entries)
+        {
+            int equals = entry.IndexOf('=', 1);
+            string name = equals > 0 ? entry[..equals] : entry;
+            if (overrides.Keys.Any(key => key.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
+            text.Append(entry).Append('\0');
+        }
+        foreach ((string name, string value) in overrides) text.Append(name).Append('=').Append(value).Append('\0');
+        text.Append('\0');
+        return Marshal.StringToHGlobalUni(text.ToString());
     }
 
     /// Reads the pipe to the end, keeping the first MaxCapturedBytes (the rest is drained so the program never blocks).

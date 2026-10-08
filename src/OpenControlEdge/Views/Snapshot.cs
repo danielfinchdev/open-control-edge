@@ -16,25 +16,19 @@ namespace OpenControlEdge.Views;
 internal static class Snapshot
 {
     /// A small opencode.db with OpenCode's session columns, read back through the real service (and so through
-    /// UntrustedSqlite), then deleted. Two sessions whose sums are the values shown on the card.
+    /// LocalDatabaseReader and UntrustedSqlite), then deleted. Two sessions whose sums are the values shown on the card.
     private static OpenCodeSnapshot ReadOpenCodeFixture(string directory)
     {
         string path = Path.Combine(directory, "opencode-fixture.db");
         File.Delete(path);
         try
         {
-            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
-            {
-                connection.Open();
-                using var command = connection.CreateCommand();
-                command.CommandText = """
-                    CREATE TABLE session (id TEXT, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
-                                          tokens_cache_read INTEGER, tokens_cache_write INTEGER, cost REAL);
-                    INSERT INTO session VALUES ('a', 12000, 6000, 300, 2000, 50, 1.0),
-                                               ('b', 345, 789, 21, 100, 5, 0.2345);
-                    """;
-                command.ExecuteNonQuery();
-            }
+            UntrustedSqlite.CreateFixture(path, """
+                CREATE TABLE session (id TEXT, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+                                      tokens_cache_read INTEGER, tokens_cache_write INTEGER, cost REAL);
+                INSERT INTO session VALUES ('a', 12000, 6000, 300, 2000, 50, 1.0),
+                                           ('b', 345, 789, 21, 100, 5, 0.2345);
+                """);
             OpenCodeSnapshot read = new OpenCodeUsageService(path).FetchAsync().GetAwaiter().GetResult();
             if (read is not { Message: null, TokensIn: 12345, TokensOut: 6789, TokensReasoning: 321, TokensCacheRead: 2100, TokensCacheWrite: 55 }
                 || read.CostUsd is not decimal cost || Math.Abs(cost - 1.2345m) > 0.00001m)

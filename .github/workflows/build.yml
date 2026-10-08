@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
   pull_request:
-    branches: [main, v2]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,10 +14,10 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -29,7 +29,7 @@ jobs:
         run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
 
       - name: Upload OpenControlEdge bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenControlEdge-win-x64.zip
           path: OpenControlEdge-win-x64.zip

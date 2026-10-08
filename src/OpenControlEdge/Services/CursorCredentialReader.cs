@@ -1,10 +1,10 @@
 using System.IO;
 using System.Text.Json;
-using Microsoft.Data.Sqlite;
 
 namespace OpenControlEdge.Services;
 
-/// Reads Cursor's IDE session from state.vscdb (UntrustedSqlite: read-only, never modified). Only two keys are read:
+/// Reads Cursor's IDE session from state.vscdb (LocalDatabaseReader: parsed without administrator rights, read-only,
+/// never modified). Only two keys are read:
 /// cursorAuth/accessToken and cursorAuth/stripeMembershipType. The user id is the "sub" claim of the token (a JWT),
 /// after the provider prefix ("auth0|user_…" → "user_…"); nothing else of the token is decoded.
 internal static class CursorCredentialReader
@@ -17,21 +17,9 @@ internal static class CursorCredentialReader
     public static Credentials? Read(string path)
     {
         if (!File.Exists(path)) return null;
-        string? token = null, membership = null;
-        using (SqliteConnection connection = UntrustedSqlite.Open(path))
-        using (SqliteCommand command = connection.CreateCommand())
-        {
-            command.CommandTimeout = 2;
-            command.CommandText = "SELECT key, value FROM ItemTable WHERE key IN ('cursorAuth/accessToken', 'cursorAuth/stripeMembershipType')";
-            using SqliteDataReader reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                string? value = reader.IsDBNull(1) ? null : reader.GetString(1);
-                if (reader.GetString(0) == "cursorAuth/accessToken") token = value;
-                else membership = value;
-            }
-        }
-        if (string.IsNullOrWhiteSpace(token)) return null;
+        if (LocalDatabaseReader.ReadCursor(path) is not LocalDatabaseReader.CursorSession session) return null;
+        string token = session.Token;
+        string? membership = session.Membership;
 
         string? subject = JwtSubject(token);
         if (string.IsNullOrWhiteSpace(subject)) return null;

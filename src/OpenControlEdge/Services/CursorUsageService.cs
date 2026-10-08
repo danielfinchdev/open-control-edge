@@ -58,7 +58,12 @@ internal sealed class CursorUsageService
         catch (HttpRequestException ex) { Log.Warn("Cursor", ex.Message); return CursorSnapshot.Failed("Sin conexión"); }
         catch (TaskCanceledException) { Log.Warn("Cursor", "timeout"); return CursorSnapshot.Failed("Tiempo de espera agotado"); }
         catch (System.Text.Json.JsonException ex) { Log.Warn("Cursor", "invalid JSON: " + ex.Message); return CursorSnapshot.Failed("Respuesta no válida"); }
-        catch (Microsoft.Data.Sqlite.SqliteException ex) { Log.Warn("Cursor", ex.GetType().Name + ": " + ex.Message); return CursorSnapshot.NotAvailable("Cursor ocupado, se reintentará"); }
+        catch (LocalDatabaseReader.ReadException ex) when (ex.Kind is LocalDatabaseReader.Failure.Busy or LocalDatabaseReader.Failure.Unavailable or LocalDatabaseReader.Failure.Invalid)
+        {
+            Log.Warn("Cursor", "state.vscdb: " + ex.Message);
+            return ex.Kind == LocalDatabaseReader.Failure.Unavailable && ex.Message == UnelevatedLauncher.SeclogonMessage
+                ? CursorSnapshot.NotAvailable(UnelevatedLauncher.SeclogonMessage) : CursorSnapshot.NotAvailable("Cursor ocupado, se reintentará");
+        }
         catch (UnauthorizedAccessException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
         catch (IOException ex) { Log.Warn("Cursor", ex.GetType().Name); return CursorSnapshot.NotAvailable(AiDetector.CursorLoginMessage); }
         catch (Exception ex) { Log.Warn("Cursor", ex.GetType().Name + ": " + ex.Message); return CursorSnapshot.Failed("No se pudo leer el uso"); }

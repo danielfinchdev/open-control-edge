@@ -744,7 +744,7 @@ internal sealed class SettingsWindow : Window
 #else
         const string build = "Release";
 #endif
-        var p = Inside(Card("Open Control Edge", $"{version} · {build} · .NET 8 · win-x64"));
+        var p = Inside(Card("Open Control Edge", $"{version} · {build} · .NET {Environment.Version.Major} · win-x64"));
         bool pawnInstalled = false; try { pawnInstalled = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
         var pawnState = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         // Off until the service answers (asked off the UI thread just below).
