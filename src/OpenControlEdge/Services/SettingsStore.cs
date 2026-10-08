@@ -160,7 +160,33 @@ internal static class SettingsStore
     private static string LegacyFilePath => Path.Combine(
         Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory, FileName);
 
+    /// The last settings read, with the file's write time and size: read again only when the file changed (Load is
+    /// called from many places, several times a minute). Save clears it.
+    private sealed record CachedSettings(DateTime Written, long Length, Settings Value);
+    private static volatile CachedSettings? _cache;
+
     public static Settings Load()
+    {
+        try
+        {
+            var info = new FileInfo(FilePath);
+            if (_cache is CachedSettings cached && info.Exists && cached.Written == info.LastWriteTimeUtc && cached.Length == info.Length)
+            {
+                _unreadable = false;
+                return cached.Value;
+            }
+            Settings loaded = LoadFromDisk();
+            info.Refresh();
+            _cache = !_unreadable && info.Exists ? new CachedSettings(info.LastWriteTimeUtc, info.Length, loaded) : null;
+            return loaded;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return LoadFromDisk();
+        }
+    }
+
+    private static Settings LoadFromDisk()
     {
         _unreadable = false;
         try
@@ -357,6 +383,7 @@ internal static class SettingsStore
                 writer.WriteEndObject();
             }
 
+            _cache = null;
             if (!DataFolder.WriteAtomic(FileName, buffer.ToArray())) return;
             Log.Info("Settings", $"panelMode = {settings.PanelMode}, usageView = {settings.UsageView}");
         }

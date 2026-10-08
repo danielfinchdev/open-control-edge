@@ -105,6 +105,7 @@ internal static partial class Loc
         ["El contenido extraído supera el límite permitido."] = "Msg.UpdTooLarge",
         ["El ZIP intenta salir de staging."] = "Msg.UpdEscapes",
         [UpdateService.UnsignedMessage] = "Msg.UpdUnsigned",
+        [UpdateService.UnsignedReleaseMessage] = "Msg.UpdUnsignedRelease",
         [UpdateService.UnexpectedFileMessage] = "Msg.UpdUnexpectedFiles",
         [UpdateService.IncompleteMessage] = "Msg.UpdIncomplete",
         ["Instala Open Control Edge antes de actualizar."] = "Msg.UpdInstallFirst",

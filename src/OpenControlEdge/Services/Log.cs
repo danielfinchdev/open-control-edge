@@ -23,6 +23,20 @@ internal static class Log
     [Conditional("DEBUG")]
     public static void Trace(string area, string message) => Write("TRACE", area, message);
 
+    /// The data folder's permissions, checked again at most once a minute (two ACL reads per log line otherwise).
+    private static long _safeCheckedAt;
+    private static bool _safe, _safeChecked;
+
+    private static bool SafeForWrites()
+    {
+        long now = Environment.TickCount64;
+        if (_safeChecked && now - _safeCheckedAt < 60_000) return _safe;
+        _safeChecked = true;
+        _safe = DataFolder.IsSafeForWrites();
+        _safeCheckedAt = now;
+        return _safe;
+    }
+
     private static void Write(string level, string area, string message)
     {
         if (_suppressed) return;
@@ -30,7 +44,7 @@ internal static class Log
         {
             lock (Gate)
             {
-                if (!DataFolder.IsSafeForWrites())
+                if (!SafeForWrites())
                 {
                     ReportOnce(new UnauthorizedAccessException("Data folder is not protected."));
                     return;

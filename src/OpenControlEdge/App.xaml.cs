@@ -221,7 +221,7 @@ public partial class App : Application
         _panelMode = measureMode ?? SettingsStore.Load().PanelMode;
         Log.Info("App", $"started (panel {_panelMode}, {(UnelevatedLauncher.IsElevated ? "elevated" : "not elevated")})");
         // A crash or a power cut in game mode: the PC is still in it. Undo it before anything else.
-        if (measureMode is null) GameModeService.RestoreLeftover();
+        if (measureMode is null) _ = GameModeService.RestoreLeftoverAsync();
 
         // Timers exist before the window is shown: a pinned panel expands during Show() and sets the cadence.
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(SettingsStore.Load().UsageRefreshMinutes) };

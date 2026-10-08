@@ -15,10 +15,10 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
@@ -58,7 +58,7 @@ jobs:
       - name: Upload unsigned application for signing
         id: unsigned
         if: steps.signing.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OpenControlEdge-unsigned
           path: dist/
@@ -67,7 +67,7 @@ jobs:
       # The SignPath artifact configuration signs OpenControlEdge.exe inside this artifact (Authenticode).
       - name: Sign with SignPath
         if: steps.signing.outputs.enabled == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -111,7 +111,7 @@ jobs:
           "file=OpenControlEdge-win-x64.zip.sig" >> $env:GITHUB_OUTPUT
 
       - name: Attest OpenControlEdge.exe
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/OpenControlEdge.exe
 

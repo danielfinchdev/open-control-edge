@@ -1254,7 +1254,7 @@ internal sealed class SettingsWindow : Window
             WindowState previous = WindowState;
             WindowState = WindowState.Minimized;
             await Task.Delay(450);
-            FeedbackImage? shot = FeedbackService.CaptureScreen();
+            FeedbackImage? shot = await Task.Run(FeedbackService.CaptureScreen);
             WindowState = previous;
             BringToFront();
             if (shot is not null && _feedbackImages.Count < FeedbackService.MaxImages) _feedbackImages.Add(shot);

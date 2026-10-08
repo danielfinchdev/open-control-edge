@@ -61,38 +61,41 @@ internal static partial class UnelevatedLauncher
             wShowWindow = hidden ? SW_HIDE : (short)0,
         };
 
-        using AnonymousPipeServerStream? pipe = captureOutput && wait is not null
-            ? new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable)
-            : null;
-        if (pipe is not null)
+        // Captured: the pipe is created, inherited and our copy of its write end closed inside CaptureGate, so no other
+        // captured run can inherit it in between.
+        AnonymousPipeServerStream? pipe = null;
+        try
         {
-            startup.dwFlags |= STARTF_USESTDHANDLES;
-            startup.hStdOutput = startup.hStdError = pipe.ClientSafePipeHandle.DangerousGetHandle();
-        }
-
-        PROCESS_INFORMATION info;
-        string? startError;
-        if (pipe is null) startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, false, ref startup, out info);
-        else
-        {
-            lock (CaptureGate)
+            PROCESS_INFORMATION info;
+            string? startError;
+            if (!captureOutput || wait is null)
+                startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, false, ref startup, out info);
+            else
             {
-                startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, true, ref startup, out info);
-                // Our copy of the write end must go, or the read below never sees the end of the stream.
-                pipe.DisposeLocalCopyOfClientHandle();
+                lock (CaptureGate)
+                {
+                    pipe = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
+                    startup.dwFlags |= STARTF_USESTDHANDLES;
+                    startup.hStdOutput = startup.hStdError = pipe.ClientSafePipeHandle.DangerousGetHandle();
+                    startError = StartSuspended(application, commandLine, flags, environment, workingDirectory, true, ref startup, out info);
+                    // Our copy of the write end must go, or the read below never sees the end of the stream.
+                    pipe.DisposeLocalCopyOfClientHandle();
+                }
             }
+            if (startError is not null) return Result.Fail(startError);
+
+            if (wait is not TimeSpan limit) return Release(info);
+            if (pipe is null) return RunInJob(info, limit);
+
+            AnonymousPipeServerStream reader = pipe;
+            Task<string> output = Task.Run(() => ReadCapped(reader));
+            Result result = RunInJob(info, limit);
+            string? captured = null;
+            try { if (output.Wait(TimeSpan.FromSeconds(2))) captured = output.Result; }
+            catch (AggregateException) { }
+            return result with { Output = Summarize(captured), RawOutput = captured };
         }
-        if (startError is not null) return Result.Fail(startError);
-
-        if (wait is not TimeSpan limit) return Release(info);
-        if (pipe is null) return RunInJob(info, limit);
-
-        Task<string> output = Task.Run(() => ReadCapped(pipe));
-        Result result = RunInJob(info, limit);
-        string? captured = null;
-        try { if (output.Wait(TimeSpan.FromSeconds(2))) captured = output.Result; }
-        catch (AggregateException) { }
-        return result with { Output = Summarize(captured), RawOutput = captured };
+        finally { pipe?.Dispose(); }
     }
 
     /// The NAME=value strings of a Unicode environment block (each ends in a NUL, the block in a second one).

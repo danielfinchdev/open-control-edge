@@ -109,7 +109,7 @@ internal sealed class FpsService : IDisposable
             int best = Busiest(counts, pid => pid == foreground);
             if (best == 0)
             {
-                HashSet<uint> children = ChildrenOf(foreground);
+                HashSet<uint> children = CachedChildrenOf(foreground);
                 best = Busiest(counts, children.Contains);
             }
             if (best > 0) return new Sample(best / seconds, ProcessName(foreground), false, refresh, null);
@@ -238,9 +238,9 @@ internal sealed class FpsService : IDisposable
         int kind = provider * 1000 + id;
         lock (_gate)
         {
-            if (_counts.Count > 4096) return;
-            _counts.TryGetValue((pid, kind), out int count);
-            _counts[(pid, kind)] = count + 1;
+            // Bounded: a new process past the limit is not counted this second, the ones already seen still are.
+            if (_counts.TryGetValue((pid, kind), out int count)) _counts[(pid, kind)] = count + 1;
+            else if (_counts.Count < 4096) _counts[(pid, kind)] = 1;
         }
     }
 
@@ -302,14 +302,38 @@ internal sealed class FpsService : IDisposable
         return pid == (uint)Environment.ProcessId ? 0 : pid;
     }
 
-    private static string? ProcessName(uint pid)
+    // The foreground program rarely changes: its name and its children are looked up again only when it does, or
+    // every ChildrenRefresh (a browser starts its GPU process late).
+    private static readonly TimeSpan ChildrenRefresh = TimeSpan.FromSeconds(5);
+    private (uint Pid, string? Name) _name;
+    private (uint Pid, HashSet<uint> Children, long At) _children = (0, new HashSet<uint>(), 0);
+
+    private string? ProcessName(uint pid)
     {
-        try
+        if (_name.Pid == pid) return _name.Name;
+        string? name = null;
+        IntPtr handle = Interop.ProcessNative.OpenProcess(Interop.ProcessNative.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (handle != IntPtr.Zero)
         {
-            using Process process = Process.GetProcessById((int)pid);
-            return process.ProcessName;
+            try
+            {
+                var path = new System.Text.StringBuilder(1024);
+                uint size = (uint)path.Capacity;
+                if (Interop.GameNative.QueryFullProcessImageNameW(handle, 0, path, ref size))
+                    name = System.IO.Path.GetFileNameWithoutExtension(path.ToString(0, (int)size));
+            }
+            finally { Interop.ProcessNative.CloseHandle(handle); }
         }
-        catch (Exception) { return null; }
+        _name = (pid, name);
+        return name;
+    }
+
+    private HashSet<uint> CachedChildrenOf(uint parent)
+    {
+        long now = Environment.TickCount64;
+        if (_children.Pid == parent && now - _children.At < ChildrenRefresh.TotalMilliseconds) return _children.Children;
+        _children = (parent, ChildrenOf(parent), now);
+        return _children.Children;
     }
 
     private static DWM_TIMING_INFO? ReadDwm()

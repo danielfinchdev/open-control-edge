@@ -320,7 +320,7 @@
     <sys:String x:Key="Msg.UpdUnsafePath">The ZIP contains an unsafe path or link.</sys:String>
     <sys:String x:Key="Msg.UpdTooLarge">The extracted content is larger than allowed.</sys:String>
     <sys:String x:Key="Msg.UpdEscapes">The ZIP tries to leave the staging folder.</sys:String>
-    <sys:String x:Key="Msg.UpdUnsigned">The executable is not the official build of this version signed by SignPath Foundation; it will not be installed.</sys:String>
+    <sys:String x:Key="Msg.UpdUnsigned">The executable is not the one of this Open Control Edge version; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.UpdUnexpectedFiles">The ZIP contains files that are not part of Open Control Edge; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.UpdIncomplete">The ZIP does not contain every Open Control Edge file; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.UpdLibraryUntrusted">{0} is neither the Open Control Edge one nor signed by a trusted publisher; it will not be installed.</sys:String>
@@ -470,6 +470,7 @@
     <sys:String x:Key="Msg.FpsUnavailable">Cannot read the FPS</sys:String>
     <sys:String x:Key="Msg.CursorDbInvalid">Cursor database not valid</sys:String>
     <sys:String x:Key="Msg.ReaderUnavailable">Could not read without administrator rights</sys:String>
+    <sys:String x:Key="Msg.UpdUnsignedRelease">The published version does not carry the Open Control Edge signature; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.UpdSignature">The update signature is not valid; it will not be installed.</sys:String>
     <sys:String x:Key="Msg.GameStopFailed">Could not stop</sys:String>
     <sys:String x:Key="Msg.GameStartFailed">Could not start</sys:String>

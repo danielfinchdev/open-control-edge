@@ -5,34 +5,10 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace OpenControlEdge.Services;
 
-/// Authenticode checks: Windows verifies the file's digest and trust chain (WinVerifyTrust), then the caller decides
-/// whether the signer is the one it expects. Never throws.
+/// Authenticode checks (WinVerifyTrust: the file's digest and trust chain; the caller pins the signer, as PawnIoInstaller
+/// does) and the version resource of an update's executable. Never throws.
 internal static class AuthenticodeVerifier
 {
-    /// The publisher of the official releases. SignPath Foundation signs many open-source projects with this same
-    /// identity, so the signer alone does not prove the file is Open Control Edge: see IsOfficialExecutable.
-    private const string ReleaseSigner = "SignPath Foundation";
-
-    /// Publishers accepted for the native libraries of an update, as (CN, O): the WPF libraries of the .NET runtime,
-    /// the Mono.Posix helpers and anything the release signs itself.
-    private static readonly (string CommonName, string Organization)[] LibrarySigners =
-    {
-        (".NET", "Microsoft Corporation"),
-        ("Microsoft Windows", "Microsoft Corporation"),
-        ("Microsoft Corporation", "Microsoft Corporation"),
-        ("Xamarin Inc.", "Xamarin Inc."),
-        (ReleaseSigner, ReleaseSigner),
-    };
-
-    /// An Open Control Edge executable of exactly this version, signed for the official releases: trusted signature
-    /// whose signer is SignPath Foundation (exact name), and a version resource that says Open Control Edge and version.
-    internal static bool IsOfficialExecutable(string path, Version version)
-    {
-        using X509Certificate2? signer = TrustedSigner(path);
-        if (signer is null || NamePart(signer, "CN") != ReleaseSigner) return false;
-        return DeclaresVersion(path, version);
-    }
-
     /// The version resource says Open Control Edge and exactly this version (no signature involved).
     internal static bool DeclaresVersion(string path, Version version)
     {
@@ -46,15 +22,6 @@ internal static class AuthenticodeVerifier
         {
             return false;
         }
-    }
-
-    /// A native library signed by one of LibrarySigners.
-    internal static bool IsTrustedLibrary(string path)
-    {
-        using X509Certificate2? signer = TrustedSigner(path);
-        if (signer is null) return false;
-        string? commonName = NamePart(signer, "CN"), organization = NamePart(signer, "O");
-        return LibrarySigners.Any(s => s.CommonName == commonName && s.Organization == organization);
     }
 
     /// The signer's certificate when Windows trusts the file's Authenticode signature; null otherwise.

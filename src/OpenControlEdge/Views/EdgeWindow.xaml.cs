@@ -500,7 +500,7 @@ public partial class EdgeWindow : Window
         ApplyRingBrushes();
         SyncModeButton();
         SyncViewButton();
-        if (_fps is not null) SetFps(_fps);
+        if (_fps is FpsService.Sample fps) { _fps = null; SetFps(fps); }
         if (_gameMode is not null) SetGameMode(_gameMode);
         RefreshUsage();
         if (_openCode is not null) SetOpenCode(_openCode);
@@ -591,6 +591,9 @@ public partial class EdgeWindow : Window
     /// FPS of the foreground program (or the desktop): the arc is the share of the screen's refresh rate.
     internal void SetFps(FpsService.Sample sample)
     {
+        // Every second: nothing to repaint when what is shown would not change.
+        if (_fps is FpsService.Sample shown && Math.Round(shown.Fps ?? -1) == Math.Round(sample.Fps ?? -1) && shown.Process == sample.Process
+            && shown.Desktop == sample.Desktop && shown.RefreshHz == sample.RefreshHz && shown.Message == sample.Message) return;
         _fps = sample;
         FpsRefresh.Text = $"{sample.RefreshHz:0} Hz";
         if (sample.Fps is double fps)

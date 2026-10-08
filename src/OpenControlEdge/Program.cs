@@ -7,6 +7,10 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // DLLs loaded by name (the GPU vendors' libraries that LibreHardwareMonitor asks for) come only from System32
+        // and the application folder, never from PATH: the elevated widget must not pick one from a folder the user can write.
+        SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+
         if (args.Length > 0 && args[0] == Services.LocalDatabaseReader.HelperArgument)
             return Services.LocalDatabaseReader.RunHelper(args);
 #if DEBUG
@@ -27,8 +31,17 @@ internal static class Program
         }
 #endif
 
+        // Run from the unzipped release: hold the exe so it cannot be swapped before it is installed (Installer). Not
+        // the update helper: it runs from the staged folder that it renames into place.
+        if (Array.IndexOf(args, "--apply-update") < 0) Services.Installer.PinExecutable();
+
         var app = new App();
         app.InitializeComponent();
         return app.Run();
     }
+
+    private const uint LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x00001000;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetDefaultDllDirectories(uint flags);
 }

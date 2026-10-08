@@ -12,8 +12,9 @@ namespace OpenControlEdge.Services;
 /// JSON object to stdout and exits; this side only reads that answer, strictly and size-capped. A copy that already runs
 /// unelevated (Debug) reads in-process: there is no privilege to protect.
 ///
-/// It costs one process start (~0.1 s of CPU, ~30 MB for under a second) per Cursor or OpenCode refresh, and nothing
-/// in between: the elevated process no longer loads the native SQLite library at all.
+/// It costs one process start (~0.1 s of CPU, ~30 MB for under a second) when a database changed since the last read
+/// (its size or time, or its -wal file's), and nothing otherwise: the previous answer is reused. The elevated process
+/// no longer loads the native SQLite library at all.
 internal static class LocalDatabaseReader
 {
     internal const string HelperArgument = "--read-database";
@@ -35,10 +36,48 @@ internal static class LocalDatabaseReader
         public Failure Kind { get; } = kind;
     }
 
+    /// The last answer for each database, with the file stamps it was read at.
+    private static readonly Dictionary<string, (string Stamp, object? Answer)> Answers = new(StringComparer.OrdinalIgnoreCase);
+
+    /// Size and write time of the files (and their -wal journals); null when one of them cannot be read.
+    private static string? Stamp(IEnumerable<string> paths)
+    {
+        try
+        {
+            var stamp = new System.Text.StringBuilder();
+            foreach (string path in paths)
+            {
+                var file = new FileInfo(path);
+                var wal = new FileInfo(path + "-wal");
+                if (!file.Exists) return null;
+                stamp.Append(file.Length).Append(':').Append(file.LastWriteTimeUtc.Ticks).Append(':')
+                    .Append(wal.Exists ? $"{wal.Length}:{wal.LastWriteTimeUtc.Ticks}" : "-").Append('|');
+            }
+            return stamp.ToString();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// The answer read the last time if none of the files changed since; otherwise read and remembered.
+    private static T Cached<T>(string key, IEnumerable<string> paths, Func<T> read)
+    {
+        string? stamp = Stamp(paths);
+        lock (Answers)
+            if (stamp is not null && Answers.TryGetValue(key, out var known) && known.Stamp == stamp) return (T)known.Answer!;
+        T answer = read();
+        if (stamp is not null) lock (Answers) Answers[key] = (stamp, answer);
+        return answer;
+    }
+
     /// Cursor's session token and membership; null when Cursor holds no session.
     public static CursorSession? ReadCursor(string path)
     {
         if (!UnelevatedLauncher.IsElevated) return CursorInProcess(path);
+        return Cached("cursor|" + path, [path], () => CursorFromHelper(path));
+    }
+
+    private static CursorSession? CursorFromHelper(string path)
+    {
         using JsonDocument answer = AskHelper("cursor", path);
         JsonElement root = answer.RootElement;
         if (!root.TryGetProperty("token", out JsonElement token)) return null;
@@ -55,6 +94,13 @@ internal static class LocalDatabaseReader
     public static OpenCodeTotals ReadOpenCode(string? path)
     {
         if (!UnelevatedLauncher.IsElevated) return OpenCodeInProcess(path);
+        // Only the files' metadata is looked at here, to know whether anything changed; the helper finds and reads them.
+        string[] files = path is not null and not "auto" ? [path] : OpenCodeDatabasePaths();
+        return Cached("opencode|" + (path ?? "auto"), files, () => OpenCodeFromHelper(path));
+    }
+
+    private static OpenCodeTotals OpenCodeFromHelper(string? path)
+    {
         using JsonDocument answer = AskHelper("opencode", path ?? "auto");
         JsonElement root = answer.RootElement;
         long Count(string name) => root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number

@@ -23,6 +23,9 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- The installed copy runs elevated with the user's environment (scheduled task, InteractiveToken), which any program
+         of the user can change through HKCU\Environment: DOTNET_STARTUP_HOOKS must never load code into it. -->
+    <StartupHookSupport>false</StartupHookSupport>
   </PropertyGroup>
 
   <!-- Debug runs unelevated so the UI can be iterated without UAC; Release requires administrator. -->

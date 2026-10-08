@@ -46,6 +46,19 @@ internal static class Installer
 
     public static Task<InstallResult> InstallAsync(IProgress<InstallStep> progress) => Task.Run(() => Install(progress));
 
+    /// The executable as it was started, held open without sharing write or delete (Program.Main, before anything
+    /// else) when this is not the installed copy: the unzipped folder is the user's, and between the UAC prompt and the
+    /// "Instalar" click any program of the user could otherwise rename the running exe and put another in its place.
+    /// The installation copies and hashes the exe from this handle.
+    private static FileStream? _pinned;
+
+    public static void PinExecutable()
+    {
+        if (IsInstalledCopy) return;
+        try { _pinned = new FileStream(CurrentExe, FileMode.Open, FileAccess.Read, FileShare.Read); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Warn("Install", "no se pudo bloquear el ejecutable: " + ex.GetType().Name); }
+    }
+
     private static InstallResult Install(IProgress<InstallStep> progress)
     {
         var warnings = new List<string>();
@@ -124,6 +137,16 @@ internal static class Installer
         }
     }
 
+    private static bool IsExe(string file) => Path.GetFileName(file).Equals("OpenControlEdge.exe", StringComparison.OrdinalIgnoreCase);
+
+    /// SHA-256 of the exe as held open since start-up (PinExecutable), or of the file when it could not be held.
+    private static byte[] PinnedOrFileHash(string file)
+    {
+        if (_pinned is null) return Hash(file);
+        _pinned.Position = 0;
+        return System.Security.Cryptography.SHA256.HashData(_pinned);
+    }
+
     /// Staging copy, SHA-256 of every file, then an atomic-as-possible swap with rollback.
     private static void CopyApplication(string sourceDir)
     {
@@ -140,7 +163,13 @@ internal static class Installer
                 {
                     string target = Path.Combine(staging, Path.GetRelativePath(sourceDir, file));
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    File.Copy(file, target, overwrite: true);
+                    if (_pinned is not null && IsExe(file))
+                    {
+                        _pinned.Position = 0;
+                        using FileStream copy = File.Create(target);
+                        _pinned.CopyTo(copy);
+                    }
+                    else File.Copy(file, target, overwrite: true);
                 }
                 break;
             }
@@ -157,8 +186,8 @@ internal static class Installer
         foreach (string file in files)
         {
             string copy = Path.Combine(staging, Path.GetRelativePath(sourceDir, file));
-            bool intact = Path.GetFileName(file).Equals("OpenControlEdge.exe", StringComparison.OrdinalIgnoreCase)
-                ? Hash(file).AsSpan().SequenceEqual(Hash(copy))
+            bool intact = IsExe(file)
+                ? PinnedOrFileHash(file).AsSpan().SequenceEqual(Hash(copy))
                 : NativeLibraries.IsExpected(copy);
             if (!intact)
                 throw new InvalidOperationException($"La comprobación SHA-256 de {Path.GetFileName(file)} ha fallado.");

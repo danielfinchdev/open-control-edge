@@ -75,6 +75,10 @@ internal static partial class GameModeService
     [GeneratedRegex(@"^[A-Za-z0-9_\-\.]{1,80}$")]
     private static partial Regex ServiceNamePattern();
 
+    /// A run of 24 or more token-like characters (keys, tokens, hashes), as UnelevatedLauncher.Summarize treats them.
+    [GeneratedRegex(@"[A-Za-z0-9_\-\.+/=]{24,}")]
+    private static partial Regex SecretLike();
+
     public static bool IsValidProcessName(string name) => ProcessNamePattern().IsMatch(name) && !ProtectedProcesses.Contains(name);
 
     public static bool IsValidServiceName(string name) => ServiceNamePattern().IsMatch(name) && !ProtectedServices.Contains(name);
@@ -251,19 +255,29 @@ internal static partial class GameModeService
         }
     }
 
-    /// At start-up: a gamemode.json left by a crash or a power cut means the PC is still in game mode; undo it.
-    public static void RestoreLeftover()
+    /// At start-up: a gamemode.json left by a crash or a power cut means the PC is still in game mode; undo it, off the
+    /// UI thread. The widget starts with the session, often before the desktop exists, and the programs it closed can
+    /// only be opened as the user once it does: the relaunch waits for it (up to RelaunchWait).
+    public static Task RestoreLeftoverAsync() => Task.Run(() =>
     {
+        State? state;
         lock (Gate)
         {
-            if (LoadState() is not State state) return;
+            state = LoadState();
+            if (state is null) return;
             Log.Info("GameMode", "se restaura un modo juego que quedó activo");
             var errors = new List<string>();
-            Restore(state, errors);
+            Restore(state, errors, relaunch: false);
             DeleteState();
             IsActive = false;
         }
-    }
+        if (state.Relaunch.Count == 0) return;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (Interop.ProcessNative.GetShellWindow() == IntPtr.Zero && clock.Elapsed < RelaunchWait) Thread.Sleep(2000);
+        Relaunch(state);
+    });
+
+    private static readonly TimeSpan RelaunchWait = TimeSpan.FromMinutes(3);
 
     /// On exit: switch it off before the widget goes away, with a time limit.
     public static void DeactivateOnExit()
@@ -273,7 +287,7 @@ internal static partial class GameModeService
         catch (Exception ex) { Log.Warn("GameMode", "al salir: " + ex.GetType().Name); }
     }
 
-    private static void Restore(State state, List<string> errors)
+    private static void Restore(State state, List<string> errors, bool relaunch = true)
     {
         if (state.PowerScheme is string scheme && Guid.TryParse(scheme, out Guid previous)
             && PowerSetActiveScheme(IntPtr.Zero, ref previous) != 0)
@@ -289,6 +303,12 @@ internal static partial class GameModeService
         foreach (string service in state.Services)
             if (!StartService(service)) errors.Add($"No se pudo iniciar: {service}");
 
+        if (relaunch) Relaunch(state);
+    }
+
+    /// Opens the closed programs again, as the plain user.
+    private static void Relaunch(State state)
+    {
         foreach ((string path, string arguments, string? appId) in state.Relaunch)
         {
             UnelevatedLauncher.Result result = appId is not null
@@ -326,11 +346,14 @@ internal static partial class GameModeService
             if (handle == IntPtr.Zero) continue;
             try
             {
+                // The id came from the snapshot: the process behind the handle must still be that program.
+                string? image = ImagePath(handle);
+                if (image is null || !Path.GetFileName(image).Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
                 // A child of another closed program (syncthing under SyncTrayzor, an editor's helper) comes back with it.
                 if (options.Relaunch && !NoRelaunch.Contains(name) && !matchedIds.Contains(parent) && !IsElevated(handle)
-                    && ImagePath(handle) is string path && relaunched.Add(path))
+                    && relaunched.Add(image))
                 {
-                    state.Relaunch.Add((path, Arguments(handle), AppId(handle)));
+                    state.Relaunch.Add((image, Arguments(handle, image), AppId(handle)));
                     Save(state);
                 }
                 if (Interop.ProcessNative.TerminateProcess(handle, 1)) closed++;
@@ -386,7 +409,9 @@ internal static partial class GameModeService
     }
 
     /// The arguments the program was started with (its command line minus the executable), to start it the same way.
-    private static string Arguments(IntPtr process)
+    /// Arguments that look like a key or token are not kept (gamemode.json is a plain file): the program then starts
+    /// without arguments.
+    private static string Arguments(IntPtr process, string image)
     {
         const int Size = 8192;
         IntPtr buffer = Marshal.AllocHGlobal(Size);
@@ -397,8 +422,12 @@ internal static partial class GameModeService
             IntPtr text = Marshal.ReadIntPtr(buffer, 8);
             if (text == IntPtr.Zero || length == 0) return "";
             string line = Marshal.PtrToStringUni(text, length / 2).Trim();
-            int end = line.StartsWith('"') ? line.IndexOf('"', 1) + 1 : line.IndexOf(' ');
-            return end <= 0 || end >= line.Length ? "" : line[end..].Trim();
+            string arguments;
+            if (line.StartsWith('"')) arguments = line.IndexOf('"', 1) is int close and > 0 ? line[(close + 1)..] : "";
+            else if (line.StartsWith(image, StringComparison.OrdinalIgnoreCase)) arguments = line[image.Length..];
+            else arguments = line.IndexOf(' ') is int space and > 0 ? line[space..] : "";
+            arguments = arguments.Trim();
+            return SecretLike().IsMatch(arguments) ? "" : arguments;
         }
         catch (Exception) { return ""; }
         finally { Marshal.FreeHGlobal(buffer); }

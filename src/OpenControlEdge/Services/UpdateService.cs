@@ -6,8 +6,7 @@ using System.Text.Json;
 
 namespace OpenControlEdge.Services;
 
-/// SignatureUri: the archive's signature made by the Release workflow with the project's own key (UpdateSignature);
-/// null for a release published without one, which then needs the SignPath Authenticode signature instead.
+/// SignatureUri: the archive's signature made by the Release workflow with the project's own key (UpdateSignature).
 internal sealed record UpdateRelease(Version Version, string Tag, string Notes, Uri ZipUri, string Digest, Uri? SignatureUri = null);
 internal sealed record UpdateCheckResult(UpdateRelease? Release, string? Error)
 {
@@ -63,6 +62,8 @@ internal static class UpdateService
                     || digestElement.GetString() is not string digest || !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
                     || digest.Length != 71 || !digest.AsSpan(7).ToArray().All(Uri.IsHexDigit))
                     return new(null, "El ZIP no tiene un digest SHA-256 verificable; no se instalará.");
+                // Without the project's signature nothing is installed, whatever else the release carries.
+                if (signature is null && !IsFixture(uri)) return new(null, UnsignedReleaseMessage);
                 return new(new(version, tag, notes, uri, digest[7..].ToLowerInvariant(), signature), null);
             }
             return new(null, "El release no incluye un ZIP de instalación.");
@@ -109,18 +110,21 @@ internal static class UpdateService
             throw new InvalidDataException("El digest SHA-256 del ZIP no coincide. No se instalará.");
         }
 
-        // The project's own signature over the whole archive: when it is there it must be valid, and then every file
-        // inside is the one the Release workflow packed (no other check of the libraries is needed).
-        bool signed = false;
-        if (release.SignatureUri is Uri signatureUri)
+        // The project's own signature over the whole archive, mandatory: every file inside is then the one the Release
+        // workflow packed.
+        if (!IsFixture(release.ZipUri))
         {
+            if (release.SignatureUri is not Uri signatureUri)
+            {
+                CryptographicOperations.ZeroMemory(archive);
+                throw new InvalidDataException(UnsignedReleaseMessage);
+            }
             byte[] signature = await DownloadSmallAsync(signatureUri, cancellationToken).ConfigureAwait(false);
             if (!UpdateSignature.Verify(archive, signature))
             {
                 CryptographicOperations.ZeroMemory(archive);
                 throw new InvalidDataException(UpdateSignature.InvalidMessage);
             }
-            signed = true;
         }
 
         string root = Path.GetFullPath(stageRoot);
@@ -138,7 +142,7 @@ internal static class UpdateService
                 await using var output = new FileStream(Path.Combine(payload, name), FileMode.CreateNew, FileAccess.Write, FileShare.None);
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
-            VerifyPayload(payload, release, signed);
+            VerifyPayload(payload, release);
             return payload;
         }
         catch { try { Directory.Delete(root, recursive: true); } catch { } throw; }
@@ -191,34 +195,28 @@ internal static class UpdateService
         return files;
     }
 
-    internal const string UnsignedMessage = "El ejecutable no es el oficial de esta versión firmado por SignPath Foundation; no se instalará.";
+    internal const string UnsignedMessage = "El ejecutable no es el de esta versión de Open Control Edge; no se instalará.";
+    internal const string UnsignedReleaseMessage = "La versión publicada no lleva la firma de Open Control Edge; no se instalará.";
     internal const string UnexpectedFileMessage = "El ZIP contiene archivos que no son de Open Control Edge; no se instalará.";
     internal const string IncompleteMessage = "El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.";
 
-    /// Signed with the project's key (signed): the exe must still say it is Open Control Edge of exactly this version.
-    /// Otherwise the exe must be the official one of exactly this version (AuthenticodeVerifier.IsOfficialExecutable),
-    /// and each library byte for byte the one this build ships, or carry a trusted signature of its publisher
-    /// (AuthenticodeVerifier.IsTrustedLibrary) when the new version brings a different build of it.
-    private static void VerifyPayload(string payload, UpdateRelease release, bool signed)
+    /// The archive is signed (DownloadAndStageAsync): its exe must still declare Open Control Edge and exactly this
+    /// version, so an older signed archive republished under a newer tag is refused.
+    private static void VerifyPayload(string payload, UpdateRelease release)
+    {
+        if (IsFixture(release.ZipUri)) return;
+        if (!AuthenticodeVerifier.DeclaresVersion(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
+            throw new InvalidDataException(UnsignedMessage);
+    }
+
+    /// Debug only: the local release fixture (--test-update-fixture) serves unsigned test archives over loopback HTTP.
+    private static bool IsFixture(Uri uri)
     {
 #if DEBUG
-        // The local release fixture (--test-update-fixture) serves unsigned test archives from the loopback interface.
-        if (release.ZipUri.IsLoopback) return;
+        return uri.IsLoopback && uri.Scheme == Uri.UriSchemeHttp;
+#else
+        return false;
 #endif
-        if (signed)
-        {
-            if (!AuthenticodeVerifier.DeclaresVersion(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
-                throw new InvalidDataException(UnsignedMessage);
-            return;
-        }
-        if (!AuthenticodeVerifier.IsOfficialExecutable(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
-            throw new InvalidDataException(UnsignedMessage);
-        foreach (string name in NativeLibraries.Names)
-        {
-            string library = Path.Combine(payload, name);
-            if (!NativeLibraries.IsExpected(library) && !AuthenticodeVerifier.IsTrustedLibrary(library))
-                throw new InvalidDataException($"{name} no es el de Open Control Edge ni tiene una firma de confianza; no se instalará.");
-        }
     }
 
     /// A small file of a Release (the signature): at most 1 KB.
