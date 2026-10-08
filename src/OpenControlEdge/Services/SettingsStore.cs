@@ -65,7 +65,9 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Clicking the RAM ring frees memory (MemoryService.CleanAsync). Off: the click only shows the card.
     public bool RamCleanup { get; init; }
     public int UsageRefreshMinutes { get; init; } = 2;
-    public bool AutoCheckUpdates { get; init; }
+
+    /// Look for a new version at start-up and every few hours; a new one puts a dot on the settings button.
+    public bool AutoCheckUpdates { get; init; } = true;
     public DateTimeOffset? LastAutoUpdateCheck { get; init; }
 
     /// Where the settings window was last closed; null opens it at its default size, centred on the panel's monitor.
@@ -128,7 +130,7 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "autoRenewClaude": true | false,
 ///     "ramCleanup": true | false,
 ///     "usageRefreshMinutes": 2 | 5 | 10 | 15,
-///     "autoCheckUpdates": true | false,
+///     "checkUpdates": true | false,
 ///     "lastAutoUpdateCheck": "ISO-8601", // optional
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
@@ -202,7 +204,8 @@ internal static class SettingsStore
                 AutoRenewClaude = GetBool(root, "autoRenewClaude") ?? true,
                 RamCleanup = GetBool(root, "ramCleanup") ?? false,
                 UsageRefreshMinutes = GetInt(root, "usageRefreshMinutes") is int minutes && minutes is 2 or 5 or 10 or 15 ? minutes : 2,
-                AutoCheckUpdates = GetBool(root, "autoCheckUpdates") ?? false,
+                // "checkUpdates" (2.2, on by default) replaces "autoCheckUpdates" (2.1, off by default and always saved).
+                AutoCheckUpdates = GetBool(root, "checkUpdates") ?? true,
                 LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
                 SettingsWindow = ParseBounds(root, "settingsWindow"),
                 View = RingKeys.ParseView(GetString(root, "view")) ?? WidgetView.Ai,
@@ -286,7 +289,7 @@ internal static class SettingsStore
                 writer.WriteBoolean("autoRenewClaude", settings.AutoRenewClaude);
                 writer.WriteBoolean("ramCleanup", settings.RamCleanup);
                 writer.WriteNumber("usageRefreshMinutes", settings.UsageRefreshMinutes);
-                writer.WriteBoolean("autoCheckUpdates", settings.AutoCheckUpdates);
+                writer.WriteBoolean("checkUpdates", settings.AutoCheckUpdates);
                 if (settings.LastAutoUpdateCheck is DateTimeOffset checkedAt) writer.WriteString("lastAutoUpdateCheck", checkedAt.ToString("o"));
                 if (settings.SettingsWindow is WindowBounds bounds)
                 {

@@ -30,6 +30,12 @@ internal static class AuthenticodeVerifier
     {
         using X509Certificate2? signer = TrustedSigner(path);
         if (signer is null || NamePart(signer, "CN") != ReleaseSigner) return false;
+        return DeclaresVersion(path, version);
+    }
+
+    /// The version resource says Open Control Edge and exactly this version (no signature involved).
+    internal static bool DeclaresVersion(string path, Version version)
+    {
         try
         {
             FileVersionInfo info = FileVersionInfo.GetVersionInfo(path);

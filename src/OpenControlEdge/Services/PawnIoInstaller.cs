@@ -57,7 +57,8 @@ internal static class PawnIoInstaller
             Array.Clear(bytes);
             if (DataFolder.NonAdminsCanWrite(folder, directory: true)) return "No se pudo proteger staging.";
             if (!VerifyPawnSignature(file)) return "La firma Authenticode del instalador no coincide con PawnIO; no se ejecutó.";
-            using Process? installer = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true, Verb = UnelevatedLauncher.IsElevated ? "open" : "runas" });
+            // "-install": the setup installs straight away, without its wizard (the switch LibreHardwareMonitor uses).
+            using Process? installer = Process.Start(new ProcessStartInfo(file, "-install") { UseShellExecute = true, Verb = UnelevatedLauncher.IsElevated ? "open" : "runas" });
             if (installer is null) return "No se pudo iniciar el instalador.";
             await installer.WaitForExitAsync(cancellationToken);
             bool installed = false; try { installed = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }

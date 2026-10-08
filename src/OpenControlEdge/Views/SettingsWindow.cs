@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,7 @@ using System.Windows.Shell;
 using static OpenControlEdge.Interop.NativeMethods;
 using OpenControlEdge.Services;
 using OpenControlEdge.Ui;
+using System.Windows.Automation;
 using IOPath = System.IO.Path;
 
 namespace OpenControlEdge.Views;
@@ -36,7 +38,9 @@ internal sealed class SettingsWindow : Window
     private UpdateRelease? _release;
     private bool _noUpdateAvailable;
     private AiProviderId? _keyEditor;
-    private static readonly string[] Categories = ["General", "Personalización", "Agentes", "Información", "Actualizaciones", "Feedback"];
+    private AiProviderId? _accountEditor;
+    private WidgetView? _editingView;
+    private static readonly string[] Categories = ["General", "Personalización", "Agentes", "Modo juego", "Información", "Actualizaciones", "Feedback"];
 
     internal SettingsWindow(Func<Task> refresh, Action<Settings> apply, Func<AiProviderId, AgentStatus> agentStatus,
         Func<AiProviderId, Task> retry, string categoryName = "General", UpdateRelease? release = null,
@@ -257,6 +261,45 @@ internal sealed class SettingsWindow : Window
     private void OnLanguageChanged() => Dispatcher.InvokeAsync(RenderPage);
     /// Only the Agents page shows agent state; any other page is left alone (rebuilding it would reset its controls).
     internal void RefreshAgents() => Dispatcher.InvokeAsync(() => { if (_category == "Agentes") RenderPage(); });
+    /// The automatic check found a new version while this window is open: the banner appears on the current page.
+    internal void ShowUpdateBanner(UpdateRelease release)
+    {
+        _release = release;
+        _noUpdateAvailable = false;
+        RenderPage();
+    }
+
+    /// "Nueva versión disponible": one click downloads, verifies and installs it, then the widget restarts.
+    private void AddUpdateBanner(UpdateRelease release)
+    {
+        var banner = new Border { Style = StyleOf("Oce.Card"), Margin = new Thickness(0, 0, 0, 16), BorderThickness = new Thickness(1) };
+        banner.SetResourceReference(Border.BorderBrushProperty, "Oce.Success");
+        var panel = new StackPanel();
+        var title = new StackPanel { Orientation = Orientation.Horizontal };
+        title.Children.Add(new Ellipse { Width = 8, Height = 8, Fill = (Brush)Application.Current.FindResource("Oce.Success"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) });
+        title.Children.Add(new TextBlock { Text = Loc.Format("Settings.UpdateBanner", release.Tag), FontWeight = FontWeights.SemiBold, FontSize = 14 });
+        panel.Children.Add(title);
+        var status = Muted(Loc.Get("Settings.UpdateBannerHint"), new Thickness(0, 4, 0, 0), 12.5);
+        panel.Children.Add(status);
+        banner.Child = panel;
+        _content.Children.Add(banner);
+        Actions(panel,
+            Button(Loc.Get("Settings.UpdateDownload"), async (sender, _) => await InstallUpdateAsync(release, status, (Button)sender), true),
+            Button(Loc.Get("Settings.UpdateNotes"), (_, _) => { _category = "Actualizaciones"; RenderPage(); }, variant: "Ghost"));
+    }
+
+    /// Downloads, verifies and stages the release, then hands over to the new executable (the widget restarts).
+    private async Task InstallUpdateAsync(UpdateRelease release, TextBlock status, Button? button = null)
+    {
+        if (button is not null) button.IsEnabled = false;
+        status.Text = Loc.Get("Settings.Downloading");
+        string? error = await UpdateInstaller.DownloadAndRestartAsync(release);
+        if (error is null) { Application.Current.Shutdown(); return; }
+        status.Text = DisplayError(error);
+        if (button is not null) button.IsEnabled = true;
+    }
+
     internal void ShowUpdateResult(UpdateRelease release)
     {
         _release = release;
@@ -269,14 +312,14 @@ internal sealed class SettingsWindow : Window
     /// Dictionary suffix of a category (Settings.Nav.* and Settings.Hint.*); the Spanish names are only identifiers.
     private static string CategoryKey(string c) => c switch
     {
-        "Personalización" => "Appearance", "Agentes" => "Agents", "Información" => "About",
+        "Personalización" => "Appearance", "Agentes" => "Agents", "Modo juego" => "GameMode", "Información" => "About",
         "Actualizaciones" => "Updates", "Feedback" => "Feedback", _ => "General",
     };
     private static string Category(string c) => Loc.Get("Settings.Nav." + CategoryKey(c));
     private static string CategoryHint(string c) => Loc.Get("Settings.Hint." + CategoryKey(c));
     private static Drawing CategoryIcon(string c) => c switch
     {
-        "General" => Icons.Gear, "Personalización" => Icons.Swatch, "Agentes" => Icons.Bot,
+        "General" => Icons.Gear, "Personalización" => Icons.Swatch, "Agentes" => Icons.Bot, "Modo juego" => Icons.Gamepad,
         "Información" => Icons.Info, "Actualizaciones" => Icons.Refresh, _ => Icons.Message,
     };
     private static Drawing? ProviderLogo(AiProviderId id) => id switch
@@ -312,8 +355,9 @@ internal sealed class SettingsWindow : Window
             button.Content = item;
         }
         _content.Children.Clear();
+        if (_release is not null && _category != "Actualizaciones") AddUpdateBanner(_release);
         AddHeading(Category(_category), CategoryHint(_category));
-        switch (_category) { case "General": General(); break; case "Personalización": Appearance(); break; case "Agentes": Agents(); break; case "Información": About(); break; case "Actualizaciones": Updates(); break; case "Feedback": Feedback(); break; }
+        switch (_category) { case "General": General(); break; case "Personalización": Appearance(); break; case "Agentes": Agents(); break; case "Modo juego": GameMode(); break; case "Información": About(); break; case "Actualizaciones": Updates(); break; case "Feedback": Feedback(); break; }
     }
     private void AddHeading(string text, string hint)
     {
@@ -451,9 +495,190 @@ internal sealed class SettingsWindow : Window
         Settings s = SettingsStore.Load(); var p = Inside(Card(Loc.Get("Settings.Look")));
         AddChoice(p, Loc.Get("Settings.Language"), ["Español", "English"], s.Language == UiLanguage.English ? 1 : 0, i => { var n = SettingsStore.Update(x => x with { Language = i == 0 ? UiLanguage.Spanish : UiLanguage.English }); if (n != null) Loc.Apply(n.Language); });
         AddChoice(p, Loc.Get("Settings.Theme"), [Loc.Get("Settings.Theme.Dark"), Loc.Get("Settings.Theme.Light"), Loc.Get("Settings.Theme.System")], (int)s.Theme, i => { var n = SettingsStore.Update(x => x with { Theme = (AppTheme)i }); if (n != null) ThemeManager.Apply(n.Theme, n.ColorTheme); });
+        AddViews(s);
         AddRingThemes(s);
+        AddBackground(s);
         AddScale(s);
     }
+
+    private static readonly WidgetView[] AllViews = [WidgetView.Ai, WidgetView.Pc, WidgetView.Custom];
+
+    private static Drawing? RingIcon(string key) => key switch
+    {
+        RingKeys.Claude => Icons.ClaudeSpark, RingKeys.Codex => Icons.Codex, RingKeys.Cursor => Icons.Cursor,
+        RingKeys.OpenCode => Icons.OpenCode, RingKeys.DeepSeek => Icons.DeepSeek, RingKeys.OpenRouter => Icons.OpenRouter,
+        RingKeys.Cpu => Icons.Cpu, RingKeys.Gpu => Icons.Gpu, RingKeys.Ram => Icons.Ram, RingKeys.Fps => Icons.Fps,
+        RingKeys.GameMode => Icons.Gamepad, _ => null,
+    };
+
+    /// The view the panel shows, and for each view which rings it has and in what order (↑ ↓ and a switch per ring).
+    private void AddViews(Settings s)
+    {
+        var p = Inside(Card(Loc.Get("Settings.Views"), Loc.Get("Settings.ViewsHint")));
+        AddChoice(p, Loc.Get("Settings.ActiveView"), AllViews.Select(v => Loc.Get("View." + v)).ToArray(), Array.IndexOf(AllViews, s.View), i =>
+        {
+            Settings? updated = SettingsStore.Update(x => x with { View = AllViews[i] });
+            if (updated is not null) _apply(updated);
+        });
+
+        WidgetView editing = _editingView ?? s.View;
+        p.Children.Add(FieldLabel(Loc.Get("Settings.RingsOfView")));
+        var tabs = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        foreach (WidgetView view in AllViews)
+        {
+            Button tab = Button(Loc.Get("View." + view), (_, _) => { _editingView = view; RenderPage(); }, variant: view == editing ? "Secondary" : "Ghost");
+            tab.Margin = new Thickness(0, 0, 6, 0);
+            tabs.Children.Add(tab);
+        }
+        p.Children.Add(tabs);
+
+        ViewLayout layout = s.Layout(editing);
+        for (int i = 0; i < layout.Order.Length; i++)
+        {
+            string key = layout.Order[i];
+            int position = i;
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            Button up = IconButton(Icons.ArrowUp, Loc.Get("Settings.MoveUp"), () => MoveRing(editing, position, -1));
+            Button down = IconButton(Icons.ArrowDown, Loc.Get("Settings.MoveDown"), () => MoveRing(editing, position, 1));
+            up.IsEnabled = position > 0;
+            down.IsEnabled = position < layout.Order.Length - 1;
+            controls.Children.Add(up);
+            controls.Children.Add(down);
+            ToggleButton show = Switch(!layout.Hidden.Contains(key), on =>
+            {
+                Settings? updated = SettingsStore.Update(x =>
+                {
+                    ViewLayout current = x.Layout(editing);
+                    ImmutableHashSet<string> hidden = on ? current.Hidden.Remove(key) : current.Hidden.Add(key);
+                    return x.WithLayout(editing, current with { Hidden = hidden });
+                });
+                if (updated is null) return !on;
+                _apply(updated);
+                return !updated.Layout(editing).Hidden.Contains(key);
+            });
+            show.Margin = new Thickness(10, 0, 0, 0);
+            show.ToolTip = Loc.Get("Settings.ShowInPanel");
+            controls.Children.Add(show);
+            DockPanel.SetDock(controls, Dock.Right);
+            row.Children.Add(controls);
+            var name = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            name.Children.Add(Glyph(RingIcon(key), 16));
+            name.Children.Add(new TextBlock { Text = Loc.Get("RingName." + key), Margin = new Thickness(10, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(name);
+            p.Children.Add(row);
+        }
+        Actions(p, Button(Loc.Get("Settings.ResetView"), (_, _) =>
+        {
+            Settings? updated = SettingsStore.Update(x => x.WithLayout(editing, ViewLayout.Default(editing)));
+            if (updated is not null) { _apply(updated); RenderPage(); }
+        }, variant: "Secondary"));
+    }
+
+    private void MoveRing(WidgetView view, int position, int delta)
+    {
+        Settings? updated = SettingsStore.Update(x =>
+        {
+            ViewLayout current = x.Layout(view);
+            int target = position + delta;
+            if (target < 0 || target >= current.Order.Length) return x;
+            var order = current.Order.ToList();
+            (order[position], order[target]) = (order[target], order[position]);
+            return x.WithLayout(view, current with { Order = [.. order] });
+        });
+        if (updated is null) return;
+        _apply(updated);
+        RenderPage();
+    }
+
+    private static Button IconButton(Drawing icon, string tip, Action click)
+    {
+        var b = new Button { Style = StyleOf("Oce.Button.Ghost"), Content = Glyph(icon, 14), ToolTip = tip, Padding = new Thickness(6),
+            MinWidth = 0, Width = 30, Height = 30 };
+        AutomationProperties.SetName(b, tip);
+        b.Click += (_, _) => click();
+        return b;
+    }
+
+    /// Panel background: presets, a #RRGGBB field and red / green / blue sliders, applied live and saved after a pause.
+    private void AddBackground(Settings s)
+    {
+        var p = Inside(Card(Loc.Get("Settings.Background"), Loc.Get("Settings.BackgroundHint")));
+        Color initial = s.PanelBackground ?? ThemeManager.ColorOf(ThemeManager.Background);
+        var swatch = new Border { Width = 40, Height = 40, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(initial), VerticalAlignment = VerticalAlignment.Center };
+        swatch.SetResourceReference(Border.BorderBrushProperty, "Set.Border");
+        var hex = new TextBox { Style = StyleOf("Oce.Input"), Width = 110, Text = SettingsStore.ColorToHex(initial), Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, MaxLength = 7 };
+        AutomationProperties.SetName(hex, Loc.Get("Settings.BackgroundHex"));
+        var head = new StackPanel { Orientation = Orientation.Horizontal };
+        head.Children.Add(swatch);
+        head.Children.Add(hex);
+        p.Children.Add(head);
+
+        var saveTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        Color? pending = s.PanelBackground;
+        saveTimer.Tick += (_, _) =>
+        {
+            saveTimer.Stop();
+            Settings? updated = SettingsStore.Update(x => x with { PanelBackground = pending });
+            if (updated is not null) _apply(updated);
+        };
+        Closed += (_, _) => { if (saveTimer.IsEnabled) { saveTimer.Stop(); SettingsStore.Update(x => x with { PanelBackground = pending }); } };
+
+        var sliders = new Slider[3];
+        bool syncing = false;
+        void Use(Color? color, bool fromSliders = false, bool fromText = false)
+        {
+            pending = color;
+            Color shown = color ?? DefaultBackground();
+            swatch.Background = new SolidColorBrush(shown);
+            syncing = true;
+            if (!fromText) hex.Text = SettingsStore.ColorToHex(shown);
+            if (!fromSliders) { sliders[0].Value = shown.R; sliders[1].Value = shown.G; sliders[2].Value = shown.B; }
+            syncing = false;
+            ThemeManager.ApplyBackground(color);
+            saveTimer.Stop();
+            saveTimer.Start();
+        }
+
+        string[] channels = ["Settings.Red", "Settings.Green", "Settings.Blue"];
+        for (int i = 0; i < 3; i++)
+        {
+            var slider = new Slider { Style = StyleOf("Oce.ScaleSlider"), Minimum = 0, Maximum = 255, TickFrequency = 1, Width = 220,
+                Value = i == 0 ? initial.R : i == 1 ? initial.G : initial.B, VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(slider, Loc.Get(channels[i]));
+            slider.ValueChanged += (_, _) =>
+            {
+                if (syncing) return;
+                Use(Color.FromRgb((byte)sliders[0].Value, (byte)sliders[1].Value, (byte)sliders[2].Value), fromSliders: true);
+            };
+            sliders[i] = slider;
+            Row(p, Loc.Get(channels[i]), slider);
+        }
+        hex.TextChanged += (_, _) =>
+        {
+            if (syncing) return;
+            if (SettingsStore.ParseColor(hex.Text) is Color typed) Use(typed, fromText: true);
+        };
+
+        var presets = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        foreach (uint rgb in new uint[] { 0x000000, 0x111827, 0x0B1E33, 0x1E1B2E, 0x0F2A1D, 0x2B1B12, 0x3A3A3C, 0xF4F4F6 })
+        {
+            Color color = Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+            var chip = new Button { Style = StyleOf("Oce.Button.Ghost"), Width = 30, Height = 30, Padding = new Thickness(3), MinWidth = 0,
+                Margin = new Thickness(0, 0, 6, 6), ToolTip = SettingsStore.ColorToHex(color),
+                Content = new Border { CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(color), BorderThickness = new Thickness(1) } };
+            ((Border)chip.Content).SetResourceReference(Border.BorderBrushProperty, "Set.Border");
+            chip.Click += (_, _) => Use(color);
+            presets.Children.Add(chip);
+        }
+        p.Children.Add(presets);
+        Actions(p, Button(Loc.Get("Settings.BackgroundDefault"), (_, _) => Use(null), variant: "Secondary"));
+    }
+
+    /// The background of the theme itself (black when dark), shown while no colour of the user's own is set.
+    private static Color DefaultBackground() => ThemeManager.IsLight ? Color.FromRgb(0xF4, 0xF4, 0xF6) : Colors.Black;
     private void AddChoice(Panel panel, string label, string[] choices, int selected, Action<int> changed)
     {
         var combo = new ComboBox { Width = 180, ItemsSource = choices, SelectedIndex = selected, Style = StyleOf("Oce.Select"),
@@ -623,6 +848,14 @@ internal sealed class SettingsWindow : Window
             DockPanel.SetDock(showBox, Dock.Right); row.Children.Add(showBox);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (id is AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor)
+            {
+                int extra = settings.AccountsOf(AiProviderSettings.Key(id)).Length;
+                Button accounts = SmallButton(extra > 0 ? Loc.Format("Settings.AccountsCount", extra + 1) : Loc.Get("Settings.Accounts"),
+                    (_, _) => { _accountEditor = _accountEditor == id ? null : id; RenderPage(); });
+                accounts.Margin = new Thickness(0, 0, 6, 0);
+                actions.Children.Add(accounts);
+            }
             if (id is AiProviderId.DeepSeek or AiProviderId.OpenRouter)
                 actions.Children.Add(SmallButton(Loc.Get("Settings.ApiKey"), (_, _) => { _keyEditor = _keyEditor == id ? null : id; RenderPage(); }));
             else if (id is AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor && status.Kind is "session" or "missing")
@@ -691,8 +924,165 @@ internal sealed class SettingsWindow : Window
             p.Children.Add(row);
 
             if (_keyEditor == id) p.Children.Add(KeyEditor(id, name));
+            if (_accountEditor == id) p.Children.Add(AccountEditor(id, settings));
         }
     }
+    /// More accounts of Claude Code, Codex or Cursor: each one is the configuration folder that account signs in to
+    /// (CLAUDE_CONFIG_DIR, CODEX_HOME, Cursor's --user-data-dir) and a name for the tab of its card.
+    private StackPanel AccountEditor(AiProviderId id, Settings settings)
+    {
+        string provider = AiProviderSettings.Key(id);
+        var editor = new StackPanel { Margin = new Thickness(46, 12, 0, 0) };
+        editor.Children.Add(Muted(Loc.Get("Settings.AccountsHint." + provider), new Thickness(0, 0, 0, 8), 12));
+        ImmutableArray<ExtraAccount> accounts = settings.AccountsOf(provider);
+        var main = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+        main.Children.Add(new TextBlock { Text = Loc.Get("Account.Default"), FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center });
+        editor.Children.Add(main);
+        foreach (ExtraAccount account in accounts)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+            Button remove = SmallButton(Loc.Get("Settings.Delete"), (_, _) =>
+            {
+                Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Remove(account)));
+                if (updated is not null) { _apply(updated); RenderPage(); }
+            });
+            DockPanel.SetDock(remove, Dock.Right);
+            row.Children.Add(remove);
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = account.Name, FontWeight = FontWeights.Medium });
+            var folder = Muted(account.Folder, new Thickness(0, 1, 12, 0), 11.5);
+            folder.TextTrimming = TextTrimming.CharacterEllipsis;
+            folder.TextWrapping = TextWrapping.NoWrap;
+            folder.ToolTip = account.Folder;
+            text.Children.Add(folder);
+            row.Children.Add(text);
+            editor.Children.Add(row);
+        }
+
+        if (accounts.Length >= SettingsStore.AccountLimit) return editor;
+        var nameBox = new TextBox { Style = StyleOf("Oce.Input"), MaxLength = 40, Width = 180 };
+        AutomationProperties.SetName(nameBox, Loc.Get("Settings.AccountName"));
+        var add = Button(Loc.Get("Settings.AddAccount"), (_, _) =>
+        {
+            string name = nameBox.Text.Trim();
+            if (name.Length == 0) { MessageBox.Show(Loc.Get("Settings.AccountNameMissing")); return; }
+            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Loc.Get("Settings.AccountFolder." + provider) };
+            if (dialog.ShowDialog(this) != true) return;
+            string folder = dialog.FolderName;
+            string expected = provider switch
+            {
+                AiProviderSettings.Claude => IOPath.Combine(folder, ".credentials.json"),
+                AiProviderSettings.Codex => IOPath.Combine(folder, "auth.json"),
+                _ => IOPath.Combine(folder, "User", "globalStorage", "state.vscdb"),
+            };
+            if (!File.Exists(expected) && MessageBox.Show(Loc.Format("Settings.AccountFolderEmpty", IOPath.GetFileName(expected)),
+                    "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount(name, folder))));
+            if (updated is not null) { _apply(updated); RenderPage(); }
+        }, true);
+        add.Margin = new Thickness(8, 0, 0, 0);
+        var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        addRow.Children.Add(nameBox);
+        addRow.Children.Add(add);
+        editor.Children.Add(FieldLabel(Loc.Get("Settings.AccountName")));
+        editor.Children.Add(addRow);
+        return editor;
+    }
+
+    private static Settings WithAccounts(Settings settings, string provider, ImmutableArray<ExtraAccount> accounts)
+    {
+        var map = settings.Accounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+        if (accounts.IsEmpty) map.Remove(provider);
+        else map[provider] = accounts;
+        return settings with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+    }
+
+    // ───────────────────────────── Modo juego ─────────────────────────────
+
+    private void GameMode()
+    {
+        Settings s = SettingsStore.Load();
+        GameModeOptions game = s.GameMode;
+        var p = Inside(Card(Loc.Get("Settings.GameMode"), Loc.Get("Settings.GameModeHint")));
+        AddToggle(p, Loc.Get("Settings.GameModeEnable"), game.Enabled,
+            (x, on) => x with { GameMode = x.GameMode with { Enabled = on } }, x => x.GameMode.Enabled, _apply);
+        p.Children.Add(Muted(Loc.Get(GameModeService.IsActive ? "Settings.GameModeIsOn" : "Settings.GameModeIsOff"), new Thickness(0, 4, 0, 0), 12));
+
+        var what = Inside(Card(Loc.Get("Settings.GameModeWhat")));
+        GamePowerPlan[] plans = [GamePowerPlan.Balanced, GamePowerPlan.HighPerformance, GamePowerPlan.Keep];
+        AddChoice(what, Loc.Get("Settings.PowerPlan"), [Loc.Get("Settings.PowerBalanced"), Loc.Get("Settings.PowerHigh"), Loc.Get("Settings.PowerKeep")],
+            Array.IndexOf(plans, game.PowerPlan), i =>
+            {
+                Settings? updated = SettingsStore.Update(x => x with { GameMode = x.GameMode with { PowerPlan = plans[i] } });
+                if (updated is not null) _apply(updated);
+            });
+        AddToggle(what, Loc.Get("Settings.GameBarOff"), game.DisableGameBar,
+            (x, on) => x with { GameMode = x.GameMode with { DisableGameBar = on } }, x => x.GameMode.DisableGameBar, _apply);
+        AddToggle(what, Loc.Get("Settings.Relaunch"), game.Relaunch,
+            (x, on) => x with { GameMode = x.GameMode with { Relaunch = on } }, x => x.GameMode.Relaunch, _apply);
+
+        AddNameList(Loc.Get("Settings.GameProcesses"), Loc.Get("Settings.GameProcessesHint"), game.Processes, GameModeOptions.DefaultProcesses,
+            GameModeService.IsValidProcessName, list => x => x with { GameMode = x.GameMode with { Processes = list } }, running: true);
+        AddNameList(Loc.Get("Settings.GameServices"), Loc.Get("Settings.GameServicesHint"), game.Services, GameModeOptions.DefaultServices,
+            GameModeService.IsValidServiceName, list => x => x with { GameMode = x.GameMode with { Services = list } }, running: false);
+    }
+
+    /// One name per line (programs or services); invalid or protected names are left out and listed.
+    private void AddNameList(string title, string hint, ImmutableArray<string> current, ImmutableArray<string> defaults,
+        Func<string, bool> valid, Func<ImmutableArray<string>, Func<Settings, Settings>> store, bool running)
+    {
+        var p = Inside(Card(title, hint));
+        var box = new TextBox { Style = StyleOf("Oce.Textarea"), AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, Height = 132,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Text = string.Join(Environment.NewLine, current) };
+        AutomationProperties.SetName(box, title);
+        p.Children.Add(box);
+        var status = Muted("", new Thickness(0, 6, 0, 0), 12);
+        status.Visibility = Visibility.Collapsed;
+        p.Children.Add(status);
+
+        void Save(IEnumerable<string> lines)
+        {
+            var names = lines.Select(l => l.Trim()).Where(l => l.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var rejected = names.Where(n => !valid(n)).ToList();
+            ImmutableArray<string> kept = [.. names.Where(valid).Take(64)];
+            Settings? updated = SettingsStore.Update(store(kept));
+            if (updated is null) return;
+            _apply(updated);
+            box.Text = string.Join(Environment.NewLine, kept);
+            status.Text = rejected.Count == 0 ? Loc.Get("Settings.Saved") : Loc.Format("Settings.NamesRejected", string.Join(", ", rejected));
+            status.Visibility = Visibility.Visible;
+        }
+
+        var buttons = new List<Button>
+        {
+            Button(Loc.Get("Settings.Save"), (_, _) => Save(box.Text.Split('\n')), true),
+            Button(Loc.Get("Settings.Defaults"), (_, _) => Save(defaults), variant: "Secondary"),
+        };
+        if (running)
+        {
+            var pickHolder = new StackPanel();
+            p.Children.Insert(p.Children.IndexOf(box) + 1, pickHolder);
+            AddRunningPicker(pickHolder, box);
+        }
+        Actions(p, buttons.ToArray());
+    }
+
+    /// "Añadir un programa abierto": the programs of this session, to add to the list without typing the name.
+    private static void AddRunningPicker(Panel panel, TextBox box)
+    {
+        var pick = new ComboBox { Width = 220, Style = StyleOf("Oce.Select"), ItemContainerStyle = StyleOf("Oce.Select.Item"),
+            ToolTip = Loc.Get("Settings.AddRunning") };
+        AutomationProperties.SetName(pick, Loc.Get("Settings.AddRunning"));
+        pick.DropDownOpened += (_, _) => { if (pick.Items.Count == 0) pick.ItemsSource = GameModeService.RunningProgramNames(); };
+        pick.SelectionChanged += (_, _) =>
+        {
+            if (pick.SelectedItem is not string name) return;
+            if (!box.Text.Split('\n').Any(l => l.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)))
+                box.Text = box.Text.TrimEnd() + (box.Text.Trim().Length > 0 ? Environment.NewLine : "") + name;
+        };
+        Row(panel, Loc.Get("Settings.AddRunning"), pick);
+    }
+
     private static Button SmallButton(string text, RoutedEventHandler click)
     {
         var b = new Button { Content = text, Style = StyleOf("Oce.Button.Small") };
@@ -786,15 +1176,10 @@ internal sealed class SettingsWindow : Window
         var notes = new TextBox { Style = StyleOf("Oce.Textarea"), Text = _release?.Notes ?? "", IsReadOnly = true,
             TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Height = 140, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 8, 0, 0) };
         if (_release is not null) p.Children.Add(notes);
-        var install = Button(Loc.Get("Settings.DownloadInstall"), async (_, _) =>
+        var install = Button(Loc.Get("Settings.DownloadInstall"), async (sender, _) =>
         {
             if (_release is null) return;
-            if (MessageBox.Show(Loc.Get("Settings.UpdateConfirm"),
-                Loc.Get("Settings.InstallUpdate"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            status.Text = Loc.Get("Settings.Downloading");
-            string? error = await UpdateInstaller.DownloadAndRestartAsync(_release);
-            if (error is null) Application.Current.Shutdown();
-            else status.Text = DisplayError(error);
+            await InstallUpdateAsync(_release, status, (Button)sender);
         }, true);
         var check = Button(Loc.Get("Settings.CheckUpdates"), async (_, _) =>
         {
@@ -811,18 +1196,133 @@ internal sealed class SettingsWindow : Window
             (x, enabled) => x with { AutoCheckUpdates = enabled, LastAutoUpdateCheck = enabled ? null : x.LastAutoUpdateCheck },
             x => x.AutoCheckUpdates, _apply);
     }
+    private readonly List<FeedbackImage> _feedbackImages = new();
+
+    /// Feedback without any account (FeedbackService: mailed with the screenshots) or as a GitHub issue.
     private void Feedback()
     {
         var p = Inside(Card(Loc.Get("Settings.TellUs"), Loc.Get("Settings.FeedbackHint")));
-        var type = new ComboBox { ItemsSource = new[] { Loc.Get("Settings.Type.Bug"), Loc.Get("Settings.Type.Idea"), Loc.Get("Settings.Type.Other") }, SelectedIndex = 0, Width = 180,
-            Style = StyleOf("Oce.Select"), ItemContainerStyle = StyleOf("Oce.Select.Item") };
+        string[] types = [Loc.Get("Settings.Type.Bug"), Loc.Get("Settings.Type.Idea"), Loc.Get("Settings.Type.Other")];
+        var type = new ComboBox { ItemsSource = types, SelectedIndex = 0, Width = 180, Style = StyleOf("Oce.Select"), ItemContainerStyle = StyleOf("Oce.Select.Item") };
         Row(p, Loc.Get("Settings.Type"), type);
         p.Children.Add(FieldLabel(Loc.Get("Settings.Message")));
-        var body = new TextBox { Style = StyleOf("Oce.Textarea"), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 120, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; p.Children.Add(body);
-        string Payload() => $"Type: {type.Text}\nVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}\nOS: {Environment.OSVersion.VersionString}\nScale: {SettingsStore.Load().UiScale?.ToString("0.00") ?? "auto"}\n\n{body.Text}";
+        var body = new TextBox { Style = StyleOf("Oce.Textarea"), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 120,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxLength = FeedbackService.MaxMessageLength };
+        AutomationProperties.SetName(body, Loc.Get("Settings.Message"));
+        p.Children.Add(body);
+        p.Children.Add(FieldLabel(Loc.Get("Settings.Contact")));
+        var contact = new TextBox { Style = StyleOf("Oce.Input"), MaxLength = 120 };
+        AutomationProperties.SetName(contact, Loc.Get("Settings.Contact"));
+        p.Children.Add(contact);
+
+        // Screenshots: thumbnails with a remove button, at most FeedbackService.MaxImages.
+        p.Children.Add(FieldLabel(Loc.Get("Settings.Screenshots")));
+        var thumbnails = new WrapPanel();
+        var addRow = new WrapPanel();
+        void ShowImages()
+        {
+            thumbnails.Children.Clear();
+            foreach (FeedbackImage image in _feedbackImages.ToList())
+            {
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                using (var stream = new MemoryStream(image.Bytes))
+                {
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 160;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                }
+                bitmap.Freeze();
+                var tile = new Grid { Width = 120, Height = 76, Margin = new Thickness(0, 0, 8, 8), ToolTip = image.Name };
+                tile.Children.Add(new Border { CornerRadius = new CornerRadius(8), ClipToBounds = true,
+                    Background = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill } });
+                Button remove = IconButton(Icons.Close, Loc.Get("Settings.Delete"), () => { _feedbackImages.Remove(image); ShowImages(); });
+                remove.Width = remove.Height = 24;
+                remove.HorizontalAlignment = HorizontalAlignment.Right;
+                remove.VerticalAlignment = VerticalAlignment.Top;
+                remove.SetResourceReference(BackgroundProperty, "Set.Background");
+                tile.Children.Add(remove);
+                thumbnails.Children.Add(tile);
+            }
+            foreach (Button b in addRow.Children.OfType<Button>()) b.IsEnabled = _feedbackImages.Count < FeedbackService.MaxImages;
+        }
+        p.Children.Add(thumbnails);
+        Button capture = Button(Loc.Get("Settings.CaptureScreen"), async (_, _) =>
+        {
+            // The settings window steps aside for the shot, then comes back.
+            WindowState previous = WindowState;
+            WindowState = WindowState.Minimized;
+            await Task.Delay(450);
+            FeedbackImage? shot = FeedbackService.CaptureScreen();
+            WindowState = previous;
+            BringToFront();
+            if (shot is not null && _feedbackImages.Count < FeedbackService.MaxImages) _feedbackImages.Add(shot);
+            ShowImages();
+        }, variant: "Secondary");
+        Button pick = Button(Loc.Get("Settings.AddImage"), (_, _) =>
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog { Filter = Loc.Get("Settings.ImageFilter") + "|*.png;*.jpg;*.jpeg", Multiselect = true };
+            if (dialog.ShowDialog(this) != true) return;
+            foreach (string file in dialog.FileNames)
+            {
+                if (_feedbackImages.Count >= FeedbackService.MaxImages) break;
+                if (FeedbackService.LoadImage(file) is FeedbackImage image) _feedbackImages.Add(image);
+                else MessageBox.Show(Loc.Format("Settings.ImageRejected", IOPath.GetFileName(file)));
+            }
+            ShowImages();
+        }, variant: "Secondary");
+        capture.Margin = pick.Margin = new Thickness(0, 0, 8, 6);
+        addRow.Children.Add(capture);
+        addRow.Children.Add(pick);
+        p.Children.Add(addRow);
+        p.Children.Add(Muted(Loc.Get("Settings.ScreenshotsHint"), new Thickness(0, 2, 0, 0), 12));
+        ShowImages();
+
+        var status = Muted("", new Thickness(0, 10, 0, 0));
+        status.Visibility = Visibility.Collapsed;
+        string Payload() => $"Type: {type.Text}\nVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}\nOS: {Environment.OSVersion.VersionString}\n\n{body.Text}";
+        Button send = Button(Loc.Get("Settings.SendFeedback"), async (sender, _) =>
+        {
+            var button = (Button)sender;
+            button.IsEnabled = false;
+            status.Visibility = Visibility.Visible;
+            status.Text = Loc.Get("Settings.Sending");
+            string? error = await FeedbackService.SendAsync(type.Text, body.Text, contact.Text, _feedbackImages.ToList());
+            if (error is null)
+            {
+                status.Text = Loc.Get("Settings.FeedbackSent");
+                body.Text = string.Empty;
+                _feedbackImages.Clear();
+                ShowImages();
+            }
+            else status.Text = DisplayError(error);
+            button.IsEnabled = true;
+        }, true);
+        send.IsEnabled = FeedbackService.CanSendWithoutAccount;
         Actions(p,
-            Button(Loc.Get("Settings.OpenForm"), (_, _) => { Clipboard.SetText(Payload()); OpenUnelevated("https://github.com/danielfinchdev/open-control-edge/issues/new"); }, true),
-            Button(Loc.Get("Settings.CopyDraft"), (_, _) => Clipboard.SetText(Payload()), variant: "Secondary")).Margin = new Thickness(0, 14, 0, 0);
+            send,
+            Button(Loc.Get("Settings.OpenForm"), (_, _) =>
+            {
+                // GitHub cannot receive the images through the address: the first one goes to the clipboard to paste.
+                if (_feedbackImages.FirstOrDefault() is FeedbackImage first)
+                {
+                    try
+                    {
+                        using var stream = new MemoryStream(first.Bytes);
+                        Clipboard.SetImage(System.Windows.Media.Imaging.BitmapFrame.Create(stream, System.Windows.Media.Imaging.BitmapCreateOptions.None,
+                            System.Windows.Media.Imaging.BitmapCacheOption.OnLoad));
+                    }
+                    catch (Exception ex) { Log.Warn("Feedback", "portapapeles: " + ex.GetType().Name); }
+                }
+                OpenUnelevated(FeedbackService.GitHubIssueUri(type.Text, body.Text).AbsoluteUri);
+                status.Visibility = Visibility.Visible;
+                status.Text = Loc.Get(_feedbackImages.Count > 0 ? "Settings.GitHubOpenedImage" : "Settings.GitHubOpened");
+            }, variant: "Secondary"),
+            Button(Loc.Get("Settings.CopyDraft"), (_, _) => Clipboard.SetText(Payload()), variant: "Ghost")).Margin = new Thickness(0, 14, 0, 0);
+        p.Children.Add(status);
+        p.Children.Add(Muted(Loc.Get(FeedbackService.CanSendWithoutAccount ? "Settings.FeedbackPrivacy" : "Settings.FeedbackNoForm"),
+            new Thickness(0, 10, 0, 0), 12));
     }
 
     private static void OpenUnelevated(string url) =>
@@ -864,6 +1364,8 @@ internal sealed class SettingsWindow : Window
             void Save(string file, string check)
             {
                 window.RenderPage(); window.UpdateLayout();
+                // Pages with lists (rings of each view, programs and services, screenshots) are meant to scroll.
+                if (window._category is "Personalización" or "Modo juego" or "Feedback" or "Agentes") check = "";
                 if (check.Length > 0 && window._scroll.ExtentHeight > window._scroll.ViewportHeight + 0.5)
                     throw new InvalidDataException($"settings page scrolls at its default size: {check} " +
                         $"({window._scroll.ExtentHeight:0} > {window._scroll.ViewportHeight:0})");
@@ -876,7 +1378,15 @@ internal sealed class SettingsWindow : Window
             }
             window._category = "Actualizaciones"; window._release = release;
             Save($"settings_{themeName}_{languageName}_actualizaciones_release.png", $"release {themeName} {languageName}");
+            window._category = "General";
+            Save($"settings_{themeName}_{languageName}_update_banner.png", "");
             window._release = null;
+            window._category = "Personalización"; window._editingView = WidgetView.Pc;
+            Save($"settings_{themeName}_{languageName}_personalizacion_vista_pc.png", "");
+            window._editingView = null;
+            window._category = "Agentes"; window._accountEditor = AiProviderId.Claude;
+            Save($"settings_{themeName}_{languageName}_agentes_cuentas.png", "");
+            window._accountEditor = null;
             if (language == UiLanguage.Spanish)
             {
                 foreach ((string screen, double workWidth, double workHeight) in screens)

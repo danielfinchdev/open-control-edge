@@ -6,7 +6,9 @@ using System.Text.Json;
 
 namespace OpenControlEdge.Services;
 
-internal sealed record UpdateRelease(Version Version, string Tag, string Notes, Uri ZipUri, string Digest);
+/// SignatureUri: the archive's signature made by the Release workflow with the project's own key (UpdateSignature);
+/// null for a release published without one, which then needs the SignPath Authenticode signature instead.
+internal sealed record UpdateRelease(Version Version, string Tag, string Notes, Uri ZipUri, string Digest, Uri? SignatureUri = null);
 internal sealed record UpdateCheckResult(UpdateRelease? Release, string? Error)
 {
     internal bool IsAvailable => Release is not null;
@@ -16,6 +18,7 @@ internal sealed record UpdateCheckResult(UpdateRelease? Release, string? Error)
 internal static class UpdateService
 {
     internal const string LatestApi = "https://api.github.com/repos/danielfinchdev/open-control-edge/releases/latest";
+    internal const string SignatureAsset = "OpenControlEdge-win-x64.zip.sig";
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(4) };
     private const long MaxArchiveBytes = 300L * 1024 * 1024;
     private const long MaxExpandedBytes = 900L * 1024 * 1024;
@@ -40,6 +43,15 @@ internal static class UpdateService
             string notes = root.TryGetProperty("body", out JsonElement body) && body.ValueKind == JsonValueKind.String ? body.GetString() ?? "" : "";
             if (!root.TryGetProperty("assets", out JsonElement assets) || assets.ValueKind != JsonValueKind.Array)
                 return new(null, "El release no contiene assets.");
+            Uri? signature = null;
+            foreach (JsonElement asset in assets.EnumerateArray())
+            {
+                if (asset.TryGetProperty("name", out JsonElement n) && n.GetString() is string sigName
+                    && sigName.Equals(SignatureAsset, StringComparison.OrdinalIgnoreCase)
+                    && asset.TryGetProperty("browser_download_url", out JsonElement u) && Uri.TryCreate(u.GetString(), UriKind.Absolute, out Uri? sigUri)
+                    && IsReleaseAsset(sigUri))
+                    signature = sigUri;
+            }
             foreach (JsonElement asset in assets.EnumerateArray())
             {
                 string name = RequiredString(asset, "name");
@@ -51,7 +63,7 @@ internal static class UpdateService
                     || digestElement.GetString() is not string digest || !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
                     || digest.Length != 71 || !digest.AsSpan(7).ToArray().All(Uri.IsHexDigit))
                     return new(null, "El ZIP no tiene un digest SHA-256 verificable; no se instalará.");
-                return new(new(version, tag, notes, uri, digest[7..].ToLowerInvariant()), null);
+                return new(new(version, tag, notes, uri, digest[7..].ToLowerInvariant(), signature), null);
             }
             return new(null, "El release no incluye un ZIP de instalación.");
         }
@@ -97,6 +109,20 @@ internal static class UpdateService
             throw new InvalidDataException("El digest SHA-256 del ZIP no coincide. No se instalará.");
         }
 
+        // The project's own signature over the whole archive: when it is there it must be valid, and then every file
+        // inside is the one the Release workflow packed (no other check of the libraries is needed).
+        bool signed = false;
+        if (release.SignatureUri is Uri signatureUri)
+        {
+            byte[] signature = await DownloadSmallAsync(signatureUri, cancellationToken).ConfigureAwait(false);
+            if (!UpdateSignature.Verify(archive, signature))
+            {
+                CryptographicOperations.ZeroMemory(archive);
+                throw new InvalidDataException(UpdateSignature.InvalidMessage);
+            }
+            signed = true;
+        }
+
         string root = Path.GetFullPath(stageRoot);
         if (Directory.Exists(root)) throw new IOException("El directorio de staging ya existe.");
         string payload = Path.Combine(root, "payload");
@@ -112,7 +138,7 @@ internal static class UpdateService
                 await using var output = new FileStream(Path.Combine(payload, name), FileMode.CreateNew, FileAccess.Write, FileShare.None);
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             }
-            VerifyPayload(payload, release);
+            VerifyPayload(payload, release, signed);
             return payload;
         }
         catch { try { Directory.Delete(root, recursive: true); } catch { } throw; }
@@ -169,15 +195,22 @@ internal static class UpdateService
     internal const string UnexpectedFileMessage = "El ZIP contiene archivos que no son de Open Control Edge; no se instalará.";
     internal const string IncompleteMessage = "El ZIP no contiene todos los archivos de Open Control Edge; no se instalará.";
 
-    /// The exe must be the official one of exactly this version (AuthenticodeVerifier.IsOfficialExecutable). Each
-    /// library must be byte for byte the one this build ships, or carry a trusted signature of its publisher
+    /// Signed with the project's key (signed): the exe must still say it is Open Control Edge of exactly this version.
+    /// Otherwise the exe must be the official one of exactly this version (AuthenticodeVerifier.IsOfficialExecutable),
+    /// and each library byte for byte the one this build ships, or carry a trusted signature of its publisher
     /// (AuthenticodeVerifier.IsTrustedLibrary) when the new version brings a different build of it.
-    private static void VerifyPayload(string payload, UpdateRelease release)
+    private static void VerifyPayload(string payload, UpdateRelease release, bool signed)
     {
 #if DEBUG
         // The local release fixture (--test-update-fixture) serves unsigned test archives from the loopback interface.
         if (release.ZipUri.IsLoopback) return;
 #endif
+        if (signed)
+        {
+            if (!AuthenticodeVerifier.DeclaresVersion(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
+                throw new InvalidDataException(UnsignedMessage);
+            return;
+        }
         if (!AuthenticodeVerifier.IsOfficialExecutable(Path.Combine(payload, "OpenControlEdge.exe"), release.Version))
             throw new InvalidDataException(UnsignedMessage);
         foreach (string name in NativeLibraries.Names)
@@ -186,6 +219,26 @@ internal static class UpdateService
             if (!NativeLibraries.IsExpected(library) && !AuthenticodeVerifier.IsTrustedLibrary(library))
                 throw new InvalidDataException($"{name} no es el de Open Control Edge ni tiene una firma de confianza; no se instalará.");
         }
+    }
+
+    /// A small file of a Release (the signature): at most 1 KB.
+    private static async Task<byte[]> DownloadSmallAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        if (!IsReleaseAsset(uri)) throw new InvalidDataException(UpdateSignature.InvalidMessage);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.UserAgent.ParseAdd(UsageHttp.UserAgent);
+        using HttpResponseMessage response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = new MemoryStream();
+        byte[] chunk = new byte[1024];
+        int count;
+        while ((count = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            if (buffer.Length + count > 1024) throw new InvalidDataException(UpdateSignature.InvalidMessage);
+            buffer.Write(chunk, 0, count);
+        }
+        return buffer.ToArray();
     }
 
     /// A file of a Release of this repository, over HTTPS. Debug also accepts the local fixture over loopback HTTP.

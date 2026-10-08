@@ -94,6 +94,12 @@
                 <Button x:Name="PawnIoButton" Style="{StaticResource PillButton}" Click="OnPawnIoClick"
                         Content="{DynamicResource Install.PawnIo}" HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="Collapsed" />
 
+                <!-- "Comprobando tu sistema…": one row per check (InstallWindow.ShowChecks), fixed on install. -->
+                <StackPanel x:Name="ChecksPanel" Margin="0,18,0,0" Visibility="Collapsed">
+                    <TextBlock x:Name="ChecksTitle" Text="{DynamicResource Check.Title}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" />
+                    <StackPanel x:Name="Checks" />
+                </StackPanel>
+
                 <!-- What the installation does, one dot per step: pending (ring), running, done, failed. -->
                 <StackPanel x:Name="Steps" Margin="0,18,0,0">
                     <DockPanel Margin="0,0,0,10">

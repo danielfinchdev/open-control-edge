@@ -60,6 +60,12 @@ public partial class App : Application
     private DispatcherTimer? _fpsTimer;
     private GameModeSnapshot _gameMode = new(false, false, false, null);
 
+    /// A newer release found by the automatic check: a dot on the settings button and a banner in the settings.
+    private UpdateRelease? _availableUpdate;
+
+    /// Automatic checks: at start-up and then at most this often (the hourly timer asks).
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+
     /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync).
     private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(15);
     private DateTimeOffset? _claudeReadAt;
@@ -314,14 +320,14 @@ public partial class App : Application
         _sensorTimer.Start();
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
-        StartAutomaticUpdateCheck();
+        StartAutomaticUpdateCheck(atStartup: true);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
 
     private void OpenSettings()
     {
         if (_settingsWindow is { IsVisible: true }) { _settingsWindow.BringToFront(); return; }
-        OpenSettings("General");
+        OpenSettings("General", _availableUpdate);
     }
 
     private void OpenSettings(string category, UpdateRelease? release = null)
@@ -350,7 +356,7 @@ public partial class App : Application
             bool refreshChanged = previousSettings.UsageRefreshMinutes != settings.UsageRefreshMinutes;
             previousSettings = settings;
             if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
-        }, AgentStatus, RetryProviderAsync, category, release, () => _lastUsageRefresh,
+        }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
             () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
         if (category == "Agentes" && !_agentsProbed)
@@ -368,15 +374,26 @@ public partial class App : Application
         if (window.IsVisible) window.RefreshAgents();
     }
 
-    private async void StartAutomaticUpdateCheck()
+    /// Asks GitHub for the latest release at start-up and then every UpdateCheckInterval. A newer one is not opened in
+    /// anybody's face: the settings button gets a dot and the settings window a banner to download and install it.
+    private async void StartAutomaticUpdateCheck(bool atStartup = false)
     {
         Settings settings = SettingsStore.Load();
-        if (!settings.AutoCheckUpdates || settings.LastAutoUpdateCheck is DateTimeOffset previous && DateTimeOffset.Now - previous < TimeSpan.FromHours(24)) return;
+        if (!settings.AutoCheckUpdates) return;
+        if (!atStartup && settings.LastAutoUpdateCheck is DateTimeOffset previous && DateTimeOffset.Now - previous < UpdateCheckInterval) return;
         SettingsStore.Update(s => s with { LastAutoUpdateCheck = DateTimeOffset.Now });
         UpdateCheckResult result = await UpdateService.CheckAsync();
-        if (result.Release is not null)
-            _ = Dispatcher.BeginInvoke(() => OpenSettings("Actualizaciones", result.Release));
+        if (result.Release is not null) ShowUpdateAvailable(result.Release);
         else if (result.Error is not null) Log.Warn("Updates", result.Error);
+    }
+
+    private void ShowUpdateAvailable(UpdateRelease release)
+    {
+        if (_availableUpdate?.Version == release.Version) return;
+        Log.Info("Updates", $"nueva versión disponible: {release.Tag}");
+        _availableUpdate = release;
+        _edge?.SetUpdateAvailable(true);
+        if (_settingsWindow is { IsVisible: true }) _settingsWindow.ShowUpdateBanner(release);
     }
 
     private void ConfigureAutoUpdateTimer(Settings settings)

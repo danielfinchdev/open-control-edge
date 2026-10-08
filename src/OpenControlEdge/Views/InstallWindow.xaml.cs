@@ -31,6 +31,8 @@ public partial class InstallWindow : Window
 
     private readonly Mode _mode;
     private readonly Ellipse[] _dots;
+    private readonly Dictionary<string, (Ellipse Dot, TextBlock Status)> _checkRows = new();
+    private IReadOnlyList<SystemCheck.Item> _checks = Array.Empty<SystemCheck.Item>();
     private bool _busy;
     private bool _finished;
 
@@ -46,9 +48,8 @@ public partial class InstallWindow : Window
 #if !DEBUG
             if (UnelevatedLauncher.IsElevated) SecondaryButton.Visibility = Visibility.Collapsed;
 #endif
-            bool pawnIo = false;
-            try { pawnIo = LibreHardwareMonitor.PawnIo.PawnIo.IsInstalled; } catch { }
-            if (!pawnIo) PawnIoButton.Visibility = Visibility.Visible;
+            // PawnIO is now installed on its own with the rest (see the checks); the button stays for the snapshots only.
+            Loaded += async (_, _) => ShowChecks(await Task.Run(SystemCheck.Run));
         }
 
         if (mode == Mode.Uninstall)
@@ -114,8 +115,77 @@ public partial class InstallWindow : Window
         finally { PawnIoButton.IsEnabled = true; }
     }
 
+    /// One row per check: a dot (green ready, amber to fix, red missing, grey for information) and its status.
+    internal void ShowChecks(IReadOnlyList<SystemCheck.Item> checks)
+    {
+        _checks = checks;
+        Checks.Children.Clear();
+        _checkRows.Clear();
+        foreach (SystemCheck.Item item in checks)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+            var dot = new Ellipse { Style = (Style)FindResource("StepDot") };
+            var status = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+            status.SetResourceReference(TextBlock.ForegroundProperty, "Theme.TextSecondary");
+            DockPanel.SetDock(dot, Dock.Left);
+            DockPanel.SetDock(status, Dock.Right);
+            row.Children.Add(dot);
+            row.Children.Add(status);
+            var label = new TextBlock { Text = Loc.Get("Check." + item.Key), Style = (Style)FindResource("StepText") };
+            row.Children.Add(label);
+            Checks.Children.Add(row);
+            _checkRows[item.Key] = (dot, status);
+            Paint(item.Key, item.State, item.Detail);
+        }
+        ChecksPanel.Visibility = Visibility.Visible;
+        bool blocked = checks.Any(c => c.State == SystemCheck.State.Missing);
+        ChecksTitle.Text = Loc.Get(blocked ? "Check.TitleProblems" : "Check.TitleReady");
+    }
+
+    private void Paint(string key, SystemCheck.State state, string? detail, string? statusKey = null)
+    {
+        if (!_checkRows.TryGetValue(key, out var row)) return;
+        PaintDot(row.Dot, state switch
+        {
+            SystemCheck.State.Ready => Palette.Low,
+            SystemCheck.State.WillFix => Palette.Medium,
+            SystemCheck.State.Missing => Palette.Red,
+            _ => null,
+        });
+        string text = Loc.Get(statusKey ?? state switch
+        {
+            SystemCheck.State.Ready => "Check.Ready",
+            SystemCheck.State.WillFix => key == "PawnIo" ? "Check.WillInstall" : "Check.WillEnable",
+            SystemCheck.State.Missing => "Check.Missing",
+            _ => detail is null ? "Check.None" : "Check.Detected",
+        });
+        row.Status.Text = state == SystemCheck.State.Info && detail is not null ? detail
+            : detail is not null && state == SystemCheck.State.Ready && key == "Windows" ? detail : text;
+    }
+
+    /// Before installing: what the checks found missing and can be fixed here (Secondary Logon, PawnIO). PawnIO is
+    /// optional: if it cannot be installed the widget installs anyway and only the temperatures are missing.
+    private async Task FixSystemAsync()
+    {
+        if (_checks.FirstOrDefault(c => c.Key == "Seclogon") is { State: SystemCheck.State.WillFix })
+        {
+            Paint("Seclogon", SystemCheck.State.WillFix, null, "Check.Fixing");
+            string? error = await Task.Run(SystemCheck.FixSeclogon);
+            Paint("Seclogon", error is null ? SystemCheck.State.Ready : SystemCheck.State.Missing, null, error is null ? "Check.Enabled" : "Check.Failed");
+            if (error is not null) Log.Warn("Install", error);
+        }
+        if (_checks.FirstOrDefault(c => c.Key == "PawnIo") is { State: SystemCheck.State.WillFix })
+        {
+            Paint("PawnIo", SystemCheck.State.WillFix, null, "Check.Installing");
+            string? error = await PawnIoInstaller.InstallAsync();
+            Paint("PawnIo", error is null ? SystemCheck.State.Ready : SystemCheck.State.Missing, null, error is null ? "Check.Installed" : "Check.Failed");
+            if (error is not null) Log.Warn("Install", "PawnIO: " + error);
+        }
+    }
+
     private async Task InstallAsync()
     {
+        await FixSystemAsync();
         ShowStatus(Loc.Get("Install.Working"), error: false);
         var progress = new Progress<InstallStep>(ShowStep);
         InstallResult result = await Installer.InstallAsync(progress);

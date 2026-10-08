@@ -82,6 +82,11 @@ internal static class Snapshot
         Loc.Apply(UiLanguage.Spanish);
 
         var window = new EdgeWindow(DateTime.Now.AddMinutes(-42), PanelMode.Auto) { PreviewMode = true, AnimationsEnabled = false };
+        // The custom view with every ring: the shots below show all of them, as before the views existed.
+        Settings everything = Settings.Defaults with { View = WidgetView.Custom };
+        window.ApplyViews(everything, animate: false);
+        var fps = new FpsService.Sample(141, "League of Legends", false, 144, null);
+        window.SetFps(fps);
         window.PreviewWorkArea(ReferenceWorkArea);
         window.SetCodex(codexMonthly);
         window.SetCursor(cursor);
@@ -102,7 +107,7 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "02_auto_expanded_fijar.png"));
 
         window.ApplyMode(PanelMode.Pinned);
-        window.SaveSnapshot(Path.Combine(directory, "03_pinned_eight_rings.png"));
+        window.SaveSnapshot(Path.Combine(directory, "03_pinned_all_rings_custom_view.png"));
 
         // Four buttons, two by two: fijar / vista above, ajustes / cerrar below.
         PaintHover(window.ModeButton, hovered: true);
@@ -354,8 +359,16 @@ internal static class Snapshot
         }
         window.PreviewWorkArea(ReferenceWorkArea);
 
+        SaveViewsAndNewRings(window, directory, claude, everything, fps);
+
         // Welcome / install window: before, during, done, failed; and the uninstall confirmation.
         SaveInstallWindow(InstallWindow.Mode.Install, null, null, Path.Combine(directory, "57_install_welcome.png"));
+        SaveInstallWindow(InstallWindow.Mode.Install, null, null, Path.Combine(directory, "57b_install_checks.png"), new SystemCheck.Item[]
+        {
+            new("Windows", SystemCheck.State.Ready, "Windows 11 · 26300"), new("Admin", SystemCheck.State.Ready, null),
+            new("Seclogon", SystemCheck.State.WillFix, null), new("PawnIo", SystemCheck.State.WillFix, null),
+            new("Agents", SystemCheck.State.Info, "Claude, Codex, Cursor"),
+        });
         SaveInstallWindow(InstallWindow.Mode.Install, InstallStep.Copy, null, Path.Combine(directory, "58_install_progress.png"));
         SaveInstallWindow(InstallWindow.Mode.Install, InstallStep.Start,
             new InstallResult(true, null, new[] { "Se conserva la carpeta antigua C:\\Program Files\\EdgeWidget." }),
@@ -385,6 +398,61 @@ internal static class Snapshot
         Loc.Apply(UiLanguage.Spanish);
         SaveLogos(directory);
         SettingsWindow.SaveSnapshots(directory);
+    }
+
+    /// The views (IA, PC, a custom mix), the FPS and Modo juego rings and cards, account tabs, the update dot and
+    /// custom backgrounds.
+    private static void SaveViewsAndNewRings(EdgeWindow window, string directory, ClaudeSnapshot claude, Settings everything, FpsService.Sample fps)
+    {
+        window.ApplyMode(PanelMode.Pinned);
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        window.SaveSnapshot(Path.Combine(directory, "70_view_ai.png"));
+        window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
+        window.SaveSnapshot(Path.Combine(directory, "71_view_pc.png"));
+        if (window.View != WidgetView.Pc) throw new InvalidDataException("view switch failed");
+
+        window.ShowCardNow(EdgeWindow.RingFps);
+        window.SaveSnapshot(Path.Combine(directory, "72_card_fps_game.png"));
+        window.SetFps(new FpsService.Sample(1, null, true, 60, null));
+        window.SaveSnapshot(Path.Combine(directory, "73_card_fps_desktop.png"));
+        window.SetFps(new FpsService.Sample(38, "Cyberpunk2077", false, 144, null));
+        window.SaveSnapshot(Path.Combine(directory, "73b_card_fps_low.png"));
+        window.SetFps(fps);
+
+        window.SetGameMode(new GameModeSnapshot(false, false, false, null));
+        window.ShowCardNow(EdgeWindow.RingGameMode);
+        window.SaveSnapshot(Path.Combine(directory, "74_card_game_mode_disabled.png"));
+        window.SetGameMode(new GameModeSnapshot(true, false, false, null));
+        window.SaveSnapshot(Path.Combine(directory, "75_card_game_mode_off.png"));
+        window.SetGameMode(new GameModeSnapshot(true, true, false,
+            new GameModeResult(true, 6, 3, GamePowerPlan.Balanced, true, new[] { "No se pudo detener: DiagTrack" })));
+        window.SaveSnapshot(Path.Combine(directory, "76_card_game_mode_on.png"));
+
+        // A custom mix, in the user's order: FPS, Claude, CPU, Codex; the rest hidden.
+        var custom = ViewLayout.Normalize(WidgetView.Custom, [RingKeys.Fps, RingKeys.Claude, RingKeys.Cpu, RingKeys.Codex],
+            RingKeys.All.Except([RingKeys.Fps, RingKeys.Claude, RingKeys.Cpu, RingKeys.Codex]));
+        window.ApplyViews(everything with { View = WidgetView.Custom, CustomLayout = custom }, animate: false);
+        window.SaveSnapshot(Path.Combine(directory, "77_view_custom_mix.png"));
+
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        window.SetAccounts(AiProviderId.Claude, ["Principal", "Trabajo"], 1);
+        window.SetClaude(claude with { Session = new UsageWindow(58, DateTimeOffset.Now.AddMinutes(90)), Plan = "pro" });
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "78_card_claude_two_accounts.png"));
+        window.SetAccounts(AiProviderId.Claude, ["Principal"], 0);
+        window.SetClaude(claude);
+
+        window.SetUpdateAvailable(true);
+        window.SaveSnapshot(Path.Combine(directory, "79_update_dot.png"));
+        window.SetUpdateAvailable(false);
+
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, Color.FromRgb(0x0B, 0x1E, 0x33));
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "80_background_navy.png"));
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, Color.FromRgb(0xF4, 0xE9, 0xD8));
+        window.SaveSnapshot(Path.Combine(directory, "81_background_light_custom.png"));
+        ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, null);
+        window.ApplyViews(everything, animate: false);
     }
 
     private static readonly (string Name, Drawing Icon)[] BrandLogos =
@@ -457,10 +525,12 @@ internal static class Snapshot
             throw new InvalidDataException($"font check failed for weight {weight}");
     }
 
-    private static void SaveInstallWindow(InstallWindow.Mode mode, InstallStep? step, InstallResult? result, string path)
+    private static void SaveInstallWindow(InstallWindow.Mode mode, InstallStep? step, InstallResult? result, string path,
+        IReadOnlyList<SystemCheck.Item>? checks = null)
     {
         var window = new InstallWindow(mode) { ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -32000, Top = -32000 };
         window.Show();
+        if (checks is not null) window.ShowChecks(checks);
         if (step is InstallStep running) window.ShowStep(running);
         if (result is not null) window.ShowResult(result);
         window.UpdateLayout();

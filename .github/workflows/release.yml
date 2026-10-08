@@ -89,6 +89,27 @@ jobs:
       - name: Package application folder
         run: Compress-Archive -Path dist\* -DestinationPath OpenControlEdge-win-x64.zip
 
+      # In-app updates: the archive is signed with the project's own ECDSA P-256 key (secret UPDATE_SIGNING_KEY, a PKCS#8
+      # PEM); the app only installs an archive whose OpenControlEdge-win-x64.zip.sig matches its built-in public key.
+      - name: Sign archive for in-app updates
+        id: updatesig
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if (-not $env:UPDATE_SIGNING_KEY) {
+            "file=" >> $env:GITHUB_OUTPUT
+            Write-Output "::warning title=Actualizaciones::Falta el secreto UPDATE_SIGNING_KEY: la Release no llevará firma para las actualizaciones desde la app."
+            exit 0
+          }
+          $key = [System.Security.Cryptography.ECDsa]::Create()
+          $key.ImportFromPem($env:UPDATE_SIGNING_KEY)
+          $bytes = [System.IO.File]::ReadAllBytes("OpenControlEdge-win-x64.zip")
+          $signature = $key.SignData($bytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)
+          if (-not $key.VerifyData($bytes, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)) { throw "La firma recién hecha no se verifica." }
+          [System.IO.File]::WriteAllText("OpenControlEdge-win-x64.zip.sig", [Convert]::ToBase64String($signature))
+          "file=OpenControlEdge-win-x64.zip.sig" >> $env:GITHUB_OUTPUT
+
       - name: Attest OpenControlEdge.exe
         uses: actions/attest-build-provenance@v4
         with:
@@ -100,10 +121,12 @@ jobs:
         run: |
           $tag = $env:GITHUB_REF_NAME
           $title = "Open Control Edge $($tag.Substring(1))"
+          $files = @("OpenControlEdge-win-x64.zip")
+          if ("${{ steps.updatesig.outputs.file }}") { $files += "${{ steps.updatesig.outputs.file }}" }
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag OpenControlEdge-win-x64.zip --clobber
+            gh release upload $tag @files --clobber
           } else {
             $notes = "[Code signing policy](https://github.com/$env:GITHUB_REPOSITORY#code-signing-policy): free code signing provided by SignPath.io, certificate by SignPath Foundation."
-            gh release create $tag OpenControlEdge-win-x64.zip --title $title --notes $notes --generate-notes
+            gh release create $tag @files --title $title --notes $notes --generate-notes --latest
           }

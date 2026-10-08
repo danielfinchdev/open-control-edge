@@ -15,6 +15,22 @@ internal static partial class Loc
     /// Messages the services produce (always in Spanish, the canonical form) and their dictionary keys.
     private static readonly Dictionary<string, string> MessageKeys = new(StringComparer.Ordinal)
     {
+        ["No se pueden leer los FPS"] = "Msg.FpsUnavailable",
+        ["Base de datos de Cursor no válida"] = "Msg.CursorDbInvalid",
+        ["No se pudo leer sin permisos de administrador"] = "Msg.ReaderUnavailable",
+        ["La firma de la actualización no es válida; no se instalará."] = "Msg.UpdSignature",
+        ["No se pudo detener"] = "Msg.GameStopFailed",
+        ["No se pudo iniciar"] = "Msg.GameStartFailed",
+        ["No se pudo cerrar"] = "Msg.GameCloseFailed",
+        ["No se pudo leer el plan de energía"] = "Msg.GamePlanUnreadable",
+        ["Este equipo no tiene el plan Alto rendimiento"] = "Msg.GameNoHighPlan",
+        ["No se pudo cambiar el plan de energía"] = "Msg.GamePlanFailed",
+        ["No se pudo desactivar la Game Bar"] = "Msg.GameBarFailed",
+        ["No se pudo restaurar el plan de energía"] = "Msg.GamePlanRestoreFailed",
+        ["No se pudo restaurar la Game Bar"] = "Msg.GameBarRestoreFailed",
+        ["El envío sin cuenta no está disponible en esta versión"] = "Msg.FeedbackNoForm",
+        ["Escribe un mensaje antes de enviarlo"] = "Msg.FeedbackEmpty",
+        ["No se pudo enviar el mensaje"] = "Msg.FeedbackFailed",
         ["Cargando…"] = "Msg.Loading",
         ["Sin conexión"] = "Msg.NoConnection",
         ["Tiempo de espera agotado"] = "Msg.Timeout",

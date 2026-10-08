@@ -303,6 +303,15 @@ public partial class EdgeWindow : Window
 
     internal WidgetView View => _view;
 
+    /// A new version is available: a red dot on the settings button and a tooltip that says so.
+    internal void SetUpdateAvailable(bool available)
+    {
+        UpdateDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        string tip = available ? "Tip.SettingsUpdate" : "Tip.Settings";
+        SettingsButton.SetResourceReference(ToolTipProperty, tip);
+        SettingsButton.SetResourceReference(AutomationProperties.NameProperty, tip);
+    }
+
     /// The view and the layouts of the settings. A different view (or a different order or set of rings in it) fades
     /// the rings out and the new ones in when animate and the panel is on screen; otherwise it changes in one step.
     internal void ApplyViews(Settings settings, bool animate)

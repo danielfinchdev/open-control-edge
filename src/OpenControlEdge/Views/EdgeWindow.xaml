@@ -501,7 +501,12 @@
                             <Button x:Name="SettingsButton" Style="{StaticResource PanelRoundButton}" Click="OnSettingsClick"
                                     ToolTip="{DynamicResource Tip.Settings}" AutomationProperties.AutomationId="SettingsButton"
                                     AutomationProperties.Name="{DynamicResource Tip.Settings}">
-                                <ui:IconView Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
+                                <!-- The dot: a new version is available (Settings shows how to install it). -->
+                                <Grid>
+                                    <ui:IconView Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
+                                    <Ellipse x:Name="UpdateDot" Width="7" Height="7" Fill="#FF3B30" HorizontalAlignment="Right"
+                                             VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed" />
+                                </Grid>
                             </Button>
                             <!-- Quits the whole application, like "Salir" in the tray menu. -->
                             <Button x:Name="CloseButton" Style="{StaticResource PanelRoundButton}" Click="OnCloseClick"
