@@ -1,4 +1,6 @@
-# Generates src\OpenControlEdge\Assets\app.ico: black rounded square with an orange progress arc.
+﻿# Generates src\OpenControlEdge\Assets\app.ico: black rounded square with three concentric progress rings
+# (orange 300°, green 220°, yellow 140°, the colours of the panel's rings) on dark tracks. From 16 to 24 px only
+# the outer two, thicker, so the mark still reads in the taskbar and the tray.
 # Sizes <= 64 are stored as classic 32-bit DIBs (widest API compatibility), 256 as PNG.
 param([string]$Out = (Join-Path $PSScriptRoot '..\src\OpenControlEdge\Assets\app.ico'))
 
@@ -24,18 +26,30 @@ foreach ($s in $sizes) {
     $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
     $g.Clear([System.Drawing.Color]::Transparent)
 
-    $bg = New-RoundedPath 0 0 $s $s ([Math]::Max(3.0, $s * 0.24))
+    $bg = New-RoundedPath 0 0 $s $s ([Math]::Max(3.0, $s * 56 / 256))
     $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 0, 0, 0))), $bg)
 
-    $stroke = [float][Math]::Max(1.8, $s * 0.12)
-    $inset = [float]($s * 0.2 + $stroke / 2)
-    $rect = New-Object System.Drawing.RectangleF $inset, $inset, ([float]($s - 2 * $inset)), ([float]($s - 2 * $inset))
-    $track = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 0x3A, 0x3A, 0x3A)), $stroke
-    $g.DrawEllipse($track, $rect)
-    $arc = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 0xD9, 0x77, 0x57)), $stroke
-    $arc.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $arc.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $g.DrawArc($arc, $rect, -90, 250)
+    # Design at 256 px: radii 96 / 64 / 32, stroke 24. Small sizes: radii 92 / 50, stroke 34 (in 256 units).
+    $small = $s -le 24
+    $rings = if ($small) {
+        @(@{ R = 92; Sweep = 300; Color = @(0xE8, 0x49, 0x1D) }, @{ R = 50; Sweep = 220; Color = @(0x22, 0xC5, 0x5E) })
+    } else {
+        @(@{ R = 96; Sweep = 300; Color = @(0xE8, 0x49, 0x1D) }, @{ R = 64; Sweep = 220; Color = @(0x22, 0xC5, 0x5E) },
+          @{ R = 32; Sweep = 140; Color = @(0xE5, 0xE6, 0x19) })
+    }
+    $unit = $s / 256.0
+    $stroke = [float]([Math]::Max(1.6, ($(if ($small) { 34 } else { 24 })) * $unit))
+    foreach ($ring in $rings) {
+        $r = [float]($ring.R * $unit)
+        $c = [float]($s / 2.0)
+        $rect = New-Object System.Drawing.RectangleF ($c - $r), ($c - $r), (2 * $r), (2 * $r)
+        $track = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 0x2A, 0x2A, 0x2A)), $stroke
+        $g.DrawEllipse($track, $rect)
+        $arc = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, $ring.Color[0], $ring.Color[1], $ring.Color[2])), $stroke
+        $arc.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $arc.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $g.DrawArc($arc, $rect, -90, $ring.Sweep)
+    }
     $g.Dispose()
 
     if ($s -ge 256) {

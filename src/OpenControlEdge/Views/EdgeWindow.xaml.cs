@@ -598,10 +598,11 @@ public partial class EdgeWindow : Window
             double share = sample.RefreshHz > 0 ? Math.Clamp(fps / sample.RefreshHz, 0, 1) : 0;
             SolidColorBrush brush = share >= 0.75 ? Palette.Low : share >= 0.45 ? Palette.Medium : Palette.High;
             FpsRing.RingBrush = brush;
-            AnimateRing(FpsRing, share, 300);
+            // A new sample every second: set, never animated, or the layered window would repaint all the time.
+            AnimateRing(FpsRing, share, 0);
             FpsLabel.Text = fps.ToString("0", Loc.Culture);
             FpsBar.Fill = brush;
-            AnimateBar(FpsBar, share, 300);
+            AnimateBar(FpsBar, share, 0);
             FpsValue.Text = Loc.Format("Value.Fps", fps.ToString("0", Loc.Culture));
             FpsFrameTime.Text = fps >= 1 ? Loc.Format("Value.Milliseconds", (1000 / fps).ToString("0.0", Loc.Culture)) : "--";
             FpsSource.Text = sample.Desktop ? Loc.Get("Fps.Desktop") : sample.Process ?? "--";
