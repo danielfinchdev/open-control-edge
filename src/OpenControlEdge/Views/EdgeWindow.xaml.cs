@@ -312,6 +312,50 @@ public partial class EdgeWindow : Window
         SettingsButton.SetResourceReference(AutomationProperties.NameProperty, tip);
     }
 
+    private static readonly SolidColorBrush OrbBusyBrush = CreateFrozen(Color.FromRgb(0x22, 0xC5, 0x5E));
+    private OrbStatus? _orb;
+
+    /// Orb is connected: the badge above the rings, its dot green while Orb's assistant is working, and a tooltip with
+    /// Orb's tasks ("sin datos" for whatever orb.json does not carry). Null (disconnected, or sharing off) hides it.
+    internal void SetOrb(OrbStatus? orb)
+    {
+        _orb = orb;
+        OrbBadge.Visibility = orb is null ? Visibility.Collapsed : Visibility.Visible;
+        if (orb is null)
+        {
+            OrbBadge.ToolTip = null;
+            return;
+        }
+        if (orb.AssistantBusy == true) OrbDot.Fill = OrbBusyBrush;
+        else OrbDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, ThemeManager.TextSecondary);
+        string tasks = orb.Tasks is OrbTasks t
+            ? Loc.Format("Orb.Tasks", t.Running, t.Queued, t.AwaitingApproval)
+            : Loc.Format("Orb.TasksValue", Loc.Get("Value.NoData").ToLower(Loc.Culture));
+        string assistant = orb.AssistantBusy switch
+        {
+            true => Loc.Get("Orb.AssistantBusy"),
+            false => Loc.Get("Orb.AssistantIdle"),
+            null => Loc.Format("Orb.AssistantValue", Loc.Get("Value.NoData").ToLower(Loc.Culture)),
+        };
+        OrbBadge.ToolTip = $"{Loc.Get("Orb.Connected")}\n{tasks}\n{assistant}";
+        AutomationProperties.SetName(OrbBadge, $"{Loc.Get("Orb.Connected")}. {tasks}. {assistant}");
+    }
+
+    private static SolidColorBrush CreateFrozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// The line under a card whose reading is Orb's: "Dato de Orb · Personal · 5 h". Hidden for OCE's own readings.
+    private static void SetSource(TextBlock text, string? source)
+    {
+        text.Visibility = source is null ? Visibility.Collapsed : Visibility.Visible;
+        text.Text = source is null ? string.Empty
+            : source.Length == 0 ? Loc.Get("Orb.Source") : Loc.Format("Orb.SourceOf", source);
+    }
+
     /// The view and the layouts of the settings. A different view (or a different order or set of rings in it) fades
     /// the rings out and the new ones in when animate and the panel is on screen; otherwise it changes in one step.
     internal void ApplyViews(Settings settings, bool animate)
@@ -502,6 +546,7 @@ public partial class EdgeWindow : Window
         SyncViewButton();
         if (_fps is FpsService.Sample fps) { _fps = null; SetFps(fps); }
         if (_gameMode is not null) SetGameMode(_gameMode);
+        SetOrb(_orb);
         RefreshUsage();
         if (_openCode is not null) SetOpenCode(_openCode);
         if (_deepSeek is not null) SetDeepSeek(_deepSeek);
@@ -817,6 +862,7 @@ public partial class EdgeWindow : Window
                 ClaudeSpendRow.Visibility = Visibility.Collapsed;
             }
 
+            SetSource(ClaudeSource, snapshot.Source);
             ClaudeTabs.Visibility = Visibility.Visible;
             ClaudeMetrics.Visibility = Visibility.Visible;
             ClaudeMessage.Visibility = Visibility.Collapsed;
@@ -862,6 +908,7 @@ public partial class EdgeWindow : Window
                 CodexCreditsRow.Visibility = Visibility.Collapsed;
             }
 
+            SetSource(CodexSource, snapshot.Source);
             CodexTabs.Visibility = snapshot.Secondary is null ? Visibility.Collapsed : Visibility.Visible;
             CodexMetrics.Visibility = Visibility.Visible;
             CodexMessage.Visibility = Visibility.Collapsed;
@@ -910,6 +957,7 @@ public partial class EdgeWindow : Window
                 CursorOnDemandRow.Visibility = Visibility.Visible;
             }
             else CursorOnDemandRow.Visibility = Visibility.Collapsed;
+            SetSource(CursorSource, snapshot.Source);
             CursorMetrics.Visibility = Visibility.Visible;
             CursorMessage.Visibility = Visibility.Collapsed;
         }
