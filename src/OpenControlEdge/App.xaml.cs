@@ -247,6 +247,7 @@ public partial class App : Application
         _edge.ApplyViews(settings, animate: false);
         _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
         _edge.SetGameMode(_gameMode);
+        if (measureMode is null) settings = DiscoverAccounts(settings);
         SyncAccounts(settings);
 
         // The last reading, painted before any network request (UsageCache); the first refresh replaces it.
@@ -288,6 +289,9 @@ public partial class App : Application
             _edge.ApplyViews(updated ?? SettingsStore.Load() with { View = view }, animate: true);
         };
         _edge.AccountSelected += SelectAccount;
+        _edge.SubscriptionRequested += provider => _ = ShowSubscriptionAsync(provider);
+        _edge.OpenRequested += OpenAgent;
+        _edge.OrbOpenRequested += OpenOrb;
         _edge.GameModeClicked += () => _ = ToggleGameModeAsync();
         _edge.VisibleRingsChanged += UpdateFpsSampling;
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
@@ -329,6 +333,7 @@ public partial class App : Application
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
         if (measureMode is null) ConfigureOrbBridge(SettingsStore.Load());
+        RefreshOrbApp();
         StartAutomaticUpdateCheck(atStartup: true);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
@@ -564,6 +569,7 @@ public partial class App : Application
 
             _edge.ReassertTopmost();
             UpdateTooltip();
+            RefreshOrbApp();
             if (!_firstDataLogged)
             {
                 _firstDataLogged = true;
@@ -637,6 +643,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastClaude is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Claude);
+        _edge.SetAccounts(AiProviderId.Claude, AccountLabels(s, AiProviderSettings.Claude, _lastClaude.Plan,
+            _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
         _edge.SetClaude(_lastClaude.Hidden || index == 0 ? WithOrbUsage(_lastClaude)
             : _claudeExtraReadings.ElementAtOrDefault(index - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
     }
@@ -645,6 +653,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastCodex is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Codex);
+        _edge.SetAccounts(AiProviderId.Codex, AccountLabels(s, AiProviderSettings.Codex, _lastCodex.Plan,
+            _codexExtras.Select((e, i) => (e.Account, _codexExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
         _edge.SetCodex(_lastCodex.Hidden || index == 0 ? WithOrbUsage(_lastCodex)
             : _codexExtraReadings.ElementAtOrDefault(index - 1) ?? CodexSnapshot.Failed("Cargando…"));
     }
@@ -653,6 +663,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastCursor is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Cursor);
+        _edge.SetAccounts(AiProviderId.Cursor, AccountLabels(s, AiProviderSettings.Cursor, _lastCursor.Plan,
+            _cursorExtras.Select((e, i) => (e.Account, _cursorExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
         _edge.SetCursor(_lastCursor.Hidden || index == 0 ? WithOrbUsage(_lastCursor)
             : _cursorExtraReadings.ElementAtOrDefault(index - 1) ?? CursorSnapshot.Failed("Cargando…"));
     }
@@ -682,40 +694,210 @@ public partial class App : Application
     {
         bool changed = false;
         ImmutableArray<ExtraAccount> claude = settings.AccountsOf(AiProviderSettings.Claude);
-        if (!claude.SequenceEqual(_claudeExtras.Select(e => e.Account)))
+        if (!SameFolders(claude, _claudeExtras.Select(e => e.Account)))
         {
             _claudeExtras = [.. claude.Select(a => (a, new ClaudeUsageService(Path.Combine(a.Folder, ".credentials.json"))))];
             _claudeExtraReadings = [];
             changed = true;
         }
+        else _claudeExtras = [.. _claudeExtras.Select((e, i) => (claude[i], e.Service))];
         ImmutableArray<ExtraAccount> codex = settings.AccountsOf(AiProviderSettings.Codex);
-        if (!codex.SequenceEqual(_codexExtras.Select(e => e.Account)))
+        if (!SameFolders(codex, _codexExtras.Select(e => e.Account)))
         {
             _codexExtras = [.. codex.Select(a => (a, new CodexUsageService(Path.Combine(a.Folder, "auth.json"))))];
             _codexExtraReadings = [];
             changed = true;
         }
+        else _codexExtras = [.. _codexExtras.Select((e, i) => (codex[i], e.Service))];
         ImmutableArray<ExtraAccount> cursor = settings.AccountsOf(AiProviderSettings.Cursor);
-        if (!cursor.SequenceEqual(_cursorExtras.Select(e => e.Account)))
+        if (!SameFolders(cursor, _cursorExtras.Select(e => e.Account)))
         {
             _cursorExtras = [.. cursor.Select(a => (a, new CursorUsageService(Path.Combine(a.Folder, "User", "globalStorage", "state.vscdb"))))];
             _cursorExtraReadings = [];
             changed = true;
         }
-        if (_edge is not null)
+        else _cursorExtras = [.. _cursorExtras.Select((e, i) => (cursor[i], e.Service))];
+        // Show* repaint the account tags too: a name (of any account) can change without the folders changing.
+        string names = string.Join("|", settings.AccountNames.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "=" + p.Value))
+            + "|" + string.Join("|", claude.Concat(codex).Concat(cursor).Select(a => a.Name));
+        if (changed || names != _accountNames)
         {
-            string main = Loc.Get("Account.Default");
-            _edge.SetAccounts(AiProviderId.Claude, [main, .. claude.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Claude));
-            _edge.SetAccounts(AiProviderId.Codex, [main, .. codex.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Codex));
-            _edge.SetAccounts(AiProviderId.Cursor, [main, .. cursor.Select(a => a.Name)], settings.SelectedAccount(AiProviderSettings.Cursor));
-            if (changed)
-            {
-                ShowClaude(settings);
-                ShowCodex(settings);
-                ShowCursor(settings);
-            }
+            _accountNames = names;
+            ShowClaude(settings);
+            ShowCodex(settings);
+            ShowCursor(settings);
         }
         return changed;
+    }
+
+    private string? _accountNames;
+
+    private static bool SameFolders(ImmutableArray<ExtraAccount> accounts, IEnumerable<ExtraAccount> current) =>
+        accounts.Select(a => a.Folder).SequenceEqual(current.Select(a => a.Folder), StringComparer.OrdinalIgnoreCase);
+
+    /// The tag of each account: the name given in Ajustes, else its plan ("Go", "Pro"), else "Cuenta 2". Equal tags get
+    /// a number ("Pro", "Pro 2") so the two can be told apart.
+    private static List<string> AccountLabels(Settings settings, string provider, string? mainPlan,
+        IEnumerable<(ExtraAccount Account, string? Plan)> extras)
+    {
+        var labels = new List<string> { settings.MainAccountName(provider) ?? Fmt.Plan(mainPlan) ?? Loc.Format("Account.Fallback", 1) };
+        int number = 2;
+        foreach ((ExtraAccount account, string? plan) in extras)
+            labels.Add(account.Name.Length > 0 ? account.Name : Fmt.Plan(plan) ?? Loc.Format("Account.Fallback", number++ ));
+        var seen = new Dictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
+        for (int i = 0; i < labels.Count; i++)
+        {
+            int copies = seen.TryGetValue(labels[i], out int count) ? count : 0;
+            seen[labels[i]] = copies + 1;
+            if (copies > 0) labels[i] = $"{labels[i]} {copies + 1}";
+        }
+        return labels;
+    }
+
+    /// Once (the first start of 2.3.1 or later): the other logins of Claude Code and Codex already on this PC
+    /// (AccountDiscovery) are added as accounts without a name, so their tag shows their plan.
+    private static Settings DiscoverAccounts(Settings settings)
+    {
+        if (settings.AccountsDiscovered) return settings;
+        if (AccountDiscovery.Find(settings) is not IReadOnlyDictionary<string, IReadOnlyList<string>> found) return settings;
+        Settings? updated = SettingsStore.Update(x =>
+        {
+            var map = x.Accounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+            foreach ((string provider, IReadOnlyList<string> folders) in found)
+            {
+                ImmutableArray<ExtraAccount> current = x.AccountsOf(provider);
+                map[provider] = current.AddRange(folders.Where(f => !current.Any(a => a.Folder.Equals(f, StringComparison.OrdinalIgnoreCase)))
+                    .Select(f => new ExtraAccount("", f)).Take(SettingsStore.AccountLimit - current.Length));
+            }
+            return x with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal), AccountsDiscovered = true };
+        });
+        int added = found.Values.Sum(f => f.Count);
+        if (added > 0) Log.Info("Accounts", $"cuentas encontradas en este equipo: {added}");
+        return updated ?? settings;
+    }
+
+    // ───────────────────────────── (i), "Abrir" and Orb ─────────────────────────────
+
+    /// The subscription of the account a card shows, for its (i): Claude asks its profile endpoint (cached), Codex and
+    /// Cursor answer from the last reading, the prepaid agents say they have none.
+    private async Task ShowSubscriptionAsync(AiProviderId provider)
+    {
+        if (_edge is null) return;
+        Settings s = SettingsStore.Load();
+        string text;
+        try
+        {
+            text = provider switch
+            {
+                AiProviderId.Claude => await ClaudeSubscriptionText(s),
+                AiProviderId.Codex => CodexSubscriptionText(s),
+                AiProviderId.Cursor => CursorSubscriptionText(s),
+                _ => Loc.Format("Sub.Unknown", Loc.Get("RingName." + AiProviderSettings.Key(provider))),
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Subscription", ex);
+            text = Loc.Get("Msg.SubscriptionUnreadable");
+        }
+        _edge.ShowSubscription(provider, text);
+    }
+
+    /// "23 oct": a renewal is always within the coming months, so the year is left out (the bubble fits one line).
+    private static string Day(DateTimeOffset date) => date.ToLocalTime().ToString("d MMM", Loc.Culture);
+
+    private async Task<string> ClaudeSubscriptionText(Settings s)
+    {
+        int index = s.SelectedAccount(AiProviderSettings.Claude);
+        ClaudeUsageService? service = index == 0 ? _claude : _claudeExtras.ElementAtOrDefault(index - 1).Service;
+        if (service is null) return Loc.Format("Sub.Unknown", "Claude");
+        (ClaudeSubscription? subscription, string? error) = await service.FetchSubscriptionAsync();
+        if (subscription is null) return Loc.Message(error) ?? Loc.Get("Msg.SubscriptionUnreadable");
+        if (!subscription.Status.Equals("active", StringComparison.OrdinalIgnoreCase)) return Loc.Get("Sub.Inactive");
+        if (subscription.CreatedAt is not DateTimeOffset created) return Loc.Format("Sub.Unknown", "Claude");
+        // Anthropic gives no renewal date: the next monthly anniversary of the day the subscription was taken out.
+        return subscription.BillingType?.Contains("subscription", StringComparison.OrdinalIgnoreCase) == true
+            ? Loc.Format("Sub.Renews", Day(ClaudeProfileParser.NextMonthlyRenewal(created, DateTimeOffset.Now)))
+            : Loc.Format("Sub.Unknown", "Claude");
+    }
+
+    private string CodexSubscriptionText(Settings s)
+    {
+        int index = s.SelectedAccount(AiProviderSettings.Codex);
+        CodexSnapshot? shown = index == 0 ? _lastCodex : _codexExtraReadings.ElementAtOrDefault(index - 1);
+        if (shown?.SubscriptionUntil is not DateTimeOffset until) return Loc.Format("Sub.Unknown", "Codex");
+        // The id_token is only renewed with the login: a date already past means it renewed since, monthly.
+        return Loc.Format("Sub.Renews", Day(until > DateTimeOffset.Now ? until : ClaudeProfileParser.NextMonthlyRenewal(until, DateTimeOffset.Now)));
+    }
+
+    private string CursorSubscriptionText(Settings s)
+    {
+        int index = s.SelectedAccount(AiProviderSettings.Cursor);
+        CursorSnapshot? shown = index == 0 ? _lastCursor : _cursorExtraReadings.ElementAtOrDefault(index - 1);
+        return shown?.Cycle?.ResetsAt is DateTimeOffset renews ? Loc.Format("Sub.Renews", Day(renews)) : Loc.Format("Sub.Unknown", "Cursor");
+    }
+
+    /// "Abrir Codex": its app, or its web page when the app cannot be started. Off the UI thread.
+    private static void OpenAgent(AiProviderId provider) => _ = Task.Run(() =>
+    {
+        if (AppLauncher.Open(provider) is string error)
+            Log.Warn("Apps", $"{provider}: {error}");
+    });
+
+    private string? _orbExecutable;
+    private bool _orbProbe;
+    private DateTime _orbProbedAt = DateTime.MinValue;
+    private static readonly TimeSpan OrbProbeInterval = TimeSpan.FromMinutes(10);
+
+    /// Whether Orb is installed (the ring is shown only then) and running; looked up off the UI thread. The executable
+    /// is looked for again only every OrbProbeInterval, or at once when forced (the bridge connected or dropped).
+    private async void RefreshOrbApp(bool force = false)
+    {
+        if (_edge is null || _orbProbe) return;
+        _orbProbe = true;
+        try
+        {
+            bool sharing = SettingsStore.Load().ShareWithOrb;
+            OrbStatus? bridge = _orb;
+            bool probe = force || _orbExecutable is null || DateTime.UtcNow - _orbProbedAt >= OrbProbeInterval;
+            string? known = _orbExecutable;
+            (string? exe, bool running) = await Task.Run(() =>
+            {
+                string? path = probe ? AppLauncher.OrbExecutable(bridge?.Pid) : known;
+                bool open = bridge is null && path is not null && IsProcessRunning("Orb");
+                return (path, open);
+            });
+            if (probe) _orbProbedAt = DateTime.UtcNow;
+            _orbExecutable = exe;
+            _edge?.SetOrbApp(exe is not null, running, sharing);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Apps", "Orb: " + ex.GetType().Name);
+        }
+        finally
+        {
+            _orbProbe = false;
+        }
+    }
+
+    private static bool IsProcessRunning(string name)
+    {
+        Process[] processes = Process.GetProcessesByName(name);
+        foreach (Process process in processes) process.Dispose();
+        return processes.Length > 0;
+    }
+
+    /// The Orb ring: Orb itself (Electron brings its open window to the front), or its download page.
+    private void OpenOrb()
+    {
+        string? exe = _orbExecutable;
+        _ = Task.Run(() =>
+        {
+            string? error = exe is not null ? AppLauncher.OpenOrb(exe)
+                : AppLauncher.OpenUrl($"https://github.com/{MoreAppsService.Orb.Repository}/releases/latest");
+            if (error is not null) Log.Warn("Apps", "Orb: " + error);
+        });
     }
 
     // ───────────────────────────── FPS and Modo juego ─────────────────────────────
@@ -876,6 +1058,7 @@ public partial class App : Application
         if (_edge is null) return;
         if (connectionChanged || previous?.Tasks != orb?.Tasks || previous?.AssistantBusy != orb?.AssistantBusy)
             _edge.SetOrb(orb);
+        if (connectionChanged) RefreshOrbApp(force: true);
         Settings settings = SettingsStore.Load();
         if (!_renewing && previous?.UsageFor("claude") != orb?.UsageFor("claude")) ShowClaude(settings);
         if (previous?.UsageFor("codex") != orb?.UsageFor("codex")) ShowCodex(settings);

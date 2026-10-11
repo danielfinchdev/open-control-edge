@@ -24,12 +24,14 @@ internal static class RingKeys
     public const string Ram = "ram";
     public const string Fps = "fps";
     public const string GameMode = "gamemode";
+    /// A shortcut that opens Orb, on screen only while Orb is installed (AppLauncher.OrbExecutable).
+    public const string Orb = "orb";
 
     /// Alphabetical by the name shown, which is the default order of every view (FPS goes first in the PC view).
     public static ImmutableArray<string> Ai { get; } = [Claude, Codex, Cursor, DeepSeek, OpenCode, OpenRouter];
-    public static ImmutableArray<string> Pc { get; } = [Fps, Cpu, Gpu, GameMode, Ram];
+    public static ImmutableArray<string> Pc { get; } = [Fps, Cpu, Gpu, GameMode, Ram, Orb];
     public static ImmutableArray<string> All { get; } =
-        [Claude, Codex, Cpu, Cursor, DeepSeek, Fps, Gpu, GameMode, OpenCode, OpenRouter, Ram];
+        [Claude, Codex, Cpu, Cursor, DeepSeek, Fps, Gpu, GameMode, OpenCode, OpenRouter, Orb, Ram];
 
     public static ImmutableArray<string> For(WidgetView view) => view switch
     {
@@ -50,13 +52,18 @@ internal static class RingKeys
         _ => null,
     };
 
-    /// The view after this one, for the panel's view button: IA → PC → Personalizada → IA.
-    public static WidgetView Next(WidgetView view) => view switch
+    /// The view after this one, for the panel's view button: IA → PC → Personalizada → IA (IA ↔ PC while the custom
+    /// view is switched off in the settings).
+    public static WidgetView Next(WidgetView view, bool customEnabled = true) => view switch
     {
         WidgetView.Ai => WidgetView.Pc,
-        WidgetView.Pc => WidgetView.Custom,
+        WidgetView.Pc when customEnabled => WidgetView.Custom,
         _ => WidgetView.Ai,
     };
+
+    /// The views the panel can show: IA, PC and, when it is switched on, Personalizada.
+    public static ImmutableArray<WidgetView> Views(bool customEnabled) =>
+        customEnabled ? [WidgetView.Ai, WidgetView.Pc, WidgetView.Custom] : [WidgetView.Ai, WidgetView.Pc];
 }
 
 /// Order of the rings of one view and the ones switched off. Always holds every ring of the view exactly once.
@@ -136,5 +143,5 @@ internal enum GamePowerPlan
 }
 
 /// One more account of Claude Code, Codex or Cursor: its own configuration folder (CLAUDE_CONFIG_DIR, CODEX_HOME or
-/// Cursor's --user-data-dir), shown next to the default one under a name.
+/// Cursor's --user-data-dir), shown next to the default one under a name. An empty name shows the account's plan.
 internal sealed record ExtraAccount(string Name, string Folder);

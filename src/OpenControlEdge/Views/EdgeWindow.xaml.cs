@@ -43,12 +43,13 @@ public partial class EdgeWindow : Window
     internal const int RingRam = 8;
     internal const int RingFps = 9;
     internal const int RingGameMode = 10;
+    internal const int RingOrb = 11;
 
     /// The settings key of each ring, by index.
     private static readonly string[] RingKeyOf =
     [
         RingKeys.Claude, RingKeys.Codex, RingKeys.Cursor, RingKeys.OpenCode, RingKeys.DeepSeek, RingKeys.OpenRouter,
-        RingKeys.Cpu, RingKeys.Gpu, RingKeys.Ram, RingKeys.Fps, RingKeys.GameMode,
+        RingKeys.Cpu, RingKeys.Gpu, RingKeys.Ram, RingKeys.Fps, RingKeys.GameMode, RingKeys.Orb,
     ];
 
     // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs.
@@ -145,6 +146,11 @@ public partial class EdgeWindow : Window
     private FpsService.Sample? _fps;
     private GameModeSnapshot? _gameMode;
     private bool _syncingAccounts;
+    private readonly Dictionary<AiProviderId, (string[] Labels, int Selected, string Culture)> _accounts = new();
+
+    /// Up to this many account tags fit next to a card's title; more go to a row of their own under it.
+    private const int MaxTagsBesideTitle = 3;
+    private AiProviderId? _infoFor;
 
     internal bool AnimationsEnabled { get; set; } = true;
 
@@ -168,8 +174,17 @@ public partial class EdgeWindow : Window
     /// The view button was pressed: the owner persists the next view and calls ApplyViews.
     internal event Action<WidgetView>? ViewChangeRequested;
 
-    /// An account tab of a card was chosen (0 = the default account). The owner persists it and repaints the ring.
+    /// An account tag of a card was chosen (0 = the default account). The owner persists it and repaints the ring.
     internal event Action<AiProviderId, int>? AccountSelected;
+
+    /// The (i) of a card was opened: the owner answers with ShowSubscription (at once, or after asking the provider).
+    internal event Action<AiProviderId>? SubscriptionRequested;
+
+    /// "Abrir Codex" and the like: the owner opens the agent's app or web page.
+    internal event Action<AiProviderId>? OpenRequested;
+
+    /// The Orb ring was clicked: open Orb.
+    internal event Action? OrbOpenRequested;
 
     /// The Modo juego ring was clicked: switch it (or open its settings when it is not enabled).
     internal event Action? GameModeClicked;
@@ -198,9 +213,9 @@ public partial class EdgeWindow : Window
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem, FpsItem, GameModeItem };
-        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing, FpsRing, GameModeRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard, FpsCard, GameModeCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem, FpsItem, GameModeItem, OrbItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing, FpsRing, GameModeRing, OrbRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard, FpsCard, GameModeCard, OrbCard };
         // What the XAML shows at first is what is available before any reading (Claude, CPU, RAM, FPS, Modo juego).
         _available = _ringItems.Select(item => item.Visibility == Visibility.Visible).ToArray();
         _inView = new bool[_ringItems.Length];
@@ -213,8 +228,15 @@ public partial class EdgeWindow : Window
         Top = -32000;
 
         SyncModeButton();
-        SyncViewButton();
+        SyncOpenButtons();
+        SetOrb(null);
         SyncUsageTabs();
+        // A click anywhere on the card (but on the (i) itself) closes the subscription bubble.
+        Card.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (_infoFor is not null && !IsInfoButton(e.OriginalSource as DependencyObject) && !IsAccountTag(e.OriginalSource as DependencyObject))
+                CloseInfo();
+        };
         Canvas.SetLeft(EdgePanel, WindowWidthDip - PanelWidth);
         Canvas.SetLeft(Card, CardSideRoom);
         Card.Width = CardBodyWidth + BeakLength;
@@ -269,11 +291,12 @@ public partial class EdgeWindow : Window
         }
     }
 
-    /// Pinned: chevron to the right ("hide into the edge"). Auto: chevron to the left ("bring the panel out").
+    /// A pin: filled with the text colour while the panel is pinned (white on the dark theme), plain while it hides.
     private void SyncModeButton()
     {
         bool pinned = _mode == PanelMode.Pinned;
-        ModeIcon.Icon = pinned ? Icons.ChevronRight : Icons.ChevronLeft;
+        ModeButton.Tag = pinned ? "on" : null;
+        ModeIcon.SetResourceReference(IconView.ForegroundProperty, pinned ? ThemeManager.Background : ThemeManager.Text);
         string tip = pinned ? "Tip.Hide" : "Tip.Pin";
         ModeButton.SetResourceReference(ToolTipProperty, tip);
         ModeButton.SetResourceReference(AutomationProperties.NameProperty, tip);
@@ -288,17 +311,9 @@ public partial class EdgeWindow : Window
 
     private void OnViewClick(object sender, RoutedEventArgs e)
     {
-        WidgetView next = RingKeys.Next(_view);
+        WidgetView next = RingKeys.Next(_view, _views.CustomViewEnabled);
         Log.Trace("Edge", $"view button clicked -> {next}");
         ViewChangeRequested?.Invoke(next);
-    }
-
-    /// The tooltip names the view the button leads to.
-    private void SyncViewButton()
-    {
-        string tip = Loc.Format("Tip.View", Loc.Get("View." + RingKeys.Next(_view)));
-        ViewButton.ToolTip = tip;
-        AutomationProperties.SetName(ViewButton, tip);
     }
 
     internal WidgetView View => _view;
@@ -320,6 +335,7 @@ public partial class EdgeWindow : Window
     internal void SetOrb(OrbStatus? orb)
     {
         _orb = orb;
+        SyncOrbRing();
         OrbBadge.Visibility = orb is null ? Visibility.Collapsed : Visibility.Visible;
         if (orb is null)
         {
@@ -339,6 +355,57 @@ public partial class EdgeWindow : Window
         };
         OrbBadge.ToolTip = $"{Loc.Get("Orb.Connected")}\n{tasks}\n{assistant}";
         AutomationProperties.SetName(OrbBadge, $"{Loc.Get("Orb.Connected")}. {tasks}. {assistant}");
+    }
+
+    private bool _orbRunning;
+    private bool _orbSharing = true;
+
+    /// Orb is installed (the ring is on screen in the views that show it) and whether it is running: known from the
+    /// bridge while sharing is on, from its process otherwise.
+    internal void SetOrbApp(bool installed, bool running, bool sharing)
+    {
+        if (_available[RingOrb] == installed && _orbRunning == running && _orbSharing == sharing) return;
+        _orbRunning = running;
+        _orbSharing = sharing;
+        SetRingVisible(RingOrb, installed);
+        SyncOrbRing();
+    }
+
+    /// Full green ring while Orb is open, empty while it is closed; the card says what the bridge knows of it.
+    private void SyncOrbRing()
+    {
+        bool running = _orb is not null || _orbRunning;
+        string before = OrbState.Text + OrbDetails.Text + OrbDetails.Visibility;
+        OrbRing.RingBrush = Palette.Low;
+        AnimateRing(OrbRing, running ? 1 : 0, 300);
+        OrbState.Text = Loc.Get(running ? "Orb.Running" : "Orb.Closed");
+        if (_orb is OrbStatus orb)
+        {
+            string tasks = orb.Tasks is OrbTasks t
+                ? Loc.Format("Orb.Tasks", t.Running, t.Queued, t.AwaitingApproval)
+                : Loc.Format("Orb.TasksValue", Loc.Get("Value.NoData").ToLower(Loc.Culture));
+            string assistant = orb.AssistantBusy switch
+            {
+                true => Loc.Get("Orb.AssistantBusy"),
+                false => Loc.Get("Orb.AssistantIdle"),
+                null => Loc.Format("Orb.AssistantValue", Loc.Get("Value.NoData").ToLower(Loc.Culture)),
+            };
+            OrbDetails.Text = $"{tasks}\n{assistant}";
+            OrbDetails.Visibility = Visibility.Visible;
+        }
+        else if (running && !_orbSharing)
+        {
+            OrbDetails.Text = Loc.Get("Orb.NotSharing");
+            OrbDetails.Visibility = Visibility.Visible;
+        }
+        else OrbDetails.Visibility = Visibility.Collapsed;
+        if (_cardVisible && _activeRing == RingOrb && before != OrbState.Text + OrbDetails.Text + OrbDetails.Visibility) PlaceCard(animate: true);
+    }
+
+    private void OnOrbClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        Log.Trace("Edge", "orb ring clicked");
+        OrbOpenRequested?.Invoke();
     }
 
     private static SolidColorBrush CreateFrozen(Color color)
@@ -361,11 +428,11 @@ public partial class EdgeWindow : Window
     internal void ApplyViews(Settings settings, bool animate)
     {
         _views = settings;
-        ViewLayout layout = settings.Layout(settings.View);
-        bool changed = settings.View != _view || !layout.Equals(_layout);
-        _view = settings.View;
+        WidgetView view = settings.ShownView;
+        ViewLayout layout = settings.Layout(view);
+        bool changed = view != _view || !layout.Equals(_layout);
+        _view = view;
         _layout = layout;
-        SyncViewButton();
         if (!changed)
         {
             UpdateMaxRings();
@@ -476,7 +543,7 @@ public partial class EdgeWindow : Window
     private void UpdateMaxRings()
     {
         int max = 1;
-        foreach (WidgetView view in new[] { WidgetView.Ai, WidgetView.Pc, WidgetView.Custom })
+        foreach (WidgetView view in RingKeys.Views(_views.CustomViewEnabled))
             max = Math.Max(max, _views.Layout(view).Shown.Count(key => _available[Array.IndexOf(RingKeyOf, key)]));
         if (max == _maxRings) return;
         _maxRings = max;
@@ -543,7 +610,7 @@ public partial class EdgeWindow : Window
     {
         ApplyRingBrushes();
         SyncModeButton();
-        SyncViewButton();
+        SyncOpenButtons();
         if (_fps is FpsService.Sample fps) { _fps = null; SetFps(fps); }
         if (_gameMode is not null) SetGameMode(_gameMode);
         SetOrb(_orb);
@@ -596,39 +663,140 @@ public partial class EdgeWindow : Window
 
     // ───────────────────────────── Accounts ─────────────────────────────
 
-    /// The account tabs of a card: one per account (names[0] is the default one), only when there is more than one.
-    internal void SetAccounts(AiProviderId provider, IReadOnlyList<string> names, int selected)
+    /// The account tags of a card: one per account (labels[0] is the default one: its name, or its plan), shown instead of
+    /// the plan badge when there is more than one. Rebuilt only when the labels or the selection change.
+    internal void SetAccounts(AiProviderId provider, IReadOnlyList<string> labels, int selected)
     {
-        (Border? list, UniformGrid? grid) = provider switch
+        (Border? plan, StackPanel? beside, WrapPanel? row) = provider switch
         {
-            AiProviderId.Claude => (ClaudeAccounts, ClaudeAccountList),
-            AiProviderId.Codex => (CodexAccounts, CodexAccountList),
-            AiProviderId.Cursor => (CursorAccounts, CursorAccountList),
-            _ => ((Border?)null, (UniformGrid?)null),
+            AiProviderId.Claude => (ClaudePlan, ClaudeAccountBadges, ClaudeAccountRow),
+            AiProviderId.Codex => (CodexPlan, CodexAccountBadges, CodexAccountRow),
+            AiProviderId.Cursor => (CursorPlan, CursorAccountBadges, CursorAccountRow),
+            _ => ((Border?)null, (StackPanel?)null, (WrapPanel?)null),
         };
-        if (list is null || grid is null) return;
+        if (plan is null || beside is null || row is null) return;
+        string culture = Loc.Culture.Name;
+        if (_accounts.TryGetValue(provider, out var shown) && shown.Selected == selected && shown.Culture == culture
+            && shown.Labels.SequenceEqual(labels)) return;
+        _accounts[provider] = ([.. labels], selected, culture);
         _syncingAccounts = true;
-        grid.Children.Clear();
-        for (int i = 0; i < names.Count; i++)
+        beside.Children.Clear();
+        row.Children.Clear();
+        Panel badges = labels.Count > MaxTagsBesideTitle ? row : beside;
+        if (labels.Count > 1)
         {
-            int index = i;
-            var tab = new RadioButton
+            for (int i = 0; i < labels.Count; i++)
             {
-                Style = (Style)FindResource("UsageTab"), Content = names[i], GroupName = provider + "Account",
-                IsChecked = i == selected, ToolTip = names[i],
-            };
-            AutomationProperties.SetAutomationId(tab, $"{provider}Account{i}");
-            tab.Checked += (_, _) =>
-            {
-                if (_syncingAccounts) return;
-                Log.Trace("Edge", $"{provider} account -> {index}");
-                AccountSelected?.Invoke(provider, index);
-            };
-            grid.Children.Add(tab);
+                int index = i;
+                var tag = new RadioButton
+                {
+                    Style = (Style)FindResource("AccountBadge"), Content = labels[i], GroupName = provider + "Account",
+                    IsChecked = i == selected, Margin = badges == row ? new Thickness(4, 0, 0, 4) : new Thickness(i == 0 ? 8 : 4, 0, 0, 0),
+                    ToolTip = Loc.Format(i == selected ? "Account.Shown" : "Account.Switch", labels[i]),
+                };
+                AutomationProperties.SetAutomationId(tag, $"{provider}Account{i}");
+                AutomationProperties.SetName(tag, labels[i]);
+                tag.Checked += (_, _) =>
+                {
+                    if (_syncingAccounts) return;
+                    Log.Trace("Edge", $"{provider} account -> {index}");
+                    AccountSelected?.Invoke(provider, index);
+                    if (_infoFor == provider) SubscriptionRequested?.Invoke(provider);
+                };
+                badges.Children.Add(tag);
+            }
         }
-        list.Visibility = names.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        beside.Visibility = badges == beside && labels.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        row.Visibility = badges == row ? Visibility.Visible : Visibility.Collapsed;
+        if (labels.Count > 1) plan.Visibility = Visibility.Collapsed;
         _syncingAccounts = false;
         if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    private bool HasAccountTags(AiProviderId provider) => _accounts.TryGetValue(provider, out var shown) && shown.Labels.Length > 1;
+
+    // ───────────────────────────── (i) and "Abrir" ─────────────────────────────
+
+    private (Button Info, Button Open, AiProviderId Provider)[]? _cardButtons;
+
+    private (Button Info, Button Open, AiProviderId Provider)[] CardButtons => _cardButtons ??=
+    [
+        (ClaudeInfo, ClaudeOpen, AiProviderId.Claude), (CodexInfo, CodexOpen, AiProviderId.Codex),
+        (CursorInfo, CursorOpen, AiProviderId.Cursor), (OpenCodeInfo, OpenCodeOpen, AiProviderId.OpenCode),
+        (DeepSeekInfo, DeepSeekOpen, AiProviderId.DeepSeek), (OpenRouterInfo, OpenRouterOpen, AiProviderId.OpenRouter),
+    ];
+
+    /// "Abrir Codex"… and the (i)'s tooltip, in the interface language.
+    private void SyncOpenButtons()
+    {
+        foreach ((Button info, Button open, AiProviderId provider) in CardButtons)
+        {
+            string tip = Loc.Format("Card.Open", Loc.Get("RingName." + AiProviderSettings.Key(provider)));
+            open.ToolTip = tip;
+            AutomationProperties.SetName(open, tip);
+            info.SetResourceReference(ToolTipProperty, "Tip.Info");
+            info.SetResourceReference(AutomationProperties.NameProperty, "Tip.Info");
+        }
+    }
+
+    private void OnOpenClick(object sender, RoutedEventArgs e)
+    {
+        foreach ((_, Button open, AiProviderId provider) in CardButtons)
+        {
+            if (!ReferenceEquals(open, sender)) continue;
+            Log.Trace("Edge", $"open {provider}");
+            OpenRequested?.Invoke(provider);
+        }
+    }
+
+    private void OnInfoClick(object sender, RoutedEventArgs e)
+    {
+        foreach ((Button info, _, AiProviderId provider) in CardButtons)
+        {
+            if (!ReferenceEquals(info, sender)) continue;
+            if (_infoFor == provider) { CloseInfo(); return; }
+            CloseInfo();
+            _infoFor = provider;
+            info.Tag = "on";
+            InfoTitle.Text = Loc.Get("Sub.Title");
+            InfoText.Text = Loc.Get("Sub.Loading");
+            InfoBubble.Visibility = Visibility.Visible;
+            if (_cardVisible) PlaceCard(animate: true);
+            SubscriptionRequested?.Invoke(provider);
+            return;
+        }
+    }
+
+    /// The owner's answer to SubscriptionRequested; ignored once the bubble is closed or shows another agent.
+    internal void ShowSubscription(AiProviderId provider, string text)
+    {
+        if (_infoFor != provider) return;
+        InfoText.Text = text;
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// place: re-fit the card to its content now (not when the card is about to be placed or hidden anyway).
+    private void CloseInfo(bool place = true)
+    {
+        if (_infoFor is null) return;
+        _infoFor = null;
+        foreach ((Button info, _, _) in CardButtons) info.Tag = null;
+        InfoBubble.Visibility = Visibility.Collapsed;
+        if (place && _cardVisible) PlaceCard(animate: true);
+    }
+
+    private static bool IsAccountTag(DependencyObject? element)
+    {
+        for (; element is not null; element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element))
+            if (element is RadioButton { GroupName: string group } && group.EndsWith("Account", StringComparison.Ordinal)) return true;
+        return false;
+    }
+
+    private bool IsInfoButton(DependencyObject? element)
+    {
+        for (; element is not null; element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element))
+            if (element is Button button && CardButtons.Any(b => ReferenceEquals(b.Info, button))) return true;
+        return false;
     }
 
     // ───────────────────────────── FPS and Modo juego ─────────────────────────────
@@ -673,7 +841,7 @@ public partial class EdgeWindow : Window
         _gameMode = state;
         GameModeRing.RingBrush = Palette.Low;
         AnimateRing(GameModeRing, state.Active ? 1 : 0, 400);
-        GameModeLabel.Text = state.Busy ? "…" : state.Active ? "ON" : "OFF";
+        GameModeLabel.Text = state.Busy ? "…" : Loc.Get(state.Active ? "Game.On" : "Game.Off");
         GameModeItem.SetResourceReference(ToolTipProperty, !state.Allowed ? "Tip.GameModeSettings"
             : state.Active ? "Tip.GameModeOff" : "Tip.GameModeOn");
         GameModeState.Text = Loc.Get(state.Busy ? "Game.Applying" : !state.Allowed ? "Game.Disabled"
@@ -824,7 +992,8 @@ public partial class EdgeWindow : Window
         _claude = snapshot;
         SetRingVisible(RingClaude, !snapshot.Hidden);
         if (snapshot.Hidden) return;
-        SetPlan(ClaudePlan, ClaudePlanText, snapshot.Plan);
+        SetPlan(ClaudePlan, ClaudePlanText, HasAccountTags(AiProviderId.Claude) ? null : snapshot.Plan);
+        SetInfoButton(ClaudeInfo, snapshot.Plan);
 
         if (snapshot.Session is UsageWindow session)
         {
@@ -885,7 +1054,8 @@ public partial class EdgeWindow : Window
         _codex = snapshot;
         SetRingVisible(RingCodex, !snapshot.Hidden);
         if (snapshot.Hidden) return;
-        SetPlan(CodexPlan, CodexPlanText, snapshot.Plan);
+        SetPlan(CodexPlan, CodexPlanText, HasAccountTags(AiProviderId.Codex) ? null : snapshot.Plan);
+        SetInfoButton(CodexInfo, snapshot.Plan);
 
         if (snapshot.Primary is CodexWindow primary)
         {
@@ -932,7 +1102,8 @@ public partial class EdgeWindow : Window
         _cursor = snapshot;
         SetRingVisible(RingCursor, !snapshot.Hidden);
         if (snapshot.Hidden) return;
-        SetPlan(CursorPlan, CursorPlanText, snapshot.Plan);
+        SetPlan(CursorPlan, CursorPlanText, HasAccountTags(AiProviderId.Cursor) ? null : snapshot.Plan);
+        SetInfoButton(CursorInfo, snapshot.Plan);
 
         // Cursor only has the monthly billing cycle, so both tabs show it.
         if (snapshot.Cycle is UsageWindow cycle)
@@ -982,6 +1153,14 @@ public partial class EdgeWindow : Window
         CodexWindow shorter = primaryShorter ? primary : secondary;
         CodexWindow longer = primaryShorter ? secondary : primary;
         return _usageView == UsageView.Total ? longer : shorter;
+    }
+
+    /// The (i) is for a subscription: none on a free plan (an unknown plan keeps it; the bubble says what it can).
+    private void SetInfoButton(Button info, string? plan)
+    {
+        bool free = string.Equals(plan, "free", StringComparison.OrdinalIgnoreCase);
+        info.Visibility = free ? Visibility.Collapsed : Visibility.Visible;
+        if (free && CardButtons.FirstOrDefault(b => ReferenceEquals(b.Info, info)).Provider is var provider && _infoFor == provider) CloseInfo();
     }
 
     private static void SetPlan(Border badge, TextBlock text, string? plan)
@@ -1581,6 +1760,7 @@ public partial class EdgeWindow : Window
         if (_cardVisible && !switching) return;
         Log.Trace("Edge", $"show card {index} (switching={switching})");
 
+        CloseInfo(place: false);
         _activeRing = index;
         for (int i = 0; i < _cards.Length; i++)
             _cards[i].Visibility = i == index ? Visibility.Visible : Visibility.Collapsed;
@@ -1608,6 +1788,7 @@ public partial class EdgeWindow : Window
         if (!_cardVisible) return;
         Log.Trace("Edge", "hide card");
         _cardVisible = false;
+        CloseInfo();
         Card.IsHitTestVisible = false;
         _timeTextTimer.Stop();
         _activeRing = -1;
@@ -1763,6 +1944,14 @@ public partial class EdgeWindow : Window
     // ───────────────────────────── Snapshot support ─────────────────────────────
 
     internal void ExpandNow() => Expand();
+
+    /// The (i) bubble of the card on screen, open with this text.
+    internal void OpenInfoNow(AiProviderId provider, string text)
+    {
+        foreach ((Button info, _, AiProviderId id) in CardButtons)
+            if (id == provider) OnInfoClick(info, new RoutedEventArgs());
+        ShowSubscription(provider, text);
+    }
 
     internal void CollapseNow() => Collapse();
 

@@ -63,6 +63,11 @@ internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWin
     /// Credits of the account (credits in wham/usage), only when has_credits is true; null otherwise.
     public CodexCredits? Credits { get; init; }
 
+    /// The subscription as the login's id_token tells it (CodexCredentialReader): paid until, and when ChatGPT last
+    /// checked it. Null when the token does not say.
+    public DateTimeOffset? SubscriptionUntil { get; init; }
+    public DateTimeOffset? SubscriptionCheckedAt { get; init; }
+
     /// Set when this reading is Orb's (orb.json), shown because OCE has none of its own: the account and window Orb
     /// names, "" when it names neither. The card says where it comes from.
     public string? Source { get; init; }
@@ -110,3 +115,7 @@ internal sealed record OpenRouterSnapshot(bool Hidden, decimal UsageUsd, decimal
 
 /// Modo juego as the panel shows it: Allowed is the switch in Settings, Busy while it is being switched.
 internal sealed record GameModeSnapshot(bool Allowed, bool Active, bool Busy, GameModeResult? Result);
+
+/// Claude's subscription as GET /api/oauth/profile tells it (ClaudeProfileParser): its status ("active"…), the billing
+/// type ("stripe_subscription"…) and when it was taken out. The endpoint carries no renewal date.
+internal sealed record ClaudeSubscription(string Status, string? BillingType, DateTimeOffset? CreatedAt);

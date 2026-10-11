@@ -32,6 +32,8 @@ internal sealed class SettingsWindow : Window
     private readonly StackPanel _content = new();
     private readonly StackPanel _navigation = new();
     private readonly TextBlock _title = new();
+    private readonly TextBlock _sidebarTitle = new();
+    private readonly StackPanel _about = new();
     private readonly ScrollViewer _scroll;
     private readonly ScaleTransform _zoom = new(1, 1);
     private string _category = "General";
@@ -40,7 +42,7 @@ internal sealed class SettingsWindow : Window
     private AiProviderId? _keyEditor;
     private AiProviderId? _accountEditor;
     private WidgetView? _editingView;
-    private static readonly string[] Categories = ["General", "Personalización", "Agentes", "Modo juego", "Información", "Actualizaciones", "Feedback"];
+    private static readonly string[] Categories = ["General", "Personalización", "Agentes", "Modo juego", "Información", "Actualizaciones", "Contribuye", "Más aplicaciones"];
 
     internal SettingsWindow(Func<Task> refresh, Action<Settings> apply, Func<AiProviderId, AgentStatus> agentStatus,
         Func<AiProviderId, Task> retry, string categoryName = "General", UpdateRelease? release = null,
@@ -78,26 +80,35 @@ internal sealed class SettingsWindow : Window
         frame.SetResourceReference(Border.BackgroundProperty, "Set.Background");
         var root = new DockPanel { LayoutTransform = _zoom };
 
-        var header = new DockPanel { Margin = new Thickness(20, 12, 12, 12), Background = Brushes.Transparent };
+        // The header: the product's name centred over the whole window, the close button on the right.
+        var header = new Grid { Margin = new Thickness(20, 12, 12, 12), Background = Brushes.Transparent };
         var close = new Button { Style = (Style)Application.Current.FindResource("PanelRoundButton"), Width = 30, Height = 30,
-            Content = Glyph(Icons.Close, 14), VerticalAlignment = VerticalAlignment.Center };
+            Content = Glyph(Icons.Close, 14), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         close.SetResourceReference(ToolTipProperty, "Settings.Close");
-        close.Click += (_, _) => Close(); DockPanel.SetDock(close, Dock.Right); header.Children.Add(close);
+        close.Click += (_, _) => Close();
         _title.FontSize = 15; _title.FontWeight = FontWeights.SemiBold; _title.VerticalAlignment = VerticalAlignment.Center;
+        _title.HorizontalAlignment = HorizontalAlignment.Center;
         header.Children.Add(_title);
+        header.Children.Add(close);
         header.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var rule = new Border { Height = 1 }; rule.SetResourceReference(Border.BackgroundProperty, "Set.Border");
         DockPanel.SetDock(rule, Dock.Top); root.Children.Add(rule);
 
-        _navigation.Width = 172; _navigation.Margin = new Thickness(12, 14, 0, 14);
+        var sidebar = new DockPanel { Width = 172, Margin = new Thickness(12, 14, 0, 14) };
+        _sidebarTitle.FontSize = 12; _sidebarTitle.FontWeight = FontWeights.SemiBold; _sidebarTitle.Margin = new Thickness(10, 0, 0, 8);
+        _sidebarTitle.SetResourceReference(TextBlock.ForegroundProperty, "Set.Muted");
+        DockPanel.SetDock(_sidebarTitle, Dock.Top); sidebar.Children.Add(_sidebarTitle);
+        _about.Margin = new Thickness(10, 12, 0, 0);
+        DockPanel.SetDock(_about, Dock.Bottom); sidebar.Children.Add(_about);
         foreach (string category in Categories)
         {
             var b = new Button { Tag = category, Style = (Style)Application.Current.FindResource("Oce.NavItem") };
             b.Click += (_, _) => { _category = category; RenderPage(); };
             _navigation.Children.Add(b);
         }
-        DockPanel.SetDock(_navigation, Dock.Left); root.Children.Add(_navigation);
+        sidebar.Children.Add(_navigation);
+        DockPanel.SetDock(sidebar, Dock.Left); root.Children.Add(sidebar);
         _content.Margin = new Thickness(0, 0, 12, 0);
         _scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(20, 16, 8, 14), Content = _content };
         root.Children.Add(_scroll); frame.Child = root; Content = frame;
@@ -313,14 +324,14 @@ internal sealed class SettingsWindow : Window
     private static string CategoryKey(string c) => c switch
     {
         "Personalización" => "Appearance", "Agentes" => "Agents", "Modo juego" => "GameMode", "Información" => "About",
-        "Actualizaciones" => "Updates", "Feedback" => "Feedback", _ => "General",
+        "Actualizaciones" => "Updates", "Contribuye" => "Contribute", "Más aplicaciones" => "Apps", _ => "General",
     };
     private static string Category(string c) => Loc.Get("Settings.Nav." + CategoryKey(c));
     private static string CategoryHint(string c) => Loc.Get("Settings.Hint." + CategoryKey(c));
     private static Drawing CategoryIcon(string c) => c switch
     {
         "General" => Icons.Gear, "Personalización" => Icons.Swatch, "Agentes" => Icons.Bot, "Modo juego" => Icons.Gamepad,
-        "Información" => Icons.Info, "Actualizaciones" => Icons.Refresh, _ => Icons.Message,
+        "Información" => Icons.Info, "Actualizaciones" => Icons.Refresh, "Contribuye" => Icons.Heart, _ => Icons.Apps,
     };
     private static Drawing? ProviderLogo(AiProviderId id) => id switch
     {
@@ -341,6 +352,8 @@ internal sealed class SettingsWindow : Window
     {
         _title.Text = Loc.Get("Settings.Title");
         Title = _title.Text;
+        _sidebarTitle.Text = Loc.Get("Settings.Sidebar");
+        RenderAbout();
         foreach (Button button in _navigation.Children)
         {
             string category = (string)button.Tag;
@@ -357,7 +370,7 @@ internal sealed class SettingsWindow : Window
         _content.Children.Clear();
         if (_release is not null && _category != "Actualizaciones") AddUpdateBanner(_release);
         AddHeading(Category(_category), CategoryHint(_category));
-        switch (_category) { case "General": General(); break; case "Personalización": Appearance(); break; case "Agentes": Agents(); break; case "Modo juego": GameMode(); break; case "Información": About(); break; case "Actualizaciones": Updates(); break; case "Feedback": Feedback(); break; }
+        switch (_category) { case "General": General(); break; case "Personalización": Appearance(); break; case "Agentes": Agents(); break; case "Modo juego": GameMode(); break; case "Información": About(); break; case "Actualizaciones": Updates(); break; case "Contribuye": Contribute(); break; case "Más aplicaciones": MoreApps(); break; }
     }
     private void AddHeading(string text, string hint)
     {
@@ -501,30 +514,33 @@ internal sealed class SettingsWindow : Window
         AddScale(s);
     }
 
-    private static readonly WidgetView[] AllViews = [WidgetView.Ai, WidgetView.Pc, WidgetView.Custom];
 
     private static Drawing? RingIcon(string key) => key switch
     {
         RingKeys.Claude => Icons.ClaudeSpark, RingKeys.Codex => Icons.Codex, RingKeys.Cursor => Icons.Cursor,
         RingKeys.OpenCode => Icons.OpenCode, RingKeys.DeepSeek => Icons.DeepSeek, RingKeys.OpenRouter => Icons.OpenRouter,
         RingKeys.Cpu => Icons.Cpu, RingKeys.Gpu => Icons.Gpu, RingKeys.Ram => Icons.Ram, RingKeys.Fps => Icons.Fps,
-        RingKeys.GameMode => Icons.Gamepad, _ => null,
+        RingKeys.GameMode => Icons.Gamepad, RingKeys.Orb => Icons.OrbHeadDrawing, _ => null,
     };
 
     /// The view the panel shows, and for each view which rings it has and in what order (↑ ↓ and a switch per ring).
     private void AddViews(Settings s)
     {
         var p = Inside(Card(Loc.Get("Settings.Views"), Loc.Get("Settings.ViewsHint")));
-        AddChoice(p, Loc.Get("Settings.ActiveView"), AllViews.Select(v => Loc.Get("View." + v)).ToArray(), Array.IndexOf(AllViews, s.View), i =>
+        WidgetView[] views = [.. RingKeys.Views(s.CustomViewEnabled)];
+        AddChoice(p, Loc.Get("Settings.ActiveView"), views.Select(v => Loc.Get("View." + v)).ToArray(), Array.IndexOf(views, s.ShownView), i =>
         {
-            Settings? updated = SettingsStore.Update(x => x with { View = AllViews[i] });
+            Settings? updated = SettingsStore.Update(x => x with { View = views[i] });
             if (updated is not null) _apply(updated);
         });
+        AddToggle(p, Loc.Get("Settings.CustomView"), s.CustomViewEnabled,
+            (x, on) => x with { CustomViewEnabled = on, View = !on && x.View == WidgetView.Custom ? WidgetView.Ai : x.View },
+            x => x.CustomViewEnabled, updated => { _apply(updated); Dispatcher.InvokeAsync(RenderPage); }, Loc.Get("Settings.CustomViewHint"));
 
-        WidgetView editing = _editingView ?? s.View;
+        WidgetView editing = _editingView is WidgetView chosen && views.Contains(chosen) ? chosen : s.ShownView;
         p.Children.Add(FieldLabel(Loc.Get("Settings.RingsOfView")));
         var tabs = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-        foreach (WidgetView view in AllViews)
+        foreach (WidgetView view in views)
         {
             Button tab = Button(Loc.Get("View." + view), (_, _) => { _editingView = view; RenderPage(); }, variant: view == editing ? "Secondary" : "Ghost");
             tab.Margin = new Thickness(0, 0, 6, 0);
@@ -703,8 +719,9 @@ internal sealed class SettingsWindow : Window
             saved?.Invoke(updated);
             return get(updated);
         });
-    private void AddToggle(Panel panel, string text, bool value, Func<Settings, bool, Settings> set, Func<Settings, bool> get, Action<Settings>? saved = null) =>
-        Row(panel, text, SettingSwitch(value, set, get, saved));
+    private void AddToggle(Panel panel, string text, bool value, Func<Settings, bool, Settings> set, Func<Settings, bool> get, Action<Settings>? saved = null,
+        string? hint = null) =>
+        Row(panel, text, SettingSwitch(value, set, get, saved), hint);
 
     /// The scheduled task is asked off the UI thread (schtasks answers in well under a second; AutoStartService gives
     /// it 5 s at most); the hint says Activado / Desactivado, or why it could not be read or changed.
@@ -932,44 +949,79 @@ internal sealed class SettingsWindow : Window
             (x, v) => x with { ShareWithOrb = v }, x => x.ShareWithOrb, _apply), Loc.Get("Settings.ShareWithOrbHint"));
     }
     /// More accounts of Claude Code, Codex or Cursor: each one is the configuration folder that account signs in to
-    /// (CLAUDE_CONFIG_DIR, CODEX_HOME, Cursor's --user-data-dir) and a name for the tab of its card.
+    /// (CLAUDE_CONFIG_DIR, CODEX_HOME, Cursor's --user-data-dir) and an optional name for its tag on the card (without
+    /// one the tag shows the plan). The logins found on this PC and not added yet can be added with one click.
     private StackPanel AccountEditor(AiProviderId id, Settings settings)
     {
         string provider = AiProviderSettings.Key(id);
         var editor = new StackPanel { Margin = new Thickness(46, 12, 0, 0) };
-        editor.Children.Add(Muted(Loc.Get("Settings.AccountsHint." + provider), new Thickness(0, 0, 0, 8), 12));
+        editor.Children.Add(Muted(Loc.Get("Settings.AccountsHint." + provider), new Thickness(0, 0, 0, 4), 12));
+        editor.Children.Add(Muted(Loc.Get("Settings.AccountNameHint"), new Thickness(0, 0, 0, 8), 12));
         ImmutableArray<ExtraAccount> accounts = settings.AccountsOf(provider);
-        var main = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-        main.Children.Add(new TextBlock { Text = Loc.Get("Account.Default"), FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center });
-        editor.Children.Add(main);
+
+        editor.Children.Add(AccountRow(Loc.Get("Account.Default"), settings.MainAccountName(provider) ?? "", null, name =>
+            SettingsStore.Update(x =>
+            {
+                var map = x.AccountNames.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+                if (name.Length == 0) map.Remove(provider); else map[provider] = name;
+                return x with { AccountNames = map.ToFrozenDictionary(StringComparer.Ordinal) };
+            })));
+        // An account is its folder: a rename does not re-render the page, so the name captured here may be stale.
         foreach (ExtraAccount account in accounts)
         {
-            var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-            Button remove = SmallButton(Loc.Get("Settings.Delete"), (_, _) =>
+            string folder = account.Folder;
+            int Position(Settings x) => x.AccountsOf(provider).ToList().FindIndex(a => a.Folder.Equals(folder, StringComparison.OrdinalIgnoreCase));
+            editor.Children.Add(AccountRow(folder, account.Name, () =>
             {
-                Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Remove(account)));
+                Settings? updated = SettingsStore.Update(x =>
+                {
+                    int at = Position(x);
+                    if (at < 0) return x;
+                    // The account shown on the card stays the same one: 0 when it is the one removed, one less after it.
+                    int selected = x.SelectedAccount(provider);
+                    var map = x.SelectedAccounts.ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
+                    map[provider] = selected == at + 1 ? 0 : selected > at + 1 ? selected - 1 : selected;
+                    return WithAccounts(x, provider, x.AccountsOf(provider).RemoveAt(at))
+                        with { SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+                });
                 if (updated is not null) { _apply(updated); RenderPage(); }
-            });
-            DockPanel.SetDock(remove, Dock.Right);
-            row.Children.Add(remove);
-            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = account.Name, FontWeight = FontWeights.Medium });
-            var folder = Muted(account.Folder, new Thickness(0, 1, 12, 0), 11.5);
-            folder.TextTrimming = TextTrimming.CharacterEllipsis;
-            folder.TextWrapping = TextWrapping.NoWrap;
-            folder.ToolTip = account.Folder;
-            text.Children.Add(folder);
-            row.Children.Add(text);
-            editor.Children.Add(row);
+            }, name => SettingsStore.Update(x =>
+            {
+                int at = Position(x);
+                return at < 0 ? x : WithAccounts(x, provider, x.AccountsOf(provider).SetItem(at, x.AccountsOf(provider)[at] with { Name = name }));
+            })));
         }
 
         if (accounts.Length >= SettingsStore.AccountLimit) return editor;
-        var nameBox = new TextBox { Style = StyleOf("Oce.Input"), MaxLength = 40, Width = 180 };
+        // The logins of this PC that are not accounts yet (AccountDiscovery reads no secret).
+        if (!Preview && id is AiProviderId.Claude or AiProviderId.Codex
+            && AccountDiscovery.Find(settings) is { } discovered && discovered.TryGetValue(provider, out IReadOnlyList<string>? found) && found.Count > 0)
+        {
+            editor.Children.Add(FieldLabel(Loc.Get("Settings.Detected")));
+            foreach (string folder in found)
+            {
+                var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+                Button add = SmallButton(Loc.Get("Settings.Add"), (_, _) =>
+                {
+                    Settings? updated = SettingsStore.Update(x => x.AccountsOf(provider).Any(a => a.Folder.Equals(folder, StringComparison.OrdinalIgnoreCase))
+                        ? x : WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount("", folder))));
+                    if (updated is not null) { _apply(updated); RenderPage(); }
+                });
+                DockPanel.SetDock(add, Dock.Right);
+                row.Children.Add(add);
+                var path = Muted(folder, new Thickness(0, 0, 12, 0), 12);
+                path.TextTrimming = TextTrimming.CharacterEllipsis; path.TextWrapping = TextWrapping.NoWrap; path.ToolTip = folder;
+                path.VerticalAlignment = VerticalAlignment.Center;
+                row.Children.Add(path);
+                editor.Children.Add(row);
+            }
+        }
+
+        var nameBox = new TextBox { Style = StyleOf("Oce.Input"), MaxLength = SettingsStore.AccountNameLimit, Width = 180 };
         AutomationProperties.SetName(nameBox, Loc.Get("Settings.AccountName"));
-        var add = Button(Loc.Get("Settings.AddAccount"), (_, _) =>
+        var addAccount = Button(Loc.Get("Settings.AddAccount"), (_, _) =>
         {
             string name = nameBox.Text.Trim();
-            if (name.Length == 0) { MessageBox.Show(Loc.Get("Settings.AccountNameMissing")); return; }
             var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Loc.Get("Settings.AccountFolder." + provider) };
             if (dialog.ShowDialog(this) != true) return;
             string folder = dialog.FolderName;
@@ -984,13 +1036,47 @@ internal sealed class SettingsWindow : Window
             Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount(name, folder))));
             if (updated is not null) { _apply(updated); RenderPage(); }
         }, true);
-        add.Margin = new Thickness(8, 0, 0, 0);
+        addAccount.Margin = new Thickness(8, 0, 0, 0);
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         addRow.Children.Add(nameBox);
-        addRow.Children.Add(add);
+        addRow.Children.Add(addAccount);
         editor.Children.Add(FieldLabel(Loc.Get("Settings.AccountName")));
         editor.Children.Add(addRow);
         return editor;
+    }
+
+    /// One account: its name field (saved on Enter or when it loses focus), what it is (the default account or its
+    /// folder) and, for the extra ones, a button to remove it.
+    private DockPanel AccountRow(string what, string name, Action? remove, Func<string, Settings?> rename)
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 3, 0, 3) };
+        if (remove is not null)
+        {
+            Button delete = SmallButton(Loc.Get("Settings.Delete"), (_, _) => remove());
+            delete.Margin = new Thickness(8, 0, 0, 0);
+            DockPanel.SetDock(delete, Dock.Right);
+            row.Children.Add(delete);
+        }
+        var box = new TextBox { Style = StyleOf("Oce.Input"), Text = name, MaxLength = SettingsStore.AccountNameLimit, Width = 130,
+            VerticalAlignment = VerticalAlignment.Center, ToolTip = Loc.Get("Settings.AccountName") };
+        AutomationProperties.SetName(box, Loc.Get("Settings.AccountName"));
+        string saved = name;
+        void Save()
+        {
+            string typed = box.Text.Trim();
+            if (typed == saved) return;
+            if (rename(typed) is Settings updated) { saved = typed; _apply(updated); }
+            else box.Text = saved;
+        }
+        box.LostKeyboardFocus += (_, _) => Save();
+        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Save(); };
+        DockPanel.SetDock(box, Dock.Left);
+        row.Children.Add(box);
+        var label = Muted(what, new Thickness(12, 0, 0, 0), 12);
+        label.TextTrimming = TextTrimming.CharacterEllipsis; label.TextWrapping = TextWrapping.NoWrap; label.ToolTip = what;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(label);
+        return row;
     }
 
     private static Settings WithAccounts(Settings settings, string provider, ImmutableArray<ExtraAccount> accounts)
@@ -1093,7 +1179,7 @@ internal sealed class SettingsWindow : Window
         b.Click += click; return b;
     }
     /// Outline badge with a coloured dot: connected (and the plan), not installed, hidden, no session or sync error.
-    private static Border StatusBadge(AgentStatus status)
+    private static Border StatusBadge(AgentStatus status, string? label = null)
     {
         (string text, string? dot) = status.Kind switch
         {
@@ -1105,9 +1191,9 @@ internal sealed class SettingsWindow : Window
         };
         var content = new StackPanel { Orientation = Orientation.Horizontal };
         if (dot is not null) content.Children.Add(new Ellipse { Width = 6, Height = 6, Fill = (Brush)Application.Current.FindResource(dot), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 6, 0) });
-        var label = new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center };
-        label.SetResourceReference(TextBlock.ForegroundProperty, dot is null ? "Set.Muted" : "Set.Foreground");
-        content.Children.Add(label);
+        var caption = new TextBlock { Text = label ?? text, FontSize = 11.5, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center };
+        caption.SetResourceReference(TextBlock.ForegroundProperty, dot is null ? "Set.Muted" : "Set.Foreground");
+        content.Children.Add(caption);
         return new Border { Style = StyleOf("Oce.Badge"), Child = content };
     }
     /// API key field of DeepSeek / OpenRouter, opened from the row's "Clave API" button.
@@ -1201,6 +1287,95 @@ internal sealed class SettingsWindow : Window
             x => x.AutoCheckUpdates, _apply);
     }
     private readonly List<FeedbackImage> _feedbackImages = new();
+
+    /// The author's links (Ajustes › Contribuye, the sidebar's footer).
+    private const string AuthorGitHub = "danielfinchdev";
+    private const string AuthorUrl = "https://github.com/danielfinchdev";
+    private const string PayPalUrl = "https://paypal.me/DanielFinch";
+
+    /// The bottom of the sidebar, as in Orb: the author's GitHub (a link) and this version.
+    private void RenderAbout()
+    {
+        _about.Children.Clear();
+        var link = new Button { Style = StyleOf("Oce.Button.Ghost"), Padding = new Thickness(0), MinWidth = 0, Height = 24,
+            HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(Glyph(Icons.GitHub, 15));
+        var handle = new TextBlock { Text = "@" + AuthorGitHub, FontSize = 13, FontWeight = FontWeights.Medium, Margin = new Thickness(7, 0, 0, 1),
+            VerticalAlignment = VerticalAlignment.Center };
+        content.Children.Add(handle);
+        link.Content = content;
+        var tip = new StackPanel();
+        tip.Children.Add(new TextBlock { Text = "@" + AuthorGitHub, FontWeight = FontWeights.SemiBold });
+        tip.Children.Add(new TextBlock { Text = Loc.Get("Settings.Author"), Opacity = 0.75, Margin = new Thickness(0, 1, 0, 0) });
+        link.ToolTip = tip;
+        AutomationProperties.SetName(link, Loc.Get("Settings.Author"));
+        link.Click += (_, _) => OpenUnelevated(AuthorUrl);
+        _about.Children.Add(link);
+        _about.Children.Add(Muted("Open Control Edge " + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? ""),
+            new Thickness(0, 2, 0, 0), 12));
+    }
+
+    /// Contribuye: a contribution through PayPal and the feedback form.
+    private void Contribute()
+    {
+        var support = Inside(Card(Loc.Get("Contribute.SupportTitle"), Loc.Get("Contribute.SupportDesc")));
+        support.Children.RemoveAt(support.Children.Count - 1);
+        Button paypal = Button(Loc.Get("Contribute.PayPal"), (_, _) => OpenUnelevated(PayPalUrl), true);
+        var label = new StackPanel { Orientation = Orientation.Horizontal };
+        label.Children.Add(Glyph(Icons.Heart, 14, "Set.PrimaryForeground"));
+        label.Children.Add(new TextBlock { Text = Loc.Get("Contribute.PayPal"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        paypal.Content = label;
+        Actions(support, paypal);
+        Feedback();
+    }
+
+    /// Más aplicaciones: Orb, with its latest version on GitHub, and open (when installed) or download.
+    private void MoreApps()
+    {
+        var p = Inside(Card(string.Empty));
+        var row = new DockPanel();
+        var icon = new Border { Width = 48, Height = 48, CornerRadius = new CornerRadius(12), ClipToBounds = true, Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Top, Background = new ImageBrush(Icons.OrbIcon) { Stretch = Stretch.UniformToFill } };
+        DockPanel.SetDock(icon, Dock.Left);
+        row.Children.Add(icon);
+        var text = new StackPanel();
+        var title = new WrapPanel();
+        title.Children.Add(new TextBlock { Text = MoreAppsService.Orb.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) });
+        string? installed = Preview ? null : AppLauncher.OrbExecutable();
+        if (installed is not null) title.Children.Add(StatusBadge(new AgentStatus("connected", null, null, null), Loc.Get("Apps.Installed")));
+        text.Children.Add(title);
+        text.Children.Add(Muted(Loc.Get("Apps.Orb"), new Thickness(0, 4, 0, 0)));
+        var version = Muted(Loc.Get("Apps.Loading"), new Thickness(0, 4, 0, 0), 12);
+        text.Children.Add(version);
+        row.Children.Add(text);
+        p.Children.Add(row);
+
+        string page = $"https://github.com/{MoreAppsService.Orb.Repository}/releases/latest";
+        string download = page;
+        var buttons = new List<Button>();
+        if (installed is not null)
+            buttons.Add(Button(Loc.Get("Apps.Open"), (_, _) => { if (AppLauncher.OpenOrb(installed) is string error) MessageBox.Show(DisplayError(error)); }, true));
+        Button get = Button(Loc.Get("Apps.Download"), (_, _) => OpenUnelevated(download), installed is null);
+        var getContent = new StackPanel { Orientation = Orientation.Horizontal };
+        getContent.Children.Add(Glyph(Icons.Download, 14, installed is null ? "Set.PrimaryForeground" : "Set.Foreground"));
+        getContent.Children.Add(new TextBlock { Text = Loc.Get("Apps.Download"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        get.Content = getContent;
+        buttons.Add(get);
+        buttons.Add(Button(Loc.Get("Apps.Details"), (_, _) => OpenUnelevated(page), variant: "Ghost"));
+        Actions(p, [.. buttons]).Margin = new Thickness(62, 12, 0, 0);
+        if (Preview) { version.Text = Loc.Format("Apps.Latest", "2.7.2", new DateTime(2026, 10, 11).ToString("d", Loc.Culture)); return; }
+
+        _ = MoreAppsService.LatestAsync(MoreAppsService.Orb).ContinueWith(task =>
+        {
+            if (!task.IsCompletedSuccessfully) { version.Text = Loc.Get("Apps.Offline"); return; }
+            MoreAppsService.Latest latest = task.Result;
+            download = latest.Download;
+            version.Text = latest.Version is null ? Loc.Get("Apps.Offline")
+                : latest.Date is DateTimeOffset date ? Loc.Format("Apps.Latest", latest.Version, date.ToLocalTime().ToString("d", Loc.Culture))
+                : Loc.Format("Apps.LatestNoDate", latest.Version);
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
 
     /// Feedback without any account (FeedbackService: mailed with the screenshots) or as a GitHub issue.
     private void Feedback()
@@ -1349,7 +1524,7 @@ internal sealed class SettingsWindow : Window
             AiProviderId.OpenRouter => new AgentStatus("connected", null, null, null),
             _ => new AgentStatus("missing", null, null, null),
         };
-        static string FileName(string category) => category.Replace(' ', '_').Replace('ó', 'o').Replace('í', 'i').ToLowerInvariant();
+        static string FileName(string category) => category.Replace(' ', '_').Replace('ó', 'o').Replace('í', 'i').Replace('á', 'a').ToLowerInvariant();
         // Work areas in DIPs (screen minus taskbar): the reference 1080p at 100 %, then 1366×768 at 100 %,
         // 1080p at 125 % and 1440p at 100 %, the same as the panel's scale shots.
         (string Name, double Width, double Height)[] screens = [("1366x768", 1366, 728), ("1080p_125", 1536, 824), ("1440p", 2560, 1392)];
@@ -1369,7 +1544,7 @@ internal sealed class SettingsWindow : Window
             {
                 window.RenderPage(); window.UpdateLayout();
                 // Pages with lists (rings of each view, programs and services, screenshots) are meant to scroll.
-                if (window._category is "Personalización" or "Modo juego" or "Feedback" or "Agentes") check = "";
+                if (window._category is "Personalización" or "Modo juego" or "Contribuye" or "Agentes") check = "";
                 if (check.Length > 0 && window._scroll.ExtentHeight > window._scroll.ViewportHeight + 0.5)
                     throw new InvalidDataException($"settings page scrolls at its default size: {check} " +
                         $"({window._scroll.ExtentHeight:0} > {window._scroll.ViewportHeight:0})");

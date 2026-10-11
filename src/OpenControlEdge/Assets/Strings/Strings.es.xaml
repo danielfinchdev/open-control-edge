@@ -86,7 +86,7 @@
     <sys:String x:Key="Tip.ClaudeRing">Renovar sesión de Claude</sys:String>
     <sys:String x:Key="Tip.CpuRing">Información del sistema</sys:String>
     <sys:String x:Key="Tip.RamRing">Liberar RAM</sys:String>
-    <sys:String x:Key="Tip.Hide">Ocultar en el borde</sys:String>
+    <sys:String x:Key="Tip.Hide">Desfijar el panel (se oculta en el borde)</sys:String>
     <sys:String x:Key="Tip.Pin">Fijar el panel</sys:String>
     <sys:String x:Key="Tip.Settings">Ajustes</sys:String>
     <sys:String x:Key="Tip.Close">Salir de Open Control Edge</sys:String>
@@ -135,7 +135,7 @@
     <sys:String x:Key="Keys.DeleteFailed">No se pudo borrar</sys:String>
 
     <!-- Settings window -->
-    <sys:String x:Key="Settings.Title">Open Control Edge · Ajustes</sys:String>
+    <sys:String x:Key="Settings.Title">Open Control Edge</sys:String>
     <sys:String x:Key="Settings.Close">Cerrar</sys:String>
     <sys:String x:Key="Settings.Nav.General">General</sys:String>
     <sys:String x:Key="Settings.Nav.Appearance">Personalización</sys:String>
@@ -343,7 +343,7 @@
     <sys:String x:Key="Value.Fps">{0} FPS</sys:String>
     <sys:String x:Key="Value.Milliseconds">{0} ms</sys:String>
     <sys:String x:Key="Fps.Desktop">Escritorio</sys:String>
-    <sys:String x:Key="Tip.View">Cambiar a la vista {0}</sys:String>
+    <sys:String x:Key="Tip.View">Cambiar de vista</sys:String>
     <sys:String x:Key="Tip.GameModeOn">Activar el modo juego</sys:String>
     <sys:String x:Key="Tip.GameModeOff">Desactivar el modo juego y restaurar todo</sys:String>
     <sys:String x:Key="Tip.GameModeSettings">Configurar el modo juego en Ajustes</sys:String>
@@ -414,14 +414,14 @@
     <sys:String x:Key="Settings.Blue">Azul</sys:String>
     <sys:String x:Key="Settings.Accounts">Cuentas</sys:String>
     <sys:String x:Key="Settings.AccountsCount">Cuentas ({0})</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.claude">Otra cuenta de Claude Code es otra carpeta de configuración (la de CLAUDE_CONFIG_DIR, con su .credentials.json). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.codex">Otra cuenta de Codex es otra carpeta de configuración (la de CODEX_HOME, con su auth.json). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.cursor">Otra cuenta de Cursor es otra carpeta de datos de Cursor (la que abres con --user-data-dir). Al pasar el ratón por el anillo eliges cuál ver.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.claude">Otra cuenta de Claude Code es otra carpeta de configuración (la de CLAUDE_CONFIG_DIR, con su .credentials.json). En la tarjeta del anillo, pulsa la etiqueta de cada cuenta para cambiar de una a otra.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.codex">Otra cuenta de Codex es otra carpeta de configuración (la de CODEX_HOME, con su auth.json). En la tarjeta del anillo, pulsa la etiqueta de cada cuenta para cambiar de una a otra.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.cursor">Otra cuenta de Cursor es otra carpeta de datos de Cursor (la que abres con --user-data-dir). En la tarjeta del anillo, pulsa la etiqueta de cada cuenta para cambiar de una a otra.</sys:String>
     <sys:String x:Key="Settings.AccountFolder.claude">Carpeta de configuración de la otra cuenta de Claude Code</sys:String>
     <sys:String x:Key="Settings.AccountFolder.codex">Carpeta de configuración de la otra cuenta de Codex</sys:String>
     <sys:String x:Key="Settings.AccountFolder.cursor">Carpeta de datos de la otra cuenta de Cursor</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">En esa carpeta no está {0}: quizá no es la de esa cuenta, o aún no has iniciado sesión. ¿Añadirla igualmente?</sys:String>
-    <sys:String x:Key="Settings.AccountName">Nombre de la cuenta (p. ej. Trabajo)</sys:String>
+    <sys:String x:Key="Settings.AccountName">Nombre (opcional, p. ej. Trabajo)</sys:String>
     <sys:String x:Key="Settings.AccountNameMissing">Escribe un nombre para la cuenta.</sys:String>
     <sys:String x:Key="Settings.AddAccount">Añadir cuenta…</sys:String>
     <sys:String x:Key="Settings.GameMode">Modo juego</sys:String>
@@ -490,5 +490,50 @@
     <sys:String x:Key="Orb.AssistantValue">Asistente: {0}</sys:String>
     <sys:String x:Key="Orb.Source">Dato de Orb</sys:String>
     <sys:String x:Key="Orb.SourceOf">Dato de Orb · {0}</sys:String>
+
+    <sys:String x:Key="Settings.Sidebar">Ajustes</sys:String>
+    <sys:String x:Key="Settings.Nav.Contribute">Contribuye</sys:String>
+    <sys:String x:Key="Settings.Hint.Contribute">Apoya el desarrollo de Open Control Edge y envía tus comentarios.</sys:String>
+    <sys:String x:Key="Settings.Nav.Apps">Más aplicaciones</sys:String>
+    <sys:String x:Key="Settings.Hint.Apps">Otras aplicaciones del mismo desarrollador.</sys:String>
+    <sys:String x:Key="Contribute.SupportTitle">Apoya el desarrollo</sys:String>
+    <sys:String x:Key="Contribute.SupportDesc">Open Control Edge es un proyecto independiente y gratuito. Si te resulta útil, puedes apoyar su desarrollo con una aportación.</sys:String>
+    <sys:String x:Key="Contribute.PayPal">Contribuir con PayPal</sys:String>
+    <sys:String x:Key="Apps.Orb">Tu director de bolsillo: planifica tu proyecto por fases y escribe un encargo claro para cada agente (Claude Code, Codex, Cursor…).</sys:String>
+    <sys:String x:Key="Apps.Loading">Buscando la última versión…</sys:String>
+    <sys:String x:Key="Apps.Latest">Última versión: {0} · {1}</sys:String>
+    <sys:String x:Key="Apps.LatestNoDate">Última versión: {0}</sys:String>
+    <sys:String x:Key="Apps.Offline">No se pudo consultar la última versión.</sys:String>
+    <sys:String x:Key="Apps.Details">Ver en GitHub</sys:String>
+    <sys:String x:Key="Apps.Download">Descargar</sys:String>
+    <sys:String x:Key="Apps.Open">Abrir</sys:String>
+    <sys:String x:Key="Apps.Installed">Instalada en este equipo</sys:String>
+    <sys:String x:Key="Settings.Author">github.com/danielfinchdev</sys:String>
+    <sys:String x:Key="Settings.CustomView">Vista personalizada</sys:String>
+    <sys:String x:Key="Settings.CustomViewHint">Apagada, el botón de vista del panel pasa solo de IA a PC.</sys:String>
+    <sys:String x:Key="Settings.AccountNameHint">Sin nombre, la etiqueta de la tarjeta muestra el plan (Go, Pro…).</sys:String>
+    <sys:String x:Key="Settings.Detected">Encontradas en este equipo</sys:String>
+    <sys:String x:Key="Settings.Add">Añadir</sys:String>
+    <sys:String x:Key="Account.Fallback">Cuenta {0}</sys:String>
+    <sys:String x:Key="Account.Switch">Ver la cuenta {0}</sys:String>
+    <sys:String x:Key="Account.Shown">{0}: la cuenta que se muestra</sys:String>
+    <sys:String x:Key="Card.Open">Abrir {0}</sys:String>
+    <sys:String x:Key="Tip.Info">Suscripción</sys:String>
+    <sys:String x:Key="Sub.Title">Suscripción</sys:String>
+    <sys:String x:Key="Sub.Renews">Su suscripción se renovará el {0}</sys:String>
+    <sys:String x:Key="Sub.Loading">Consultando…</sys:String>
+    <sys:String x:Key="Sub.Inactive">Su suscripción no está activa.</sys:String>
+    <sys:String x:Key="Sub.Unknown">{0} no informa de la fecha de renovación.</sys:String>
+    <sys:String x:Key="RingName.orb">Orb</sys:String>
+    <sys:String x:Key="Card.Orb">Orb</sys:String>
+    <sys:String x:Key="Orb.Open">Abrir Orb</sys:String>
+    <sys:String x:Key="Orb.Running">Abierto</sys:String>
+    <sys:String x:Key="Orb.Closed">Cerrado</sys:String>
+    <sys:String x:Key="Orb.RingHint">Pulsa el anillo para abrir Orb.</sys:String>
+    <sys:String x:Key="Orb.NotSharing">Activa «Compartir datos con Orb» en Ajustes › Agentes para ver aquí sus tareas.</sys:String>
+    <sys:String x:Key="Game.On">Encendido</sys:String>
+    <sys:String x:Key="Game.Off">Apagado</sys:String>
+    <sys:String x:Key="Msg.SubscriptionUnreadable">No se pudo leer la suscripción</sys:String>
+    <sys:String x:Key="Msg.OpenFailed">No se pudo abrir la aplicación</sys:String>
 
 </ResourceDictionary>

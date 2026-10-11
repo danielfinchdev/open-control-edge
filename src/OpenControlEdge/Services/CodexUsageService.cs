@@ -35,8 +35,12 @@ internal sealed class CodexUsageService
         {
             // Missing file, no token or expired token: hide the ring without sending the request.
             string? unusable = UnusableReason(out var credentials);
-            if (unusable is not null) return CodexSnapshot.NotAvailable(unusable == "access token expired"
-                ? RenewMessage : AiDetector.CodexLoginMessage);
+            if (unusable is not null)
+            {
+                CodexSnapshot notAvailable = CodexSnapshot.NotAvailable(unusable == "access token expired" ? RenewMessage : AiDetector.CodexLoginMessage);
+                // An expired login still says its plan and subscription (the account's tag keeps "Pro").
+                return credentials is null ? notAvailable : WithAccount(notAvailable, credentials);
+            }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials!.AccessToken);
@@ -51,7 +55,7 @@ internal sealed class CodexUsageService
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Codex", $"HTTP {(int)response.StatusCode}");
-                return CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with { Plan = credentials.PlanType };
+                return WithAccount(CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"), credentials);
             }
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -59,13 +63,9 @@ internal sealed class CodexUsageService
             if (primary is null)
             {
                 Log.Warn("Codex", "200 response without rate_limit.primary_window");
-                return CodexSnapshot.Failed("Respuesta sin datos de uso") with { Plan = credentials.PlanType };
+                return WithAccount(CodexSnapshot.Failed("Respuesta sin datos de uso"), credentials);
             }
-            return new CodexSnapshot(false, primary, secondary, null)
-            {
-                Plan = credentials.PlanType,
-                Credits = CodexUsageParser.ParseCredits(body),
-            };
+            return WithAccount(new CodexSnapshot(false, primary, secondary, null) { Credits = CodexUsageParser.ParseCredits(body) }, credentials);
         }
         catch (HttpRequestException ex)
         {
@@ -88,6 +88,14 @@ internal sealed class CodexUsageService
             return CodexSnapshot.Failed("No se pudo leer el uso");
         }
     }
+
+    /// The plan and the subscription dates of the login, on any reading made with it.
+    private static CodexSnapshot WithAccount(CodexSnapshot snapshot, CodexCredentialReader.Credentials credentials) => snapshot with
+    {
+        Plan = credentials.PlanType,
+        SubscriptionUntil = credentials.SubscriptionUntil,
+        SubscriptionCheckedAt = credentials.SubscriptionCheckedAt,
+    };
 
     /// Null when the login is usable; otherwise why the ring must be hidden. Never contains secrets.
     private string? UnusableReason(out CodexCredentialReader.Credentials? credentials)

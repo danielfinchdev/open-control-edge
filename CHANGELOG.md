@@ -1,5 +1,38 @@
 # Registro de cambios
 
+## 2.3.1 — 2026-10-11
+
+- **Ajustes renovados.** Arriba solo pone «Open Control Edge», centrado; el lateral lleva el título «Ajustes» y, abajo,
+  tu cuenta de GitHub (@danielfinchdev, con enlace) y la versión instalada, como en Orb.
+- **Contribuye** (antes Feedback): apoyar el desarrollo con PayPal y el mismo formulario de comentarios con capturas.
+- **Más aplicaciones**: Orb, con su última versión publicada en GitHub, y los botones Descargar (el instalador de la
+  Release), Ver en GitHub y, si ya está instalado, Abrir.
+- **Varias cuentas, mejor**: en la tarjeta, junto al título, una etiqueta por cuenta («Go» y «Pro», o el nombre que le
+  pongas, p. ej. «Personal» y «Trabajo»); la rellena es la que se ve y un clic en otra cambia de cuenta. Sustituye a las
+  pestañas de cuenta. En Ajustes → Agentes → Cuentas cada cuenta, también la principal, tiene un nombre opcional; sin
+  nombre, la etiqueta enseña el plan. La primera vez que arranca la 2.3.1 añade sola las otras sesiones de Codex y Claude
+  Code que hay en tu carpeta de usuario (`.codex-*`, `.codex_*`, `.claude-*`…), sin repetir dos carpetas de la misma
+  cuenta; después aparecen en «Encontradas en este equipo» para añadirlas con un clic.
+- **(i) de suscripción** en la esquina superior derecha de cada tarjeta de IA: un globo que dice «Su suscripción se
+  renovará el …» de la cuenta que se ve. Codex lo saca de su `id_token`
+  (`chatgpt_subscription_active_until`); Cursor, del final del ciclo de facturación; Claude, de `GET
+  /api/oauth/profile` (solo al abrir el globo y como mucho cada 6 h): como Anthropic no da la fecha de renovación, se
+  calcula con el día de alta (renovación mensual). DeepSeek, OpenRouter y OpenCode no llevan (i) (no tienen suscripción), y
+  tampoco los planes gratuitos. Si la fecha del `id_token` de Codex ya ha pasado, se da la siguiente renovación mensual.
+- **Botón «Abrir …»** en la esquina inferior derecha de cada tarjeta de IA: abre la app de escritorio (Claude y Codex de
+  la Microsoft Store, Cursor, ChatGPT) o, si no está, su web; OpenCode en una consola. Siempre sin permisos de
+  administrador.
+- **Anillo de Orb** en la vista PC (y en Personalizada): un acceso directo a Orb que solo aparece si Orb está instalado
+  (su entrada de desinstalación, `%LOCALAPPDATA%\Programs\Orb` o el proceso que anuncia el puente). Lleno y verde
+  mientras Orb está abierto; la tarjeta enseña sus tareas y su asistente cuando el puente está activo.
+- **Vista Personalizada opcional** (Ajustes → Personalización → Vistas, `"customView"`): apagada, el botón de vista pasa
+  solo de IA a PC y la escala del panel deja de reservar sitio para esa vista.
+- **Botones del panel**: el de fijar es una chincheta que se rellena (blanca en el tema oscuro) mientras el panel está
+  fijado; el de vista tiene un icono de cambio (↓↑) y su ayuda dice solo «Cambiar de vista».
+- **Modo juego**: el anillo pone «Encendido» / «Apagado» en vez de ON / OFF.
+- `--snapshot` comprueba los lectores nuevos (perfil de Claude, fechas del `id_token` de Codex y la Release de Orb) y
+  añade las capturas de las etiquetas de cuenta, el globo de suscripción y el anillo de Orb.
+
 ## 2.3.0 — 2026-10-11
 
 - **Conexión con Orb.** El widget y Orb se enseñan sus datos reales con dos archivos en `%LOCALAPPDATA%\OrbPuente\`,

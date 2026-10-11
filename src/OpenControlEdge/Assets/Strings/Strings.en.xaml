@@ -86,7 +86,7 @@
     <sys:String x:Key="Tip.ClaudeRing">Renew Claude session</sys:String>
     <sys:String x:Key="Tip.CpuRing">System information</sys:String>
     <sys:String x:Key="Tip.RamRing">Free RAM</sys:String>
-    <sys:String x:Key="Tip.Hide">Hide at the edge</sys:String>
+    <sys:String x:Key="Tip.Hide">Unpin the panel (it hides at the edge)</sys:String>
     <sys:String x:Key="Tip.Pin">Pin the panel</sys:String>
     <sys:String x:Key="Tip.Settings">Settings</sys:String>
     <sys:String x:Key="Tip.Close">Quit Open Control Edge</sys:String>
@@ -135,7 +135,7 @@
     <sys:String x:Key="Keys.DeleteFailed">Could not delete</sys:String>
 
     <!-- Settings window -->
-    <sys:String x:Key="Settings.Title">Open Control Edge · Settings</sys:String>
+    <sys:String x:Key="Settings.Title">Open Control Edge</sys:String>
     <sys:String x:Key="Settings.Close">Close</sys:String>
     <sys:String x:Key="Settings.Nav.General">General</sys:String>
     <sys:String x:Key="Settings.Nav.Appearance">Appearance</sys:String>
@@ -343,7 +343,7 @@
     <sys:String x:Key="Value.Fps">{0} FPS</sys:String>
     <sys:String x:Key="Value.Milliseconds">{0} ms</sys:String>
     <sys:String x:Key="Fps.Desktop">Desktop</sys:String>
-    <sys:String x:Key="Tip.View">Switch to the {0} view</sys:String>
+    <sys:String x:Key="Tip.View">Switch view</sys:String>
     <sys:String x:Key="Tip.GameModeOn">Turn game mode on</sys:String>
     <sys:String x:Key="Tip.GameModeOff">Turn game mode off and restore everything</sys:String>
     <sys:String x:Key="Tip.GameModeSettings">Set up game mode in Settings</sys:String>
@@ -414,14 +414,14 @@
     <sys:String x:Key="Settings.Blue">Blue</sys:String>
     <sys:String x:Key="Settings.Accounts">Accounts</sys:String>
     <sys:String x:Key="Settings.AccountsCount">Accounts ({0})</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.claude">Another Claude Code account is another configuration folder (its CLAUDE_CONFIG_DIR, with its .credentials.json). Hover the ring to choose which one to see.</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.codex">Another Codex account is another configuration folder (its CODEX_HOME, with its auth.json). Hover the ring to choose which one to see.</sys:String>
-    <sys:String x:Key="Settings.AccountsHint.cursor">Another Cursor account is another Cursor data folder (the one you open with --user-data-dir). Hover the ring to choose which one to see.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.claude">Another Claude Code account is another configuration folder (its CLAUDE_CONFIG_DIR, with its .credentials.json). On the ring's card, click each account's tag to switch between them.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.codex">Another Codex account is another configuration folder (its CODEX_HOME, with its auth.json). On the ring's card, click each account's tag to switch between them.</sys:String>
+    <sys:String x:Key="Settings.AccountsHint.cursor">Another Cursor account is another Cursor data folder (the one you open with --user-data-dir). On the ring's card, click each account's tag to switch between them.</sys:String>
     <sys:String x:Key="Settings.AccountFolder.claude">Configuration folder of the other Claude Code account</sys:String>
     <sys:String x:Key="Settings.AccountFolder.codex">Configuration folder of the other Codex account</sys:String>
     <sys:String x:Key="Settings.AccountFolder.cursor">Data folder of the other Cursor account</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">{0} is not in that folder: maybe it is not that account’s, or you have not signed in yet. Add it anyway?</sys:String>
-    <sys:String x:Key="Settings.AccountName">Account name (e.g. Work)</sys:String>
+    <sys:String x:Key="Settings.AccountName">Name (optional, e.g. Work)</sys:String>
     <sys:String x:Key="Settings.AccountNameMissing">Type a name for the account.</sys:String>
     <sys:String x:Key="Settings.AddAccount">Add account…</sys:String>
     <sys:String x:Key="Settings.GameMode">Game mode</sys:String>
@@ -490,5 +490,50 @@
     <sys:String x:Key="Orb.AssistantValue">Assistant: {0}</sys:String>
     <sys:String x:Key="Orb.Source">From Orb</sys:String>
     <sys:String x:Key="Orb.SourceOf">From Orb · {0}</sys:String>
+
+    <sys:String x:Key="Settings.Sidebar">Settings</sys:String>
+    <sys:String x:Key="Settings.Nav.Contribute">Contribute</sys:String>
+    <sys:String x:Key="Settings.Hint.Contribute">Support the development of Open Control Edge and send your feedback.</sys:String>
+    <sys:String x:Key="Settings.Nav.Apps">More apps</sys:String>
+    <sys:String x:Key="Settings.Hint.Apps">Other apps by the same developer.</sys:String>
+    <sys:String x:Key="Contribute.SupportTitle">Support the development</sys:String>
+    <sys:String x:Key="Contribute.SupportDesc">Open Control Edge is an independent, free project. If you find it useful, you can support its development with a contribution.</sys:String>
+    <sys:String x:Key="Contribute.PayPal">Contribute with PayPal</sys:String>
+    <sys:String x:Key="Apps.Orb">Your pocket director: plan your project in phases and write a clear brief for each agent (Claude Code, Codex, Cursor…).</sys:String>
+    <sys:String x:Key="Apps.Loading">Looking for the latest version…</sys:String>
+    <sys:String x:Key="Apps.Latest">Latest version: {0} · {1}</sys:String>
+    <sys:String x:Key="Apps.LatestNoDate">Latest version: {0}</sys:String>
+    <sys:String x:Key="Apps.Offline">Could not check the latest version.</sys:String>
+    <sys:String x:Key="Apps.Details">View on GitHub</sys:String>
+    <sys:String x:Key="Apps.Download">Download</sys:String>
+    <sys:String x:Key="Apps.Open">Open</sys:String>
+    <sys:String x:Key="Apps.Installed">Installed on this PC</sys:String>
+    <sys:String x:Key="Settings.Author">github.com/danielfinchdev</sys:String>
+    <sys:String x:Key="Settings.CustomView">Custom view</sys:String>
+    <sys:String x:Key="Settings.CustomViewHint">When off, the panel's view button only switches between AI and PC.</sys:String>
+    <sys:String x:Key="Settings.AccountNameHint">Without a name, the card's tag shows the plan (Go, Pro…).</sys:String>
+    <sys:String x:Key="Settings.Detected">Found on this PC</sys:String>
+    <sys:String x:Key="Settings.Add">Add</sys:String>
+    <sys:String x:Key="Account.Fallback">Account {0}</sys:String>
+    <sys:String x:Key="Account.Switch">Show the {0} account</sys:String>
+    <sys:String x:Key="Account.Shown">{0}: the account shown</sys:String>
+    <sys:String x:Key="Card.Open">Open {0}</sys:String>
+    <sys:String x:Key="Tip.Info">Subscription</sys:String>
+    <sys:String x:Key="Sub.Title">Subscription</sys:String>
+    <sys:String x:Key="Sub.Renews">Your subscription will renew on {0}</sys:String>
+    <sys:String x:Key="Sub.Loading">Checking…</sys:String>
+    <sys:String x:Key="Sub.Inactive">Your subscription is not active.</sys:String>
+    <sys:String x:Key="Sub.Unknown">{0} does not report the renewal date.</sys:String>
+    <sys:String x:Key="RingName.orb">Orb</sys:String>
+    <sys:String x:Key="Card.Orb">Orb</sys:String>
+    <sys:String x:Key="Orb.Open">Open Orb</sys:String>
+    <sys:String x:Key="Orb.Running">Open</sys:String>
+    <sys:String x:Key="Orb.Closed">Closed</sys:String>
+    <sys:String x:Key="Orb.RingHint">Click the ring to open Orb.</sys:String>
+    <sys:String x:Key="Orb.NotSharing">Turn on «Share data with Orb» in Settings › Agents to see its tasks here.</sys:String>
+    <sys:String x:Key="Game.On">On</sys:String>
+    <sys:String x:Key="Game.Off">Off</sys:String>
+    <sys:String x:Key="Msg.SubscriptionUnreadable">Could not read the subscription</sys:String>
+    <sys:String x:Key="Msg.OpenFailed">Could not open the app</sys:String>
 
 </ResourceDictionary>

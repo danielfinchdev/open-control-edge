@@ -141,10 +141,11 @@ al mostrar u ocultar anillos.
 El panel enseña una sola vista a la vez:
 
 - **IA** — los anillos de las IA (Claude, Codex, Cursor, OpenCode, DeepSeek y OpenRouter).
-- **PC** — FPS, CPU, GPU, Modo juego y RAM.
-- **Personalizada** — la mezcla que quieras de anillos de las dos anteriores.
+- **PC** — FPS, CPU, GPU, Modo juego, RAM y, si tienes Orb instalado, un anillo que lo abre.
+- **Personalizada** — la mezcla que quieras de anillos de las dos anteriores. Se puede apagar en Ajustes →
+  Personalización; entonces el botón de vista pasa solo de IA a PC.
 
-Un botón redondo del panel cambia de vista (IA → PC → Personalizada) con un fundido. En Ajustes → Personalización
+Un botón redondo del panel (↓↑, «Cambiar de vista») cambia de vista (IA → PC → Personalizada) con un fundido. En Ajustes → Personalización
 eliges la vista activa y, por cada vista, qué anillos se ven y en qué orden (↑↓). Por defecto van por orden alfabético
 y, en PC, el de FPS va primero. La escala del panel se calcula para la vista más grande (con los anillos disponibles),
 así que no cambia de tamaño al pasar de una a otra. El fondo del panel también se elige ahí (**Fondo del widget**):
@@ -156,7 +157,8 @@ pasan solos a la variante oscura.
 - **Fijado** — el panel se queda siempre abierto.
 - **Automático** — se recoge a una franja de 5 px en el borde y se despliega al acercar el ratón.
 
-Se cambia con el botón del propio panel («Ocultar» / «Fijar») y la elección se recuerda. Los cuatro botones redondos
+Se cambia con el botón de la chincheta del propio panel, que se rellena mientras está fijado, y la elección se
+recuerda. Los cuatro botones redondos
 van de dos en dos: fijar/ocultar y vista arriba, ajustes y cerrar abajo.
 
 ### Pestañas «Sesión» / «Total»
@@ -186,8 +188,18 @@ configuración y un nombre:
 | Codex | la de `CODEX_HOME` | `auth.json` |
 | Cursor | la del `--user-data-dir` | `User\globalStorage\state.vscdb` |
 
-Sigue habiendo un anillo por IA. La tarjeta lleva pestañas de cuenta (Principal · Trabajo) para elegir cuál enseña el
-anillo, y la elección se recuerda. Renovar la sesión con un clic en el anillo de Claude solo vale para la cuenta
+Sigue habiendo un anillo por IA. Junto al título de la tarjeta hay una etiqueta por cuenta: el nombre que le pongas
+(«Personal», «Trabajo») o, sin nombre, su plan («Go», «Pro»). La rellena es la que enseña el anillo; un clic en otra
+cambia de cuenta y la elección se recuerda. La primera vez que arranca la 2.3.1 añade sola las otras sesiones de Codex
+y Claude Code de tu carpeta de usuario (`.codex-pro`, `.codex_2`, `.claude-trabajo`…), sin repetir dos carpetas de la
+misma cuenta.
+
+### Suscripción y «Abrir»
+
+Las tarjetas de Claude, Codex y Cursor (con plan de pago) tienen arriba a la derecha una (i): abre un globo con «Su suscripción se renovará el …» de la cuenta
+que se ve (Codex: su `id_token`; Cursor: el fin del ciclo de facturación; Claude: calculada con el día de alta y
+renovación mensual, porque `GET /api/oauth/profile` no da la fecha). Abajo a la derecha, un botón redondo abre la app de esa IA (o su web
+si no está instalada), siempre sin permisos de administrador. Renovar la sesión con un clic en el anillo de Claude solo vale para la cuenta
 principal.
 
 ### Anillo de FPS
@@ -376,6 +388,8 @@ El registro está junto a los ajustes; los blobs DPAPI de las claves están en l
 | `checkUpdates` | `true` (defecto) \| `false` | Busca versiones nuevas al arrancar y cada 6 h. Sustituye a `autoCheckUpdates` de la 2.1. |
 | `shareWithOrb` | `true` (defecto) \| `false` | Intercambia lecturas con Orb en `%LOCALAPPDATA%\OrbPuente` (ver [Conexión con Orb](#conexión-con-orb)). |
 | `view` | `"ai"` (defecto) \| `"pc"` \| `"custom"` | Vista del panel. La escribe el propio botón de vista. |
+| `customView` | `true` (defecto) \| `false` | Si la vista Personalizada se puede elegir. |
+| `accountNames` | objeto opcional | Nombre de la cuenta principal de `claude`, `codex` o `cursor` para su etiqueta. |
 | `layouts` | objeto opcional | Por vista (`ai`, `pc`, `custom`): `order` (orden de los anillos) y `hidden` (los apagados). Lo escribe Ajustes → Personalización. |
 | `panelBackground` | `"#RRGGBB"` (opcional) | Color de fondo del panel; si falta, el del tema (negro en el oscuro). |
 | `gameMode` | objeto opcional | Modo juego: `enabled`, `processes`, `services`, `powerPlan` (`"balanced"` \| `"high"` \| `"keep"`), `disableGameBar` y `relaunch`. Lo escribe Ajustes → Modo juego. |
@@ -470,14 +484,19 @@ Además de Claude, Codex y Cursor, el widget contacta estos destinos solo para a
 - `https://api.deepseek.com/user/balance` (DeepSeek; requiere la clave cifrada del usuario).
 - `https://openrouter.ai/api/v1/key` (OpenRouter; requiere la clave cifrada del usuario).
 
-Y estos dos por otros motivos:
+Y estos por otros motivos:
 
 - Las Releases de este repositorio en GitHub, para buscar y descargar actualizaciones (activado por defecto; se apaga en
   Ajustes → Actualizaciones).
-- `https://formsubmit.co` (FormSubmit), solo cuando pulsas **Enviar** en Ajustes → Feedback. Se manda el tipo de
+- `https://formsubmit.co` (FormSubmit), solo cuando pulsas **Enviar** en Ajustes → Contribuye. Se manda el tipo de
   mensaje, el texto, el correo de contacto si lo has escrito, la versión de la aplicación, la versión de Windows y las
   imágenes que hayas añadido (hasta 3). FormSubmit lo reenvía por correo al autor; su dirección queda detrás de un alias
   de FormSubmit. Sin pulsar **Enviar** no sale nada.
+- `https://api.github.com/repos/danielfinchdev/orb-dev/releases/latest`, solo al abrir Ajustes → Más aplicaciones
+  (como mucho cada 30 min), para enseñar la última versión de Orb.
+- `https://api.anthropic.com/api/oauth/profile`, solo al abrir la (i) de la tarjeta de Claude (como mucho cada 6 h),
+  con el mismo token que el uso; se leen únicamente el estado, el tipo de facturación y la fecha de alta de la
+  suscripción.
 
 OpenCode es local. Perplexity y Windsurf no se contactan. Las cabeceras y los cuerpos de respuesta nunca se registran; los servicios muestran errores propios y tienen timeout de 15 segundos.
 

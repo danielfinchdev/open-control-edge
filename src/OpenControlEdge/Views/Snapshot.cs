@@ -64,6 +64,7 @@ internal static class Snapshot
         if (CursorUsageParser.Parse(cursorFixture.Replace("\"totalPercentUsed\":2.886868686868687", "\"totalPercentUsed\":null")).Cycle is not null)
             throw new InvalidDataException("Cursor parser accepted a non-numeric percentage");
         CheckOrbBridge();
+        CheckSubscriptionParsers();
 
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
         {
@@ -464,6 +465,35 @@ internal static class Snapshot
         window.SetCodex(new CodexSnapshot(false, new CodexWindow(37, null, DateTimeOffset.Now.AddHours(2)), null, null) { Source = "Personal · 5h" });
         window.ShowCardNow(EdgeWindow.RingCodex);
         window.SaveSnapshot(Path.Combine(directory, "84_card_codex_from_orb.png"));
+
+        // Two Codex accounts: a tag per account next to the title (the plan, or the name given), the (i) bubble open.
+        var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), DateTimeOffset.Now.AddDays(30)), null, null) { Plan = "go" };
+        window.SetAccounts(AiProviderId.Codex, ["Go", "Pro"], 1);
+        window.SetCodex(codexMonthly with { Plan = "prolite", SubscriptionUntil = DateTimeOffset.Now.AddDays(12) });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "85_card_codex_two_accounts.png"));
+        window.OpenInfoNow(AiProviderId.Codex, Loc.Format("Sub.Renews", DateTimeOffset.Now.AddDays(12).ToString("d MMM", Loc.Culture)));
+        window.SaveSnapshot(Path.Combine(directory, "86_card_codex_info_bubble.png"));
+        window.SetAccounts(AiProviderId.Codex, ["Personal", "Trabajo"], 0);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "87_card_codex_named_accounts.png"));
+        window.SetAccounts(AiProviderId.Codex, ["Go", "Pro", "Pro 2", "Personal", "Trabajo"], 3);
+        window.SaveSnapshot(Path.Combine(directory, "87b_card_codex_five_accounts.png"));
+        window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
+        window.SetCodex(codexMonthly);
+        window.ShowCardNow(EdgeWindow.RingDeepSeek);
+        window.SaveSnapshot(Path.Combine(directory, "88_card_deepseek_open_button.png"));
+
+        // The Orb ring in the PC view: Orb installed and open (full ring), then closed.
+        window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
+        window.SetOrbApp(installed: true, running: false, sharing: true);
+        window.ShowCardNow(EdgeWindow.RingOrb);
+        window.SaveSnapshot(Path.Combine(directory, "89_pc_orb_ring_open.png"));
+        window.SetOrb(null);
+        window.SaveSnapshot(Path.Combine(directory, "90_pc_orb_ring_closed.png"));
+        window.SetOrbApp(installed: false, running: false, sharing: true);
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        if (window.IsRingOnScreen(EdgeWindow.RingOrb)) throw new InvalidDataException("Orb ring shown without Orb installed");
         window.SetOrb(null);
         if (window.OrbBadge.Visibility == Visibility.Visible) throw new InvalidDataException("Orb badge stayed after disconnecting");
 
@@ -509,6 +539,31 @@ internal static class Snapshot
         window.SetFps(fps);
         window.SetClaude(claude);
         window.ApplyViews(everything, animate: false);
+    }
+
+    /// The subscription data of the (i) bubble and the latest Orb release, against the shapes seen on 2026-10-11.
+    private static void CheckSubscriptionParsers()
+    {
+        ClaudeSubscription? claude = ClaudeProfileParser.Parse("""{"account":{"uuid":"x","email":"a@b.c"},"organization":{"organization_type":"claude_max","billing_type":"stripe_subscription","subscription_status":"active","subscription_created_at":"2026-03-07T21:50:52.429894Z"}}""");
+        if (claude is not { Status: "active", BillingType: "stripe_subscription", CreatedAt: not null }
+            || ClaudeProfileParser.Parse("""{"organization":{"billing_type":"stripe_subscription"}}""") is not null)
+            throw new InvalidDataException("Claude profile parser check failed");
+        DateTimeOffset renewal = ClaudeProfileParser.NextMonthlyRenewal(new DateTimeOffset(2026, 1, 31, 10, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 2, 10, 0, 0, 0, TimeSpan.Zero));
+        if (renewal.ToLocalTime().Month != 2 || renewal.ToLocalTime().Day != 28)
+            throw new InvalidDataException("Claude renewal estimate check failed: " + renewal);
+
+        static string Base64Url(string text) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        string jwt = Base64Url("""{"alg":"none"}""") + "." + Base64Url("""{"https://api.openai.com/auth":{"chatgpt_plan_type":"prolite","chatgpt_subscription_active_start":null,"chatgpt_subscription_active_until":"2026-10-23T15:38:58+00:00","chatgpt_subscription_last_checked":"2026-10-03T20:43:46.903851+00:00","groups":[]}}""") + ".sig";
+        CodexCredentialReader.AuthClaims claims = CodexCredentialReader.JwtAuthClaims(System.Text.Encoding.UTF8.GetBytes(jwt));
+        if (claims.PlanType != "prolite" || claims.SubscriptionUntil != new DateTimeOffset(2026, 10, 23, 15, 38, 58, TimeSpan.Zero)
+            || claims.SubscriptionCheckedAt is null)
+            throw new InvalidDataException("Codex subscription claims check failed");
+
+        using JsonDocument release = JsonDocument.Parse("""{"tag_name":"v2.7.2","published_at":"2026-10-11T09:18:13Z","assets":[{"name":"Orb-2.7.2-portable.exe","browser_download_url":"https://github.com/danielfinchdev/orb-dev/releases/download/v2.7.2/Orb-2.7.2-portable.exe"},{"name":"Orb-2.7.2-instalador.exe","browser_download_url":"https://github.com/danielfinchdev/orb-dev/releases/download/v2.7.2/Orb-2.7.2-instalador.exe"},{"name":"evil.exe","browser_download_url":"https://example.com/evil.exe"}]}""");
+        MoreAppsService.Latest latest = MoreAppsService.Parse(MoreAppsService.Orb, release.RootElement, "page");
+        if (latest.Version != "2.7.2" || !latest.Download.EndsWith("/Orb-2.7.2-instalador.exe", StringComparison.Ordinal))
+            throw new InvalidDataException("Orb release parser check failed");
     }
 
     /// The bridge with Orb against fixed files: when orb.json counts as connected (schema, app, pid running, "at" less
@@ -693,7 +748,7 @@ internal static class Snapshot
         button.ApplyTemplate();
         if (button.Template.FindName("Chrome", button) is not Shape chrome) return;
         if (hovered) chrome.SetResourceReference(Shape.FillProperty, ThemeManager.ButtonHover);
-        else chrome.SetResourceReference(Shape.FillProperty, ThemeManager.Button);
+        else chrome.ClearValue(Shape.FillProperty);
     }
 
     internal static void SaveElement(FrameworkElement element, string path, double scale = 2)

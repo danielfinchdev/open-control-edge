@@ -31,6 +31,27 @@ public static class Icons
     public static DrawingGroup Views { get; } = CreateViews();
     public static DrawingGroup ArrowUp { get; } = CreateArrow(up: true);
     public static DrawingGroup ArrowDown { get; } = CreateArrow(up: false);
+    public static DrawingGroup Pin { get; } = Lucide(
+        "M12 17v5",
+        "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z");
+    public static DrawingGroup SwitchView { get; } = Lucide("m3 16 4 4 4-4", "M7 20V4", "m21 8-4-4-4 4", "M17 4v16");
+    public static DrawingGroup Heart { get; } = Lucide(
+        "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z");
+    public static DrawingGroup Apps { get; } = Lucide(
+        "M4 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+        "M15 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+        "M15 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z",
+        "M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z");
+    public static DrawingGroup Download { get; } = Lucide("M12 15V3", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "m7 10 5 5 5-5");
+    public static DrawingGroup OpenApp { get; } = Lucide("M7 7h10v10", "M7 17 17 7");
+    /// GitHub's mark (simple-icons, CC0 1.0).
+    public static DrawingGroup GitHub { get; } = Brand(22,
+        "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12");
+
+    /// Orb's mascot (the author's own artwork, from Orb's repository), in colour: never tinted.
+    public static ImageSource OrbHead { get; } = Png("Assets/Orb/orb-head.png", 96);
+    public static ImageSource OrbIcon { get; } = Png("Assets/Orb/orb-icon.png", 96);
+    public static Drawing OrbHeadDrawing { get; } = CreateOrbHead();
 
     public static DrawingImage ClaudeSparkImage { get; } = ToImage(ClaudeSpark);
     public static DrawingImage CodexImage { get; } = ToImage(Codex);
@@ -518,6 +539,40 @@ public static class Icons
                 geometry.Pen = recoloured;
             }
         }
+    }
+
+    /// Stroke icons from Lucide (ISC License, © Lucide Contributors, see THIRD-PARTY-NOTICES.txt): their 24×24 SVG
+    /// paths, stroke 2 with round caps and joins, at 1.9 so they weigh the same as the drawn ones.
+    private static DrawingGroup Lucide(params string[] paths)
+    {
+        var group = NewGroup();
+        var pen = RoundPen(1.9);
+        foreach (string path in paths)
+            group.Children.Add(new GeometryDrawing(null, pen, Geometry.Parse("F1 " + path)));
+        group.Freeze();
+        return group;
+    }
+
+    private static ImageSource Png(string resource, int width)
+    {
+        var image = new System.Windows.Media.Imaging.BitmapImage();
+        image.BeginInit();
+        image.UriSource = new Uri("pack://application:,,,/" + resource, UriKind.Absolute);
+        image.DecodePixelWidth = width;
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    /// The mascot's head centred in the 24 box at the size of the other logos (Recolor leaves images alone).
+    private static DrawingGroup CreateOrbHead()
+    {
+        var group = NewGroup();
+        double width = 23, height = width * OrbHead.Height / Math.Max(1, OrbHead.Width);
+        group.Children.Add(new ImageDrawing(OrbHead, new Rect(12 - width / 2, 12 - height / 2, width, height)));
+        group.Freeze();
+        return group;
     }
 
     /// Transparent 24×24 box so every icon keeps identical bounds (and therefore identical scaling).

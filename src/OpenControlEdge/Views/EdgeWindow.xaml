@@ -43,17 +43,22 @@
                     <!-- Claude -->
                     <StackPanel x:Name="ClaudeCard">
                         <!-- Header: icon, title and plan badge, then the "Sesión | Total" tabs. -->
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.ClaudeSpark}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.Claude}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                            <Border x:Name="ClaudePlan" Style="{StaticResource PlanBadge}">
-                                <TextBlock x:Name="ClaudePlanText" Style="{StaticResource PlanBadgeText}" />
-                            </Border>
-                        </StackPanel>
-                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
-                        <Border x:Name="ClaudeAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
-                            <UniformGrid x:Name="ClaudeAccountList" Rows="1" />
-                        </Border>
+                        <DockPanel>
+                            <Button x:Name="ClaudeInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="ClaudeInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.ClaudeSpark}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.Claude}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                                <Border x:Name="ClaudePlan" Style="{StaticResource PlanBadge}">
+                                    <TextBlock x:Name="ClaudePlanText" Style="{StaticResource PlanBadgeText}" />
+                                </Border>
+                                <!-- With more than one account (Ajustes › Agentes): one tag per account instead of the
+                                     plan badge; a click switches account (EdgeWindow.SetAccounts). -->
+                                <StackPanel x:Name="ClaudeAccountBadges" Orientation="Horizontal" Margin="2,0,0,0" Visibility="Collapsed" />
+                            </StackPanel>
+                        </DockPanel>
+                        <!-- More than MaxTagsBesideTitle accounts: their tags go here, under the title, wrapping. -->
+                        <WrapPanel x:Name="ClaudeAccountRow" Margin="-4,6,0,0" Visibility="Collapsed" />
                         <Border x:Name="ClaudeTabs" Style="{StaticResource UsageTabList}">
                             <UniformGrid Columns="2">
                                 <RadioButton x:Name="ClaudeSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
@@ -102,22 +107,32 @@
                         <!-- Outcome of the last renewal (App.RenewClaudeSessionAsync); cleared after a while. -->
                         <TextBlock x:Name="ClaudeNote" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir Claude": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="ClaudeOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="ClaudeOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Codex: the window of the selected tab (shorter for "Sesión", longer for "Total"), labelled by
                          its length. With a single window the tabs are hidden. -->
                     <StackPanel x:Name="CodexCard" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.Codex}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.Codex}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                            <Border x:Name="CodexPlan" Style="{StaticResource PlanBadge}">
-                                <TextBlock x:Name="CodexPlanText" Style="{StaticResource PlanBadgeText}" />
-                            </Border>
-                        </StackPanel>
-                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
-                        <Border x:Name="CodexAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
-                            <UniformGrid x:Name="CodexAccountList" Rows="1" />
-                        </Border>
+                        <DockPanel>
+                            <Button x:Name="CodexInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="CodexInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.Codex}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.Codex}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                                <Border x:Name="CodexPlan" Style="{StaticResource PlanBadge}">
+                                    <TextBlock x:Name="CodexPlanText" Style="{StaticResource PlanBadgeText}" />
+                                </Border>
+                                <!-- With more than one account (Ajustes › Agentes): one tag per account instead of the
+                                     plan badge; a click switches account (EdgeWindow.SetAccounts). -->
+                                <StackPanel x:Name="CodexAccountBadges" Orientation="Horizontal" Margin="2,0,0,0" Visibility="Collapsed" />
+                            </StackPanel>
+                        </DockPanel>
+                        <!-- More than MaxTagsBesideTitle accounts: their tags go here, under the title, wrapping. -->
+                        <WrapPanel x:Name="CodexAccountRow" Margin="-4,6,0,0" Visibility="Collapsed" />
                         <Border x:Name="CodexTabs" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
                             <UniformGrid Columns="2">
                                 <RadioButton x:Name="CodexSessionTab" Style="{StaticResource UsageTab}" Content="{DynamicResource Tab.Session}"
@@ -146,21 +161,31 @@
 
                         <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir Codex": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="CodexOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="CodexOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Cursor monthly plan usage (one window, so no tabs). -->
                     <StackPanel x:Name="CursorCard" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.Cursor}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.Cursor}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                            <Border x:Name="CursorPlan" Style="{StaticResource PlanBadge}">
-                                <TextBlock x:Name="CursorPlanText" Style="{StaticResource PlanBadgeText}" />
-                            </Border>
-                        </StackPanel>
-                        <!-- One tab per account when there is more than one (Settings > Agentes); built in code. -->
-                        <Border x:Name="CursorAccounts" Style="{StaticResource UsageTabList}" Visibility="Collapsed">
-                            <UniformGrid x:Name="CursorAccountList" Rows="1" />
-                        </Border>
+                        <DockPanel>
+                            <Button x:Name="CursorInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="CursorInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.Cursor}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.Cursor}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                                <Border x:Name="CursorPlan" Style="{StaticResource PlanBadge}">
+                                    <TextBlock x:Name="CursorPlanText" Style="{StaticResource PlanBadgeText}" />
+                                </Border>
+                                <!-- With more than one account (Ajustes › Agentes): one tag per account instead of the
+                                     plan badge; a click switches account (EdgeWindow.SetAccounts). -->
+                                <StackPanel x:Name="CursorAccountBadges" Orientation="Horizontal" Margin="2,0,0,0" Visibility="Collapsed" />
+                            </StackPanel>
+                        </DockPanel>
+                        <!-- More than MaxTagsBesideTitle accounts: their tags go here, under the title, wrapping. -->
+                        <WrapPanel x:Name="CursorAccountRow" Margin="-4,6,0,0" Visibility="Collapsed" />
                         <StackPanel x:Name="CursorMetrics" Margin="0,11,0,0">
                             <DockPanel>
                                 <TextBlock x:Name="CursorHeaderReset" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}" Margin="10,0,0,0" />
@@ -178,13 +203,22 @@
                             <TextBlock x:Name="CursorSource" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
                         </StackPanel>
                         <TextBlock x:Name="CursorMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir Cursor": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="CursorOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="CursorOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <StackPanel x:Name="OpenCodeCard" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.OpenCode}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.OpenCode}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                        </StackPanel>
+                        <DockPanel>
+                            <Button x:Name="OpenCodeInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0" Visibility="Collapsed"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="OpenCodeInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.OpenCode}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.OpenCode}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
                         <StackPanel x:Name="OpenCodeMetrics" Margin="0,11,0,0">
                             <TextBlock Text="{DynamicResource Row.InputTokens}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="OpenCodeInput" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
@@ -198,25 +232,43 @@
                             <TextBlock x:Name="OpenCodeCost" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
                         <TextBlock x:Name="OpenCodeMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir OpenCode": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="OpenCodeOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="OpenCodeOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <StackPanel x:Name="DeepSeekCard" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.DeepSeek}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.DeepSeek}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                        </StackPanel>
+                        <DockPanel>
+                            <Button x:Name="DeepSeekInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0" Visibility="Collapsed"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="DeepSeekInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.DeepSeek}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.DeepSeek}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
                         <StackPanel x:Name="DeepSeekMetrics" Margin="0,11,0,0">
                             <TextBlock Text="{DynamicResource Row.Balance}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="DeepSeekBalance" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                         </StackPanel>
                         <TextBlock x:Name="DeepSeekMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir DeepSeek": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="DeepSeekOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="DeepSeekOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <StackPanel x:Name="OpenRouterCard" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:IconView Icon="{x:Static ui:Icons.OpenRouter}" Style="{StaticResource CardIcon}" />
-                            <TextBlock Text="{DynamicResource Card.OpenRouter}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
-                        </StackPanel>
+                        <DockPanel>
+                            <Button x:Name="OpenRouterInfo" DockPanel.Dock="Right" Style="{StaticResource CardInfoButton}" Margin="6,0,0,0" Visibility="Collapsed"
+                                    Click="OnInfoClick" AutomationProperties.AutomationId="OpenRouterInfo" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:IconView Icon="{x:Static ui:Icons.OpenRouter}" Style="{StaticResource CardIcon}" />
+                                <TextBlock Text="{DynamicResource Card.OpenRouter}" Style="{StaticResource CardTitle}" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
                         <StackPanel x:Name="OpenRouterMetrics" Margin="0,11,0,0">
                             <TextBlock x:Name="OpenRouterMetricLabel" Text="{DynamicResource Row.Spend}" Style="{StaticResource RowLabel}" />
                             <TextBlock x:Name="OpenRouterUsage" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
@@ -224,6 +276,11 @@
                             <TextBlock x:Name="OpenRouterRemaining" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" Visibility="Collapsed" />
                         </StackPanel>
                         <TextBlock x:Name="OpenRouterMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- "Abrir OpenRouter": its app, or its web page (AppLauncher). -->
+                        <Button x:Name="OpenRouterOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                Click="OnOpenClick" AutomationProperties.AutomationId="OpenRouterOpen">
+                            <ui:IconView Icon="{x:Static ui:Icons.OpenApp}" Width="13" Height="13" Foreground="{DynamicResource Theme.Text}" />
+                        </Button>
                     </StackPanel>
 
                     <!-- CPU -->
@@ -351,6 +408,37 @@
                         <TextBlock x:Name="GameModeErrors" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
                         <TextBlock x:Name="GameModeHint" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" />
                     </StackPanel>
+
+                    <!-- Orb: a shortcut that opens it (only while it is installed); what the bridge knows of it. -->
+                    <StackPanel x:Name="OrbCard" Visibility="Collapsed">
+                        <DockPanel>
+                            <TextBlock x:Name="OrbState" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{x:Static ui:Icons.OrbHead}" Width="20" Height="20" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource Card.Orb}" Style="{StaticResource CardTitle}" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                        <TextBlock x:Name="OrbDetails" Style="{StaticResource ValueText}" TextWrapping="Wrap" Margin="0,11,0,0" />
+                        <TextBlock x:Name="OrbHint" Text="{DynamicResource Orb.RingHint}" Style="{StaticResource SecondaryText}"
+                                   TextWrapping="Wrap" Margin="0,11,0,0" />
+                    </StackPanel>
+
+                    <!-- The bubble of a card's (i): the subscription of the account shown. Over the card's content, its tail
+                         under the (i); closed by the (i) again, a click on the card or another ring. -->
+                    <Grid x:Name="InfoBubble" Panel.ZIndex="10" VerticalAlignment="Top" HorizontalAlignment="Right"
+                          Margin="0,24,-8,0" MaxWidth="242" Visibility="Collapsed">
+                        <Border Margin="0,7,0,0" Background="{DynamicResource Theme.Menu}" BorderBrush="{DynamicResource Theme.Border}"
+                                BorderThickness="1" CornerRadius="12" Padding="12,9,12,10">
+                            <StackPanel>
+                                <TextBlock x:Name="InfoTitle" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text}" />
+                                <TextBlock x:Name="InfoText" FontSize="11.5" TextWrapping="Wrap" Margin="0,3,0,0" LineHeight="15"
+                                           Foreground="{DynamicResource Theme.TextSecondary}" />
+                            </StackPanel>
+                        </Border>
+                        <Path HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,9,0" Data="M 0,8.6 L 7,1.6 L 14,8.6"
+                              Fill="{DynamicResource Theme.Menu}" Stroke="{DynamicResource Theme.Border}" StrokeThickness="1" />
+                    </Grid>
 
                 </Grid>
             </Border>
@@ -484,7 +572,19 @@
                                 <ui:RingGauge x:Name="GameModeRing" Style="{StaticResource PanelRing}" Icon="{x:Static ui:Icons.Gamepad}">
                                     <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
                                 </ui:RingGauge>
-                                <TextBlock x:Name="GameModeLabel" Text="OFF" Style="{StaticResource RingLabel}" />
+                                <TextBlock x:Name="GameModeLabel" Text="--" Style="{StaticResource RingLabel}" FontSize="13" Margin="0,9,0,2" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Orb: a shortcut to open it, only while it is installed (App.RefreshOrbInstalled); full ring
+                             while it is running. -->
+                        <Grid x:Name="OrbItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand" Visibility="Collapsed"
+                              ToolTip="{DynamicResource Orb.Open}" MouseLeftButtonUp="OnOrbClick">
+                            <StackPanel>
+                                <ui:RingGauge x:Name="OrbRing" Style="{StaticResource PanelRing}" IconSize="30" Icon="{x:Static ui:Icons.OrbHeadDrawing}">
+                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
+                                </ui:RingGauge>
+                                <TextBlock x:Name="OrbLabel" Text="Orb" Style="{StaticResource RingLabel}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
@@ -492,15 +592,16 @@
                     <!-- Round buttons, two by two: pin and view above, settings and close below (EdgeWindow.LayOutButtons). -->
                     <StackPanel x:Name="PanelButtons" Margin="0,14,0,0" HorizontalAlignment="Center">
                         <StackPanel x:Name="ButtonRowTop" Orientation="Horizontal" HorizontalAlignment="Center">
-                            <!-- Fijar / ocultar: the chevron points where the panel goes. -->
+                            <!-- Fijar: a pin, filled while the panel is pinned (EdgeWindow.SyncModeButton). -->
                             <Button x:Name="ModeButton" Style="{StaticResource PanelRoundButton}" Click="OnModeClick"
                                     AutomationProperties.AutomationId="ModeButton">
-                                <ui:IconView x:Name="ModeIcon" Icon="{x:Static ui:Icons.ChevronRight}" Foreground="{DynamicResource Theme.Text}" />
+                                <ui:IconView x:Name="ModeIcon" Icon="{x:Static ui:Icons.Pin}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
-                            <!-- Next view: IA → PC → Personalizada. -->
+                            <!-- Next view: IA → PC → Personalizada (when it is switched on). -->
                             <Button x:Name="ViewButton" Style="{StaticResource PanelRoundButton}" Click="OnViewClick"
-                                    AutomationProperties.AutomationId="ViewButton">
-                                <ui:IconView Icon="{x:Static ui:Icons.Views}" Foreground="{DynamicResource Theme.Text}" />
+                                    ToolTip="{DynamicResource Tip.View}" AutomationProperties.AutomationId="ViewButton"
+                                    AutomationProperties.Name="{DynamicResource Tip.View}">
+                                <ui:IconView Icon="{x:Static ui:Icons.SwitchView}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
                         </StackPanel>
                         <StackPanel x:Name="ButtonRowBottom" Orientation="Horizontal" HorizontalAlignment="Center">

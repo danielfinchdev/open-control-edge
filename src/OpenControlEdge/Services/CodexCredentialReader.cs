@@ -10,12 +10,22 @@ namespace OpenControlEdge.Services;
 /// skipped by the reader without ever being turned into a string. The file is opened read-only with full sharing
 /// and is never written. The expiry comes from the access token itself (a JWT); only its "exp" claim is read.
 /// The plan comes from tokens.id_token, decoded straight from the file bytes (never as a string); only its
-/// "https://api.openai.com/auth".chatgpt_plan_type claim is read ("go" verified 2026-09-29).
+/// "https://api.openai.com/auth" claims chatgpt_plan_type ("go" verified 2026-09-29), chatgpt_subscription_active_until
+/// and chatgpt_subscription_last_checked (ISO 8601 or null, verified 2026-10-11) are read.
 internal static class CodexCredentialReader
 {
     private const string AuthClaim = "https://api.openai.com/auth";
 
-    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? PlanType);
+    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? PlanType)
+    {
+        /// Until when the subscription is paid, and when ChatGPT last checked it (the id_token is only renewed with
+        /// the login, so the date may be in the past although the subscription renewed). Null when not in the token.
+        public DateTimeOffset? SubscriptionUntil { get; init; }
+        public DateTimeOffset? SubscriptionCheckedAt { get; init; }
+    }
+
+    /// The claims of the id_token that are read.
+    internal readonly record struct AuthClaims(string? PlanType, DateTimeOffset? SubscriptionUntil, DateTimeOffset? SubscriptionCheckedAt);
 
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json");
@@ -50,7 +60,7 @@ internal static class CodexCredentialReader
         if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return null;
 
         string? accessToken = null;
-        string? planType = null;
+        AuthClaims claims = default;
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
             if (!reader.ValueTextEquals("tokens"))
@@ -77,7 +87,7 @@ internal static class CodexCredentialReader
                 else if (reader.ValueTextEquals("id_token"))
                 {
                     reader.Read();
-                    if (reader.TokenType == JsonTokenType.String && !reader.ValueIsEscaped) planType = JwtPlanType(reader.ValueSpan);
+                    if (reader.TokenType == JsonTokenType.String && !reader.ValueIsEscaped) claims = JwtAuthClaims(reader.ValueSpan);
                 }
                 else
                 {
@@ -87,18 +97,25 @@ internal static class CodexCredentialReader
             }
         }
 
-        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, JwtExpiry(accessToken), planType);
+        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, JwtExpiry(accessToken), claims.PlanType)
+        {
+            SubscriptionUntil = claims.SubscriptionUntil,
+            SubscriptionCheckedAt = claims.SubscriptionCheckedAt,
+        };
     }
 
     /// The chatgpt_plan_type claim of a JWT given as raw UTF-8 bytes; null when absent or not a JWT.
-    /// Only that one claim is ever turned into a string; the decoded payload is cleared afterwards.
-    internal static string? JwtPlanType(ReadOnlySpan<byte> token)
+    internal static string? JwtPlanType(ReadOnlySpan<byte> token) => JwtAuthClaims(token).PlanType;
+
+    /// The plan and subscription claims of a JWT given as raw UTF-8 bytes; empty when absent or not a JWT.
+    /// Only those claims are ever turned into strings; the decoded payload is cleared afterwards.
+    internal static AuthClaims JwtAuthClaims(ReadOnlySpan<byte> token)
     {
         int first = token.IndexOf((byte)'.');
-        if (first < 0) return null;
+        if (first < 0) return default;
         ReadOnlySpan<byte> segment = token[(first + 1)..];
         int second = segment.IndexOf((byte)'.');
-        if (second <= 0) return null;
+        if (second <= 0) return default;
         segment = segment[..second];
 
         // base64url → base64 with padding, into a buffer we own and can clear.
@@ -108,10 +125,10 @@ internal static class CodexCredentialReader
         {
             for (int i = 0; i < base64.Length; i++)
                 base64[i] = i >= segment.Length ? (byte)'=' : segment[i] switch { (byte)'-' => (byte)'+', (byte)'_' => (byte)'/', byte b => b };
-            if (Base64.DecodeFromUtf8(base64, payload, out _, out int written) != System.Buffers.OperationStatus.Done) return null;
+            if (Base64.DecodeFromUtf8(base64, payload, out _, out int written) != System.Buffers.OperationStatus.Done) return default;
 
             var reader = new Utf8JsonReader(payload.AsSpan(0, written));
-            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return null;
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject) return default;
 
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
@@ -123,24 +140,39 @@ internal static class CodexCredentialReader
                 }
 
                 reader.Read();
-                if (reader.TokenType != JsonTokenType.StartObject) return null;
+                if (reader.TokenType != JsonTokenType.StartObject) return default;
+                string? plan = null;
+                DateTimeOffset? until = null, checkedAt = null;
                 while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
                 {
                     if (reader.ValueTextEquals("chatgpt_plan_type"))
                     {
                         reader.Read();
-                        return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                        plan = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
                     }
-                    reader.Read();
-                    reader.Skip();
+                    else if (reader.ValueTextEquals("chatgpt_subscription_active_until"))
+                    {
+                        reader.Read();
+                        until = reader.TokenType == JsonTokenType.String && reader.TryGetDateTimeOffset(out DateTimeOffset date) ? date : null;
+                    }
+                    else if (reader.ValueTextEquals("chatgpt_subscription_last_checked"))
+                    {
+                        reader.Read();
+                        checkedAt = reader.TokenType == JsonTokenType.String && reader.TryGetDateTimeOffset(out DateTimeOffset date) ? date : null;
+                    }
+                    else
+                    {
+                        reader.Read();
+                        reader.Skip();
+                    }
                 }
-                return null;
+                return new AuthClaims(plan, until, checkedAt);
             }
-            return null;
+            return default;
         }
         catch (JsonException)
         {
-            return null;
+            return default;
         }
         finally
         {

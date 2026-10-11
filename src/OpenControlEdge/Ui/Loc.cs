@@ -41,6 +41,8 @@ internal static partial class Loc
         ["Respuesta sin datos de sesión"] = "Msg.NoSessionData",
         ["Respuesta local sin datos"] = "Msg.NoLocalData",
         ["No se pudo leer el uso"] = "Msg.UsageUnreadable",
+        ["No se pudo leer la suscripción"] = "Msg.SubscriptionUnreadable",
+        ["No se pudo abrir la aplicación"] = "Msg.OpenFailed",
         ["No se pudo leer el uso local"] = "Msg.LocalUsageUnreadable",
         ["No se pudo leer el saldo"] = "Msg.BalanceUnreadable",
         ["Sin base de datos de sesiones"] = "Msg.NoSessionDatabase",

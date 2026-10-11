@@ -13,6 +13,11 @@ internal sealed class ClaudeUsageService
     public const string FreeAccountMessage = "Cuenta gratuita: sin límites de uso medibles";
 
     private const string UsageUrl = "https://api.anthropic.com/api/oauth/usage";
+    private const string ProfileUrl = "https://api.anthropic.com/api/oauth/profile";
+
+    /// The subscription is asked only when the card's info bubble opens, and at most once per this long.
+    private static readonly TimeSpan SubscriptionCacheTime = TimeSpan.FromHours(6);
+    private (DateTimeOffset At, ClaudeSubscription? Subscription, string? Error)? _subscription;
     private static readonly HttpClient Http = UsageHttp.Create();
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
     private readonly string _credentialsPath;
@@ -105,5 +110,45 @@ internal sealed class ClaudeUsageService
             Log.Error("Claude", ex);
             return ClaudeSnapshot.Failed("No se pudo leer el uso");
         }
+    }
+
+    /// The account's subscription (GET /api/oauth/profile) for the info bubble: (subscription, null) or (null, why not).
+    /// Cached for SubscriptionCacheTime; a token that has expired is not even sent. Never throws.
+    public async Task<(ClaudeSubscription? Subscription, string? Error)> FetchSubscriptionAsync()
+    {
+        // A failure is kept a couple of minutes too, so clicks on the (i) during an HTTP 429 do not ask again each time.
+        if (_subscription is { } cached && DateTimeOffset.UtcNow - cached.At < (cached.Error is null ? SubscriptionCacheTime : TimeSpan.FromMinutes(2)))
+            return (cached.Subscription, cached.Error);
+        (ClaudeSubscription?, string?) result;
+        try
+        {
+            var credentials = CredentialReader.Read(_credentialsPath);
+            if (credentials is null) return (null, ClaudeSessionRenewer.SignedOutMessage);
+            if (credentials.ExpiresAt is not DateTimeOffset expiresAt || DateTimeOffset.UtcNow >= expiresAt) return (null, RenewMessage);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, ProfileUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
+            request.Headers.TryAddWithoutValidation("User-Agent", UsageHttp.UserAgent);
+            using var response = await Http.SendAsync(request).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) return (null, RenewMessage);
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Warn("Claude", $"profile: HTTP {(int)response.StatusCode}");
+                return (null, $"Error HTTP {(int)response.StatusCode}");
+            }
+            ClaudeSubscription? subscription = ClaudeProfileParser.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+            if (subscription is null) Log.Warn("Claude", "profile: 200 response without organization.subscription_status");
+            result = subscription is null ? (null, "Respuesta no válida") : (subscription, null);
+        }
+        catch (HttpRequestException) { result = (null, "Sin conexión"); }
+        catch (TaskCanceledException) { result = (null, "Tiempo de espera agotado"); }
+        catch (JsonException) { result = (null, "Respuesta no válida"); }
+        catch (Exception ex)
+        {
+            Log.Error("Claude", ex);
+            result = (null, "No se pudo leer la suscripción");
+        }
+        _subscription = (DateTimeOffset.UtcNow, result.Item1, result.Item2);
+        return result;
     }
 }

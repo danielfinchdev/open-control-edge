@@ -77,8 +77,13 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Where the settings window was last closed; null opens it at its default size, centred on the panel's monitor.
     public WindowBounds? SettingsWindow { get; init; }
 
-    /// The view the panel shows, and the order and visibility of the rings of each view.
+    /// The view the panel shows, and the order and visibility of the rings of each view. Personalizada can be switched
+    /// off: the view button then goes IA ↔ PC (see ShownView).
     public WidgetView View { get; init; } = WidgetView.Ai;
+    public bool CustomViewEnabled { get; init; } = true;
+
+    /// The view on screen: the saved one, or IA when it is Personalizada and that view is switched off.
+    public WidgetView ShownView => View == WidgetView.Custom && !CustomViewEnabled ? WidgetView.Ai : View;
     public ViewLayout AiLayout { get; init; } = ViewLayout.Default(WidgetView.Ai);
     public ViewLayout PcLayout { get; init; } = ViewLayout.Default(WidgetView.Pc);
     public ViewLayout CustomLayout { get; init; } = ViewLayout.Default(WidgetView.Custom);
@@ -107,6 +112,14 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     public FrozenDictionary<string, ImmutableArray<ExtraAccount>> Accounts { get; init; } =
         FrozenDictionary<string, ImmutableArray<ExtraAccount>>.Empty;
     public FrozenDictionary<string, int> SelectedAccounts { get; init; } = FrozenDictionary<string, int>.Empty;
+
+    /// Names of the default accounts ("Personal"), per provider; none shows the account's plan instead.
+    public FrozenDictionary<string, string> AccountNames { get; init; } = FrozenDictionary<string, string>.Empty;
+
+    /// The other logins on this PC were looked for once (AccountDiscovery) and added; never again automatically.
+    public bool AccountsDiscovered { get; init; }
+
+    public string? MainAccountName(string provider) => AccountNames.TryGetValue(provider, out string? name) ? name : null;
 
     public ImmutableArray<ExtraAccount> AccountsOf(string provider) =>
         Accounts.TryGetValue(provider, out ImmutableArray<ExtraAccount> list) ? list : ImmutableArray<ExtraAccount>.Empty;
@@ -140,12 +153,15 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
 ///     "view": "ai" | "pc" | "custom",
+///     "customView": true | false, // the Personalizada view can be chosen
 ///     "layouts": { "ai" | "pc" | "custom": { "order": ["claude", …], "hidden": ["opencode", …] } },
 ///     "panelBackground": "#RRGGBB", // optional; the theme's background otherwise
 ///     "gameMode": { "enabled": false, "processes": ["OneDrive.exe", …], "services": ["WSearch", …],
 ///                   "powerPlan": "balanced" | "high" | "keep", "disableGameBar": true, "relaunch": true },
 ///     "accounts": { "claude" | "codex" | "cursor": [ { "name": "Trabajo", "folder": "D:\\…" } ] },
 ///     "selectedAccounts": { "claude": 0 | 1 | … },
+///     "accountNames": { "codex": "Personal" }, // names of the default accounts; optional
+///     "accountsDiscovered": true, // the other logins on this PC were already looked for; optional
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
@@ -241,6 +257,7 @@ internal static class SettingsStore
                 ShareWithOrb = GetBool(root, "shareWithOrb") ?? true,
                 SettingsWindow = ParseBounds(root, "settingsWindow"),
                 View = RingKeys.ParseView(GetString(root, "view")) ?? WidgetView.Ai,
+                CustomViewEnabled = GetBool(root, "customView") ?? true,
                 AiLayout = ParseLayout(root, WidgetView.Ai),
                 PcLayout = ParseLayout(root, WidgetView.Pc),
                 CustomLayout = ParseLayout(root, WidgetView.Custom),
@@ -248,6 +265,8 @@ internal static class SettingsStore
                 GameMode = ParseGameMode(root),
                 Accounts = ParseAccounts(root),
                 SelectedAccounts = ParseSelected(root),
+                AccountNames = ParseAccountNames(root),
+                AccountsDiscovered = GetBool(root, "accountsDiscovered") ?? false,
             };
         }
         catch (Exception ex)
@@ -335,6 +354,7 @@ internal static class SettingsStore
                     writer.WriteEndObject();
                 }
                 writer.WriteString("view", RingKeys.ViewKey(settings.View));
+                writer.WriteBoolean("customView", settings.CustomViewEnabled);
                 writer.WriteStartObject("layouts");
                 foreach (WidgetView view in new[] { WidgetView.Ai, WidgetView.Pc, WidgetView.Custom })
                 {
@@ -372,6 +392,14 @@ internal static class SettingsStore
                     }
                     writer.WriteEndObject();
                 }
+                if (settings.AccountNames.Count > 0)
+                {
+                    writer.WriteStartObject("accountNames");
+                    foreach (KeyValuePair<string, string> entry in settings.AccountNames.OrderBy(p => p.Key, StringComparer.Ordinal))
+                        writer.WriteString(entry.Key, entry.Value);
+                    writer.WriteEndObject();
+                }
+                if (settings.AccountsDiscovered) writer.WriteBoolean("accountsDiscovered", true);
                 if (settings.SelectedAccounts.Count > 0)
                 {
                     writer.WriteStartObject("selectedAccounts");
@@ -515,7 +543,8 @@ internal static class SettingsStore
         };
     }
 
-    /// Accounts with a name and a fully qualified folder; at most AccountLimit per provider.
+    /// Accounts with a fully qualified folder and a name of at most 40 characters (empty: the plan is shown); at most
+    /// AccountLimit per provider.
     public const int AccountLimit = 8;
 
     private static FrozenDictionary<string, ImmutableArray<ExtraAccount>> ParseAccounts(JsonElement root)
@@ -531,11 +560,23 @@ internal static class SettingsStore
             {
                 if (parsed.Count >= AccountLimit || item.ValueKind != JsonValueKind.Object) continue;
                 string? name = GetString(item, "name")?.Trim(), folder = GetString(item, "folder")?.Trim();
-                if (name is { Length: > 0 and <= 40 } && folder is { Length: > 0 and <= 260 } && Path.IsPathFullyQualified(folder))
+                if (name is { Length: <= 40 } && folder is { Length: > 0 and <= 260 } && Path.IsPathFullyQualified(folder))
                     parsed.Add(new ExtraAccount(name, folder));
             }
             if (parsed.Count > 0) map[provider] = [.. parsed];
         }
+        return map.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    public const int AccountNameLimit = 40;
+
+    private static FrozenDictionary<string, string> ParseAccountNames(JsonElement root)
+    {
+        if (!root.TryGetProperty("accountNames", out JsonElement names) || names.ValueKind != JsonValueKind.Object)
+            return FrozenDictionary<string, string>.Empty;
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string provider in new[] { AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor })
+            if (GetString(names, provider)?.Trim() is { Length: > 0 and <= AccountNameLimit } name) map[provider] = name;
         return map.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
