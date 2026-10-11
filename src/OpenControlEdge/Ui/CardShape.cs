@@ -1,10 +1,12 @@
 using System.Windows;
 using System.Windows.Media;
+using OpenControlEdge.Services;
 
 namespace OpenControlEdge.Ui;
 
 /// Detail-card background: a rounded rectangle with a triangular beak (concave sides) on its right edge.
-/// The body occupies ActualWidth - BeakLength; the beak tip touches the right edge of the element.
+/// The body occupies ActualWidth - BeakLength; the beak tip touches the right edge of the element. Side puts the beak on
+/// another side (the one facing the panel): Left mirrored; Top and Bottom with BeakCenter running along the width.
 public sealed class CardShape : FrameworkElement
 {
     public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
@@ -27,6 +29,16 @@ public sealed class CardShape : FrameworkElement
     public static readonly DependencyProperty BeakCenterProperty = DependencyProperty.Register(
         nameof(BeakCenter), typeof(double), typeof(CardShape),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty SideProperty = DependencyProperty.Register(
+        nameof(Side), typeof(PanelEdge), typeof(CardShape),
+        new FrameworkPropertyMetadata(PanelEdge.Right, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public PanelEdge Side
+    {
+        get => (PanelEdge)GetValue(SideProperty);
+        set => SetValue(SideProperty, value);
+    }
 
     public Brush Fill
     {
@@ -61,8 +73,9 @@ public sealed class CardShape : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         double beak = BeakLength;
-        double w = ActualWidth - beak;
-        double h = ActualHeight;
+        bool horizontal = Side is PanelEdge.Top or PanelEdge.Bottom;
+        double w = (horizontal ? ActualHeight : ActualWidth) - beak;
+        double h = horizontal ? ActualWidth : ActualHeight;
         if (w <= 0 || h <= 0) return;
 
         double r = Math.Min(CornerRadius, Math.Min(w, h) / 2);
@@ -92,8 +105,19 @@ public sealed class CardShape : FrameworkElement
             ctx.LineTo(new Point(0, r), false, false);
             ctx.ArcTo(new Point(r, 0), corner, 0, false, SweepDirection.Clockwise, false, false);
         }
+        geometry.Transform = new MatrixTransform(ToEdge(Side, ActualWidth, ActualHeight));
         geometry.Freeze();
 
         dc.DrawGeometry(Fill, null, geometry);
     }
+
+    /// From the shape drawn for the right edge (the edge on the right, "along" running top to bottom) to the given edge
+    /// in a box of width × height. For Top and Bottom the drawing is made in a height × width box (along = width).
+    internal static Matrix ToEdge(PanelEdge edge, double width, double height) => edge switch
+    {
+        PanelEdge.Left => new Matrix(-1, 0, 0, 1, width, 0),
+        PanelEdge.Bottom => new Matrix(0, 1, 1, 0, 0, 0),
+        PanelEdge.Top => new Matrix(0, -1, 1, 0, 0, height),
+        _ => Matrix.Identity,
+    };
 }

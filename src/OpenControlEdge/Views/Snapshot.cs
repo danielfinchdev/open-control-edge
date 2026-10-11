@@ -449,26 +449,14 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "79_update_dot.png"));
         window.SetUpdateAvailable(false);
 
-        // Orb connected (OrbBridge): the badge above the rings, grey while Orb's assistant waits and green while it
-        // works; then a Codex ring with no reading of its own showing Orb's, with its source under the card.
-        var orb = new OrbStatus("1.4.0", 4242, DateTimeOffset.UtcNow,
-            [new OrbUsage("codex", "Personal", 37, "5h", DateTimeOffset.Now.AddHours(2))], new OrbTasks(2, 1, 1), false);
-        window.SetOrb(orb);
-        if (window.OrbBadge.ToolTip is not string tip || tip != "Orb conectado\nTareas: 2 en curso · 1 en cola · 1 por aprobar\nAsistente: en espera")
-            throw new InvalidDataException("Orb badge tooltip check failed");
-        window.SaveSnapshot(Path.Combine(directory, "82_orb_connected.png"));
-        window.SetOrb(orb with { AssistantBusy = true });
-        window.SaveSnapshot(Path.Combine(directory, "83_orb_assistant_busy.png"));
-        window.SetOrb(orb with { Tasks = null, AssistantBusy = null });
-        if (window.OrbBadge.ToolTip is not "Orb conectado\nTareas: sin datos\nAsistente: sin datos")
-            throw new InvalidDataException("Orb badge without tasks check failed");
+        // A Codex ring with no reading of its own showing Orb's, with its source under the card.
         window.SetCodex(new CodexSnapshot(false, new CodexWindow(37, null, DateTimeOffset.Now.AddHours(2)), null, null) { Source = "Personal · 5h" });
         window.ShowCardNow(EdgeWindow.RingCodex);
         window.SaveSnapshot(Path.Combine(directory, "84_card_codex_from_orb.png"));
 
         // Two Codex accounts: a tag per account next to the title (the plan, or the name given), the (i) bubble open.
         var codexMonthly = new CodexSnapshot(false, new CodexWindow(0, TimeSpan.FromDays(30), DateTimeOffset.Now.AddDays(30)), null, null) { Plan = "go" };
-        window.SetAccounts(AiProviderId.Codex, ["Go", "Pro"], 1);
+        window.SetAccounts(AiProviderId.Codex, ["Go", "Pro Lite"], 1);
         window.SetCodex(codexMonthly with { Plan = "prolite", SubscriptionUntil = DateTimeOffset.Now.AddDays(12) });
         window.ShowCardNow(EdgeWindow.RingCodex);
         window.SaveSnapshot(Path.Combine(directory, "85_card_codex_two_accounts.png"));
@@ -480,22 +468,26 @@ internal static class Snapshot
         window.SetAccounts(AiProviderId.Codex, ["Go", "Pro", "Pro 2", "Personal", "Trabajo"], 3);
         window.SaveSnapshot(Path.Combine(directory, "87b_card_codex_five_accounts.png"));
         window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
+
+        // Every edge, centred, with a card open; then manual placement (the ✕ becomes the drag handle) on the right.
+        foreach (PanelEdge edge in new[] { PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom })
+        {
+            window.ApplyPlacement(PanelPlacement.Default with { Edge = edge });
+            window.ShowCardNow(EdgeWindow.RingCodex);
+            window.SaveSnapshot(Path.Combine(directory, $"91_edge_{edge.ToString().ToLowerInvariant()}.png"));
+            window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
+            window.ShowCardNow(EdgeWindow.RingCpu);
+            window.SaveSnapshot(Path.Combine(directory, $"92_edge_{edge.ToString().ToLowerInvariant()}_pc.png"));
+            window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        }
+        window.ApplyPlacement(PanelPlacement.Default with { Manual = true, Offset = 0.25 });
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(directory, "93_manual_handle.png"));
+        window.ApplyPlacement(PanelPlacement.Default);
         window.SetCodex(codexMonthly);
         window.ShowCardNow(EdgeWindow.RingDeepSeek);
         window.SaveSnapshot(Path.Combine(directory, "88_card_deepseek_open_button.png"));
 
-        // The Orb ring in the PC view: Orb installed and open (full ring), then closed.
-        window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
-        window.SetOrbApp(installed: true, running: false, sharing: true);
-        window.ShowCardNow(EdgeWindow.RingOrb);
-        window.SaveSnapshot(Path.Combine(directory, "89_pc_orb_ring_open.png"));
-        window.SetOrb(null);
-        window.SaveSnapshot(Path.Combine(directory, "90_pc_orb_ring_closed.png"));
-        window.SetOrbApp(installed: false, running: false, sharing: true);
-        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
-        if (window.IsRingOnScreen(EdgeWindow.RingOrb)) throw new InvalidDataException("Orb ring shown without Orb installed");
-        window.SetOrb(null);
-        if (window.OrbBadge.Visibility == Visibility.Visible) throw new InvalidDataException("Orb badge stayed after disconnecting");
 
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, Color.FromRgb(0x0B, 0x1E, 0x33));
         window.ShowCardNow(EdgeWindow.RingClaude);

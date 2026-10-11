@@ -106,6 +106,6 @@ ISC License
 GitHub mark in Ui/Icons.cs
 Path from Simple Icons (https://simpleicons.org), CC0 1.0 Universal. GitHub is a trademark of GitHub, Inc.
 
-Orb artwork in Assets/Orb (orb-head.png, orb-icon.png)
+Orb artwork in Assets/Orb (orb-icon.png)
 From Orb (https://github.com/danielfinchdev/orb-dev), by the same author.
 

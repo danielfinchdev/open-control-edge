@@ -74,6 +74,10 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// orb.json is no longer read.
     public bool ShareWithOrb { get; init; } = true;
 
+    /// The panel's edge, monitor and place along the edge (Ajustes › Personalización › Posición; the drag handle in
+    /// manual placement).
+    public PanelPlacement Placement { get; init; } = PanelPlacement.Default;
+
     /// Where the settings window was last closed; null opens it at its default size, centred on the panel's monitor.
     public WindowBounds? SettingsWindow { get; init; }
 
@@ -154,6 +158,8 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
 ///     "view": "ai" | "pc" | "custom",
 ///     "customView": true | false, // the Personalizada view can be chosen
+///     "edge": "right" | "left" | "top" | "bottom", "placement": "center" | "manual", "offset": 0…1,
+///     "monitor": "\\\\.\\DISPLAY2", // optional; the primary monitor otherwise
 ///     "layouts": { "ai" | "pc" | "custom": { "order": ["claude", …], "hidden": ["opencode", …] } },
 ///     "panelBackground": "#RRGGBB", // optional; the theme's background otherwise
 ///     "gameMode": { "enabled": false, "processes": ["OneDrive.exe", …], "services": ["WSearch", …],
@@ -258,6 +264,7 @@ internal static class SettingsStore
                 SettingsWindow = ParseBounds(root, "settingsWindow"),
                 View = RingKeys.ParseView(GetString(root, "view")) ?? WidgetView.Ai,
                 CustomViewEnabled = GetBool(root, "customView") ?? true,
+                Placement = ParsePlacement(root),
                 AiLayout = ParseLayout(root, WidgetView.Ai),
                 PcLayout = ParseLayout(root, WidgetView.Pc),
                 CustomLayout = ParseLayout(root, WidgetView.Custom),
@@ -355,6 +362,11 @@ internal static class SettingsStore
                 }
                 writer.WriteString("view", RingKeys.ViewKey(settings.View));
                 writer.WriteBoolean("customView", settings.CustomViewEnabled);
+                PanelPlacement placement = settings.Placement;
+                writer.WriteString("edge", placement.Edge.ToString().ToLowerInvariant());
+                writer.WriteString("placement", placement.Manual ? "manual" : "center");
+                writer.WriteNumber("offset", Math.Round(placement.Offset, 4));
+                if (placement.Monitor is string monitor) writer.WriteString("monitor", monitor);
                 writer.WriteStartObject("layouts");
                 foreach (WidgetView view in new[] { WidgetView.Ai, WidgetView.Pc, WidgetView.Custom })
                 {
@@ -511,7 +523,10 @@ internal static class SettingsStore
         if (!root.TryGetProperty("layouts", out JsonElement layouts) || layouts.ValueKind != JsonValueKind.Object
             || !layouts.TryGetProperty(RingKeys.ViewKey(view), out JsonElement layout) || layout.ValueKind != JsonValueKind.Object)
             return ViewLayout.Default(view);
-        return ViewLayout.Normalize(view, GetStrings(layout, "order"), GetStrings(layout, "hidden"));
+        IEnumerable<string> order = GetStrings(layout, "order");
+        // Modo juego moved to the end of the PC view in 3.0: an order nobody changed follows the new default.
+        if (view == WidgetView.Pc && order.Where(RingKeys.Pc.Contains).SequenceEqual(RingKeys.OldPcDefault)) order = RingKeys.Pc;
+        return ViewLayout.Normalize(view, order, GetStrings(layout, "hidden"));
     }
 
     /// "#RRGGBB" (or "RRGGBB"); anything else means the theme's background.
@@ -569,6 +584,22 @@ internal static class SettingsStore
     }
 
     public const int AccountNameLimit = 40;
+
+    /// "edge", "placement", "offset" and "monitor"; anything missing or invalid is the default (right edge, centred,
+    /// primary monitor).
+    private static PanelPlacement ParsePlacement(JsonElement root)
+    {
+        PanelEdge edge = GetString(root, "edge") switch
+        {
+            "left" => PanelEdge.Left, "top" => PanelEdge.Top, "bottom" => PanelEdge.Bottom, _ => PanelEdge.Right,
+        };
+        bool manual = GetString(root, "placement") == "manual";
+        double offset = root.TryGetProperty("offset", out JsonElement o) && o.ValueKind == JsonValueKind.Number
+            && o.TryGetDouble(out double value) && value is >= 0 and <= 1 ? value : 0.5;
+        // A device name such as \\.\DISPLAY2; anything longer or odd is ignored.
+        string? monitor = GetString(root, "monitor") is { Length: > 0 and <= 32 } device && device.StartsWith(@"\\.\", StringComparison.Ordinal) ? device : null;
+        return new PanelPlacement(edge, manual, offset, monitor);
+    }
 
     private static FrozenDictionary<string, string> ParseAccountNames(JsonElement root)
     {

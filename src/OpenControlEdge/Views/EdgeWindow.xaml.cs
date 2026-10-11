@@ -43,25 +43,32 @@ public partial class EdgeWindow : Window
     internal const int RingRam = 8;
     internal const int RingFps = 9;
     internal const int RingGameMode = 10;
-    internal const int RingOrb = 11;
 
     /// The settings key of each ring, by index.
     private static readonly string[] RingKeyOf =
     [
         RingKeys.Claude, RingKeys.Codex, RingKeys.Cursor, RingKeys.OpenCode, RingKeys.DeepSeek, RingKeys.OpenRouter,
-        RingKeys.Cpu, RingKeys.Gpu, RingKeys.Ram, RingKeys.Fps, RingKeys.GameMode, RingKeys.Orb,
+        RingKeys.Cpu, RingKeys.Gpu, RingKeys.Ram, RingKeys.Fps, RingKeys.GameMode,
     ];
 
-    // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs.
+    // Geometry in design units — the original design scaled to 85 %. RootScale maps them to DIPs. "Along" runs with the
+    // screen edge the panel is on, "across" away from it; PanelWidth is the panel's thickness across.
     private const double PanelWidth = 94;
     private const double StripWidth = 5;
     private const double StripHeight = 400;
-    private const double CardBodyWidth = 255;
+    private const double MinCardBody = 255;       // the card grows with its header (long account tags), up to MaxCardBody
+    private const double MaxCardBody = 340;
+    private const double MaxCardHeight = 420;     // on the top and bottom edges: taller cards are cut
     private const double BeakLength = 16;
     private const double CardGap = 6;
     private const double CardSideRoom = 12;
     private const double CardVerticalRoom = 16;  // keep the card inside the window
-    private const double WindowWidthDip = CardSideRoom + CardBodyWidth + BeakLength + CardGap + PanelWidth;
+
+    /// The window's size across the edge (design units): room for the panel, the gap, the beak and the widest (left or
+    /// right edge) or tallest (top or bottom edge) card.
+    private double Thickness => _placement.Horizontal
+        ? PanelWidth + CardGap + BeakLength + MaxCardHeight + CardSideRoom
+        : CardSideRoom + MaxCardBody + BeakLength + CardGap + PanelWidth;
 
     // Automatic scale: 1.0 on a 1080p work area at 100 %, bigger on taller screens, never cut off.
     private const double ReferenceWorkHeight = 1040;
@@ -80,8 +87,13 @@ public partial class EdgeWindow : Window
     private const double ViewShift = 8;
 
     private double _scale = 1;
+    private double _workWidthDip = 1920;
+    private double _workHeightDip = ReferenceWorkHeight;
+    private double _windowWidthDip;
     private double _windowHeightDip = ReferenceWorkHeight;
-    private double _availableHeight = ReferenceWorkHeight;  // design units
+    private double _edgeLength = ReferenceWorkHeight;  // the edge's length, design units
+    private PanelPlacement _placement = PanelPlacement.Default;
+    private double _cardBody = MinCardBody;
     private double? _uiScale;
 
     private const int PanelMs = 250;
@@ -120,7 +132,7 @@ public partial class EdgeWindow : Window
     private bool _cardVisible;
     private int _activeRing = -1;
     private int _hoveredRing = -1;
-    private double _panelTop;
+    private double _panelStart;  // where the panel starts along the edge (design units)
     private bool _hasWindowRect;
     private ClaudeSnapshot? _claude;
     private CodexSnapshot? _codex;
@@ -183,11 +195,11 @@ public partial class EdgeWindow : Window
     /// "Abrir Codex" and the like: the owner opens the agent's app or web page.
     internal event Action<AiProviderId>? OpenRequested;
 
-    /// The Orb ring was clicked: open Orb.
-    internal event Action? OrbOpenRequested;
-
     /// The Modo juego ring was clicked: switch it (or open its settings when it is not enabled).
     internal event Action? GameModeClicked;
+
+    /// The panel was dragged to a new place (manual placement): the owner saves it.
+    internal event Action<PanelPlacement>? PlacementDragged;
 
     /// Which rings are on screen changed (view, panel open or closed): the owner starts or stops the FPS sampling.
     internal event Action? VisibleRingsChanged;
@@ -213,9 +225,9 @@ public partial class EdgeWindow : Window
         _mode = mode;
         InitializeComponent();
 
-        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem, FpsItem, GameModeItem, OrbItem };
-        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing, FpsRing, GameModeRing, OrbRing };
-        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard, FpsCard, GameModeCard, OrbCard };
+        _ringItems = new FrameworkElement[] { ClaudeItem, CodexItem, CursorItem, OpenCodeItem, DeepSeekItem, OpenRouterItem, CpuItem, GpuItem, RamItem, FpsItem, GameModeItem };
+        _rings = new[] { ClaudeRing, CodexRing, CursorRing, OpenCodeRing, DeepSeekRing, OpenRouterRing, CpuRing, GpuRing, RamRing, FpsRing, GameModeRing };
+        _cards = new FrameworkElement[] { ClaudeCard, CodexCard, CursorCard, OpenCodeCard, DeepSeekCard, OpenRouterCard, CpuCard, GpuCard, RamCard, FpsCard, GameModeCard };
         // What the XAML shows at first is what is available before any reading (Claude, CPU, RAM, FPS, Modo juego).
         _available = _ringItems.Select(item => item.Visibility == Visibility.Visible).ToArray();
         _inView = new bool[_ringItems.Length];
@@ -228,8 +240,8 @@ public partial class EdgeWindow : Window
         Top = -32000;
 
         SyncModeButton();
+        SyncCloseButton();
         SyncOpenButtons();
-        SetOrb(null);
         SyncUsageTabs();
         // A click anywhere on the card (but on the (i) itself) closes the subscription bubble.
         Card.PreviewMouseLeftButtonDown += (_, e) =>
@@ -237,11 +249,9 @@ public partial class EdgeWindow : Window
             if (_infoFor is not null && !IsInfoButton(e.OriginalSource as DependencyObject) && !IsAccountTag(e.OriginalSource as DependencyObject))
                 CloseInfo();
         };
-        Canvas.SetLeft(EdgePanel, WindowWidthDip - PanelWidth);
-        Canvas.SetLeft(Card, CardSideRoom);
-        Card.Width = CardBodyWidth + BeakLength;
         Card.Height = 0;
-        LayOut(ReferenceWorkHeight);
+        ApplyOrientation();
+        LayOut(_workWidthDip, ReferenceWorkHeight);
 
         _pointerWatch = new DispatcherTimer(DispatcherPriority.Input) { Interval = FarPoll };
         _pointerWatch.Tick += OnPointerTick;
@@ -325,94 +335,6 @@ public partial class EdgeWindow : Window
         string tip = available ? "Tip.SettingsUpdate" : "Tip.Settings";
         SettingsButton.SetResourceReference(ToolTipProperty, tip);
         SettingsButton.SetResourceReference(AutomationProperties.NameProperty, tip);
-    }
-
-    private static readonly SolidColorBrush OrbBusyBrush = CreateFrozen(Color.FromRgb(0x22, 0xC5, 0x5E));
-    private OrbStatus? _orb;
-
-    /// Orb is connected: the badge above the rings, its dot green while Orb's assistant is working, and a tooltip with
-    /// Orb's tasks ("sin datos" for whatever orb.json does not carry). Null (disconnected, or sharing off) hides it.
-    internal void SetOrb(OrbStatus? orb)
-    {
-        _orb = orb;
-        SyncOrbRing();
-        OrbBadge.Visibility = orb is null ? Visibility.Collapsed : Visibility.Visible;
-        if (orb is null)
-        {
-            OrbBadge.ToolTip = null;
-            return;
-        }
-        if (orb.AssistantBusy == true) OrbDot.Fill = OrbBusyBrush;
-        else OrbDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, ThemeManager.TextSecondary);
-        string tasks = orb.Tasks is OrbTasks t
-            ? Loc.Format("Orb.Tasks", t.Running, t.Queued, t.AwaitingApproval)
-            : Loc.Format("Orb.TasksValue", Loc.Get("Value.NoData").ToLower(Loc.Culture));
-        string assistant = orb.AssistantBusy switch
-        {
-            true => Loc.Get("Orb.AssistantBusy"),
-            false => Loc.Get("Orb.AssistantIdle"),
-            null => Loc.Format("Orb.AssistantValue", Loc.Get("Value.NoData").ToLower(Loc.Culture)),
-        };
-        OrbBadge.ToolTip = $"{Loc.Get("Orb.Connected")}\n{tasks}\n{assistant}";
-        AutomationProperties.SetName(OrbBadge, $"{Loc.Get("Orb.Connected")}. {tasks}. {assistant}");
-    }
-
-    private bool _orbRunning;
-    private bool _orbSharing = true;
-
-    /// Orb is installed (the ring is on screen in the views that show it) and whether it is running: known from the
-    /// bridge while sharing is on, from its process otherwise.
-    internal void SetOrbApp(bool installed, bool running, bool sharing)
-    {
-        if (_available[RingOrb] == installed && _orbRunning == running && _orbSharing == sharing) return;
-        _orbRunning = running;
-        _orbSharing = sharing;
-        SetRingVisible(RingOrb, installed);
-        SyncOrbRing();
-    }
-
-    /// Full green ring while Orb is open, empty while it is closed; the card says what the bridge knows of it.
-    private void SyncOrbRing()
-    {
-        bool running = _orb is not null || _orbRunning;
-        string before = OrbState.Text + OrbDetails.Text + OrbDetails.Visibility;
-        OrbRing.RingBrush = Palette.Low;
-        AnimateRing(OrbRing, running ? 1 : 0, 300);
-        OrbState.Text = Loc.Get(running ? "Orb.Running" : "Orb.Closed");
-        if (_orb is OrbStatus orb)
-        {
-            string tasks = orb.Tasks is OrbTasks t
-                ? Loc.Format("Orb.Tasks", t.Running, t.Queued, t.AwaitingApproval)
-                : Loc.Format("Orb.TasksValue", Loc.Get("Value.NoData").ToLower(Loc.Culture));
-            string assistant = orb.AssistantBusy switch
-            {
-                true => Loc.Get("Orb.AssistantBusy"),
-                false => Loc.Get("Orb.AssistantIdle"),
-                null => Loc.Format("Orb.AssistantValue", Loc.Get("Value.NoData").ToLower(Loc.Culture)),
-            };
-            OrbDetails.Text = $"{tasks}\n{assistant}";
-            OrbDetails.Visibility = Visibility.Visible;
-        }
-        else if (running && !_orbSharing)
-        {
-            OrbDetails.Text = Loc.Get("Orb.NotSharing");
-            OrbDetails.Visibility = Visibility.Visible;
-        }
-        else OrbDetails.Visibility = Visibility.Collapsed;
-        if (_cardVisible && _activeRing == RingOrb && before != OrbState.Text + OrbDetails.Text + OrbDetails.Visibility) PlaceCard(animate: true);
-    }
-
-    private void OnOrbClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        Log.Trace("Edge", "orb ring clicked");
-        OrbOpenRequested?.Invoke();
-    }
-
-    private static SolidColorBrush CreateFrozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 
     /// The line under a card whose reading is Orb's: "Dato de Orb · Personal · 5 h". Hidden for OCE's own readings.
@@ -527,7 +449,8 @@ public partial class EdgeWindow : Window
             }
             if (visible)
             {
-                item.Margin = new Thickness(0, first ? 0 : 10, 0, 0);
+                double gap = first ? 0 : 10;
+                item.Margin = _placement.Horizontal ? new Thickness(gap, 0, 0, 0) : new Thickness(0, gap, 0, 0);
                 first = false;
             }
         }
@@ -547,8 +470,8 @@ public partial class EdgeWindow : Window
             max = Math.Max(max, _views.Layout(view).Shown.Count(key => _available[Array.IndexOf(RingKeyOf, key)]));
         if (max == _maxRings) return;
         _maxRings = max;
-        if (PreviewMode || !_hasWindowRect) LayOut(_windowHeightDip);
-        else PositionOnPrimaryScreen();
+        if (PreviewMode || !_hasWindowRect) LayOut(_workWidthDip, _workHeightDip);
+        else PositionOnScreen();
     }
 
     /// Whether a ring is on screen right now (panel out, ring in the view and available).
@@ -610,10 +533,10 @@ public partial class EdgeWindow : Window
     {
         ApplyRingBrushes();
         SyncModeButton();
+        SyncCloseButton();
         SyncOpenButtons();
         if (_fps is FpsService.Sample fps) { _fps = null; SetFps(fps); }
         if (_gameMode is not null) SetGameMode(_gameMode);
-        SetOrb(_orb);
         RefreshUsage();
         if (_openCode is not null) SetOpenCode(_openCode);
         if (_deepSeek is not null) SetDeepSeek(_deepSeek);
@@ -709,6 +632,17 @@ public partial class EdgeWindow : Window
         beside.Visibility = badges == beside && labels.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         row.Visibility = badges == row ? Visibility.Visible : Visibility.Collapsed;
         if (labels.Count > 1) plan.Visibility = Visibility.Collapsed;
+        else
+        {
+            // Back to one account: its plan badge again, from the reading on screen.
+            (TextBlock planText, string? planId) = provider switch
+            {
+                AiProviderId.Claude => (ClaudePlanText, _claude?.Plan),
+                AiProviderId.Codex => (CodexPlanText, _codex?.Plan),
+                _ => (CursorPlanText, _cursor?.Plan),
+            };
+            SetPlan(plan, planText, planId);
+        }
         _syncingAccounts = false;
         if (_cardVisible) PlaceCard(animate: true);
     }
@@ -894,17 +828,36 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
-    /// Vertically centres the panel; its height changes when a ring is shown or hidden.
+    /// Places the panel along its edge: centred, or with its centre where the user dragged it (manual placement), always
+    /// whole inside the edge. Its length changes when a ring is shown or hidden.
     private void CenterPanel(bool animate)
+    {
+        double length = PanelLength();
+        double center = _placement.Manual ? _placement.Offset * _edgeLength : _edgeLength / 2;
+        _panelStart = Math.Round(Math.Clamp(center - length / 2, 0, Math.Max(0, _edgeLength - length)));
+        Animate(EdgePanel, _placement.Horizontal ? Canvas.LeftProperty : Canvas.TopProperty, _panelStart, animate ? PanelMs : 0);
+        // The strip (auto mode, collapsed) sits where the panel is.
+        double strip = Math.Min(StripHeight, _edgeLength);
+        double stripStart = Math.Clamp(_panelStart + length / 2 - strip / 2, 0, Math.Max(0, _edgeLength - strip));
+        Canvas.SetLeft(Strip, _placement.Horizontal ? stripStart : _placement.Edge == PanelEdge.Left ? 0 : Thickness - Strip.Width);
+        Canvas.SetTop(Strip, !_placement.Horizontal ? stripStart : _placement.Edge == PanelEdge.Top ? 0 : Thickness - Strip.Height);
+    }
+
+    /// The panel's length along the edge (design units) as it is now.
+    private double PanelLength()
     {
         // Invalidate every level explicitly: a bare Measure() on an ancestor returns a cached size when only a
         // descendant changed.
         PanelStack.InvalidateMeasure();
         PanelRoot.InvalidateMeasure();
         EdgePanel.InvalidateMeasure();
+        if (_placement.Horizontal)
+        {
+            EdgePanel.Measure(new Size(double.PositiveInfinity, PanelWidth));
+            return EdgePanel.DesiredSize.Width;
+        }
         EdgePanel.Measure(new Size(PanelWidth, double.PositiveInfinity));
-        _panelTop = Math.Round((_availableHeight - EdgePanel.DesiredSize.Height) / 2);
-        Animate(EdgePanel, Canvas.TopProperty, _panelTop, animate ? PanelMs : 0);
+        return EdgePanel.DesiredSize.Height;
     }
 
     // ───────────────────────────── Scale ─────────────────────────────
@@ -913,45 +866,56 @@ public partial class EdgeWindow : Window
     internal void ApplyScale(double? uiScale)
     {
         _uiScale = uiScale is double s ? Math.Clamp(s, SettingsStore.MinUiScale, SettingsStore.MaxUiScale) : null;
-        if (PreviewMode || !_hasWindowRect) LayOut(_windowHeightDip);
-        else PositionOnPrimaryScreen();
+        if (PreviewMode || !_hasWindowRect) LayOut(_workWidthDip, _workHeightDip);
+        else PositionOnScreen();
     }
 
-    /// Snapshot support: lays the window out as if the monitor's work area were this many DIPs tall.
-    internal void PreviewWorkArea(double workHeightDip) => LayOut(workHeightDip);
+    /// Snapshot support: lays the window out as if the monitor's work area were this many DIPs tall (and wide: 16:9
+    /// by default).
+    internal void PreviewWorkArea(double workHeightDip, double? workWidthDip = null) =>
+        LayOut(workWidthDip ?? Math.Round(workHeightDip * 1920 / ReferenceWorkHeight), workHeightDip);
 
     internal double Scale => _scale;
 
-    /// Picks the scale for a work area of the given height (DIPs) and lays the canvas out in design units.
-    /// Automatic: proportional to the work area, limited to MinAutoScale–MaxAutoScale so the vectors stay crisp.
-    /// Either way it never exceeds what fits the panel with the rings of its largest view, so nothing is ever cut off.
-    private void LayOut(double workHeightDip)
+    /// Picks the scale for a work area of the given size (DIPs) and lays the canvas out in design units. The window runs
+    /// the whole length of its edge and is Thickness deep.
+    /// Automatic: proportional to the work area's height, limited to MinAutoScale–MaxAutoScale so the vectors stay crisp.
+    /// Either way it never exceeds what fits the panel with the rings of its largest view along its edge, so nothing
+    /// is ever cut off.
+    private void LayOut(double workWidthDip, double workHeightDip)
     {
+        _workWidthDip = workWidthDip;
+        _workHeightDip = workHeightDip;
+        bool horizontal = _placement.Horizontal;
+        double edgeLength = horizontal ? workWidthDip : workHeightDip;
         double preferred = _uiScale ?? Math.Clamp(workHeightDip / ReferenceWorkHeight, MinAutoScale, MaxAutoScale);
-        double fit = (workHeightDip - 2 * ScreenMargin) / FullPanelHeight();
-        _scale = Math.Round(Math.Max(MinFitScale, Math.Min(preferred, fit)), 3);
-        _windowHeightDip = workHeightDip;
-        _availableHeight = workHeightDip / _scale;
+        double fit = (edgeLength - 2 * ScreenMargin) / FullPanelHeight();
+        // Across the edge the window must fit the work area too (a top or bottom panel on a short screen).
+        double across = (horizontal ? workHeightDip : workWidthDip) / Thickness;
+        _scale = Math.Round(Math.Max(MinFitScale, Math.Min(Math.Min(preferred, fit), Math.Max(MinFitScale, across))), 3);
+        _edgeLength = edgeLength / _scale;
+        _windowWidthDip = horizontal ? workWidthDip : Thickness * _scale;
+        _windowHeightDip = horizontal ? Thickness * _scale : workHeightDip;
 
         RootScale.ScaleX = RootScale.ScaleY = _scale;
-        Root.Width = WindowWidthDip;
-        Root.Height = _availableHeight;
-        Width = WindowWidthDip * _scale;
-        Height = workHeightDip;
+        Root.Width = horizontal ? _edgeLength : Thickness;
+        Root.Height = horizontal ? Thickness : _edgeLength;
+        Width = _windowWidthDip;
+        Height = _windowHeightDip;
 
-        Strip.Width = StripWidth / _scale;
-        Strip.Height = Math.Min(StripHeight, _availableHeight);
-        Canvas.SetLeft(Strip, WindowWidthDip - Strip.Width);
-        Canvas.SetTop(Strip, (_availableHeight - Strip.Height) / 2);
+        Strip.Width = horizontal ? Math.Min(StripHeight, _edgeLength) : StripWidth / _scale;
+        Strip.Height = horizontal ? StripWidth / _scale : Math.Min(StripHeight, _edgeLength);
+        Canvas.SetLeft(EdgePanel, _placement.Edge switch { PanelEdge.Right => Thickness - PanelWidth, PanelEdge.Left => 0, _ => Canvas.GetLeft(EdgePanel) is double l && !double.IsNaN(l) ? l : 0 });
+        Canvas.SetTop(EdgePanel, _placement.Edge switch { PanelEdge.Bottom => Thickness - PanelWidth, PanelEdge.Top => 0, _ => Canvas.GetTop(EdgePanel) is double t && !double.IsNaN(t) ? t : 0 });
 
         LayOutButtons();
         CenterPanel(animate: false);
         if (_cardVisible) PlaceCard(animate: false);
-        Log.Trace("Edge", $"scale {_scale} (preferred {preferred:0.###}, fit {fit:0.###}) for {workHeightDip:0} DIP");
+        Log.Trace("Edge", $"scale {_scale} (preferred {preferred:0.###}, fit {fit:0.###}) for {workWidthDip:0}x{workHeightDip:0} DIP, {_placement.Edge}");
     }
 
-    /// Height of the panel (design units) with as many rings as the largest view shows (UpdateMaxRings), whatever is
-    /// visible right now, so the scale does not jump when switching views.
+    /// Length of the panel along its edge (design units) with as many rings as the largest view shows (UpdateMaxRings),
+    /// whatever is visible right now, so the scale does not jump when switching views.
     private double FullPanelHeight()
     {
         var saved = new Visibility[_ringItems.Length];
@@ -962,13 +926,9 @@ public partial class EdgeWindow : Window
             _ringItems[i].Visibility = RingStack.Children.IndexOf(_ringItems[i]) < count ? Visibility.Visible : Visibility.Collapsed;
         }
         LayOutButtons();
-        PanelStack.InvalidateMeasure();
-        PanelRoot.InvalidateMeasure();
-        EdgePanel.InvalidateMeasure();
-        EdgePanel.Measure(new Size(PanelWidth, double.PositiveInfinity));
-        double height = EdgePanel.DesiredSize.Height;
+        double length = PanelLength();
         for (int i = 0; i < _ringItems.Length; i++) _ringItems[i].Visibility = saved[i];
-        return height;
+        return length;
     }
 
     /// Four buttons, two by two (four in a row would be under 20 DIP at any scale).
@@ -983,6 +943,140 @@ public partial class EdgeWindow : Window
             button.Width = button.Height = ButtonDiameter;
             if (button.Content is FrameworkElement icon) icon.Width = icon.Height = Math.Round(ButtonDiameter * 0.5);
         }
+    }
+
+    // ───────────────────────────── Placement ─────────────────────────────
+
+    internal PanelPlacement Placement => _placement;
+
+    /// Edge, monitor and place along the edge (Ajustes › Personalización, or the drag handle). The panel moves at once.
+    internal void ApplyPlacement(PanelPlacement placement)
+    {
+        if (placement == _placement) return;
+        bool turned = placement.Edge != _placement.Edge;
+        bool moved = placement.Monitor != _placement.Monitor;
+        _placement = placement;
+        Log.Trace("Edge", $"placement -> {placement}");
+        if (turned)
+        {
+            HideCard();
+            ApplyOrientation();
+        }
+        if (turned || moved)
+        {
+            if (PreviewMode || !_hasWindowRect) LayOut(_workWidthDip, _workHeightDip);
+            else PositionOnScreen();
+        }
+        else CenterPanel(animate: false);
+        SyncCloseButton();
+    }
+
+    /// What depends on the edge: the panel's shape and the direction of its rings, the card's beak and margins, and
+    /// where the collapsed panel hides.
+    private void ApplyOrientation()
+    {
+        PanelEdge edge = _placement.Edge;
+        bool horizontal = _placement.Horizontal;
+        PanelShape.Edge = edge;
+        CardBackground.Side = edge;
+        EdgePanel.Width = horizontal ? double.NaN : PanelWidth;
+        EdgePanel.Height = horizontal ? PanelWidth : double.NaN;
+        PanelRoot.Margin = horizontal ? new Thickness(38, 0, 38, 0) : new Thickness(0, 38, 0, 38);
+        PanelStack.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
+        PanelStack.Margin = horizontal ? new Thickness(20, 0, 14, 0) : new Thickness(0, 20, 0, 14);
+        PanelStack.VerticalAlignment = horizontal ? VerticalAlignment.Center : VerticalAlignment.Stretch;
+        RingStack.Orientation = horizontal ? Orientation.Horizontal : Orientation.Vertical;
+        PanelButtons.Margin = horizontal ? new Thickness(14, 0, 0, 0) : new Thickness(0, 14, 0, 0);
+        PanelButtons.VerticalAlignment = VerticalAlignment.Center;
+        foreach (FrameworkElement item in _ringItems) item.VerticalAlignment = VerticalAlignment.Center;
+        ContentClip.Margin = edge switch
+        {
+            PanelEdge.Left => new Thickness(BeakLength, 0, 0, 0),
+            PanelEdge.Top => new Thickness(0, BeakLength, 0, 0),
+            PanelEdge.Bottom => new Thickness(0, 0, 0, BeakLength),
+            _ => new Thickness(0, 0, BeakLength, 0),
+        };
+        // Animations of the other axis would keep holding their last value over the new places.
+        foreach (DependencyProperty property in new[] { Canvas.LeftProperty, Canvas.TopProperty }) { EdgePanel.BeginAnimation(property, null); Card.BeginAnimation(property, null); }
+        // Collapsed, the panel hides past its edge.
+        PanelShift.BeginAnimation(TranslateTransform.XProperty, null);
+        PanelShift.BeginAnimation(TranslateTransform.YProperty, null);
+        (PanelShift.X, PanelShift.Y) = _expanded ? (0, 0) : HiddenShift();
+        ApplyRingVisibility();
+    }
+
+    /// The panel's offset while collapsed: one panel thickness out past its edge.
+    private (double X, double Y) HiddenShift() => _placement.Edge switch
+    {
+        PanelEdge.Left => (-PanelWidth, 0),
+        PanelEdge.Top => (0, -PanelWidth),
+        PanelEdge.Bottom => (0, PanelWidth),
+        _ => (PanelWidth, 0),
+    };
+
+    /// Manual placement: the close button becomes the handle that drags the panel (a four-way arrow).
+    private void SyncCloseButton()
+    {
+        bool handle = _placement.Manual;
+        CloseIcon.Icon = handle ? Icons.Move : Icons.Close;
+        CloseButton.Cursor = handle ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Hand;
+        string tip = handle ? "Tip.Drag" : "Tip.Close";
+        CloseButton.SetResourceReference(ToolTipProperty, tip);
+        CloseButton.SetResourceReference(AutomationProperties.NameProperty, tip);
+    }
+
+    // The drag: the panel follows the pointer along the nearest edge of the monitor under it.
+    private bool _dragging;
+    private double _dragGrab;          // pointer minus the panel's centre along the edge at the start (design units)
+    private const int EdgeHysteresis = 32;  // physical px nearer another edge before the panel jumps to it
+
+    private void OnHandleDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (!_placement.Manual || PreviewMode) return;
+        e.Handled = true;  // no Click: in manual placement this button never closes the app
+        HideCard();
+        _dragging = CloseButton.CaptureMouse();
+        Point local = System.Windows.Input.Mouse.GetPosition(Root);
+        _dragGrab = (_placement.Horizontal ? local.X : local.Y) - (_panelStart + PanelLength() / 2);
+        Log.Trace("Edge", "drag start");
+    }
+
+    private void OnHandleMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_dragging || !GetCursorPos(out POINT cursor)) return;
+        if (Monitors.At(cursor.X, cursor.Y) is not MonitorInfo monitor) return;
+        RECT work = monitor.Work;
+        int left = cursor.X - work.Left, right = work.Right - cursor.X, top = cursor.Y - work.Top, bottom = work.Bottom - cursor.Y;
+        int Distance(PanelEdge edge) => edge switch { PanelEdge.Left => left, PanelEdge.Top => top, PanelEdge.Bottom => bottom, _ => right };
+        PanelEdge nearest = new[] { PanelEdge.Right, PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom }.MinBy(Distance);
+        bool sameMonitor = monitor.Device.Equals(Monitors.Find(_placement.Monitor)?.Device, StringComparison.OrdinalIgnoreCase);
+        PanelEdge edge = sameMonitor && Distance(_placement.Edge) <= Distance(nearest) + EdgeHysteresis ? _placement.Edge : nearest;
+        bool horizontal = edge is PanelEdge.Top or PanelEdge.Bottom;
+        double along = horizontal ? (cursor.X - work.Left) / (double)Math.Max(1, work.Right - work.Left)
+                                  : (cursor.Y - work.Top) / (double)Math.Max(1, work.Bottom - work.Top);
+        if (edge == _placement.Edge && sameMonitor)
+        {
+            // Same edge: the grab point stays under the pointer.
+            double lengthPx = (horizontal ? work.Right - work.Left : work.Bottom - work.Top);
+            along -= _dragGrab * _scale * (monitor.Dpi / 96.0) / Math.Max(1, lengthPx);
+        }
+        else _dragGrab = 0;
+        ApplyPlacement(_placement with { Edge = edge, Manual = true, Offset = Math.Round(Math.Clamp(along, 0, 1), 4), Monitor = monitor.Device });
+    }
+
+    private void OnHandleUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (!_dragging) return;
+        e.Handled = true;
+        CloseButton.ReleaseMouseCapture();
+    }
+
+    private void OnHandleLost(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_dragging) return;
+        _dragging = false;
+        Log.Trace("Edge", $"drag end -> {_placement}");
+        PlacementDragged?.Invoke(_placement);
     }
 
     // ───────────────────────────── Data ─────────────────────────────
@@ -1545,7 +1639,7 @@ public partial class EdgeWindow : Window
             Log.Trace("Edge", $"UI stall: {_tickClock.ElapsedMilliseconds} ms between pointer ticks");
         _tickClock.Restart();
 
-        if (!GetCursorPos(out POINT cursor)) return;
+        if (_dragging || !GetCursorPos(out POINT cursor)) return;
         if (cursor.X != _lastCursor.X || cursor.Y != _lastCursor.Y)
         {
             _lastCursor = cursor;
@@ -1707,7 +1801,7 @@ public partial class EdgeWindow : Window
             ResumePointerWatch();
         }
 
-        Animate(PanelShift, TranslateTransform.XProperty, 0, PanelMs);
+        Animate(PanelShift, _placement.Horizontal ? TranslateTransform.YProperty : TranslateTransform.XProperty, 0, PanelMs);
         Animate(Strip, OpacityProperty, 0, 150);
         ExpandedChanged?.Invoke(true);
         VisibleRingsChanged?.Invoke();
@@ -1726,7 +1820,9 @@ public partial class EdgeWindow : Window
 
         HideCard();
         for (int i = 0; i < _rings.Length; i++) ScaleRing(i, 1.0);
-        Animate(PanelShift, TranslateTransform.XProperty, PanelWidth, PanelMs, ease: EaseIn);
+        (double hiddenX, double hiddenY) = HiddenShift();
+        if (_placement.Horizontal) Animate(PanelShift, TranslateTransform.YProperty, hiddenY, PanelMs, ease: EaseIn);
+        else Animate(PanelShift, TranslateTransform.XProperty, hiddenX, PanelMs, ease: EaseIn);
         Animate(Strip, OpacityProperty, 1, PanelMs, ease: EaseIn);
         _expanded = false;
         // Click-through from now on: only the poll can see the pointer reach the strip.
@@ -1778,7 +1874,11 @@ public partial class EdgeWindow : Window
             // The card takes clicks (its tabs) only while it is on screen.
             Card.IsHitTestVisible = true;
             _timeTextTimer.Start();
-            Animate(CardShift, TranslateTransform.XProperty, 0, 220, from: 10);
+            CardShift.BeginAnimation(TranslateTransform.XProperty, null);
+            CardShift.BeginAnimation(TranslateTransform.YProperty, null);
+            CardShift.X = CardShift.Y = 0;
+            double from = _placement.Edge is PanelEdge.Left or PanelEdge.Top ? -10 : 10;
+            Animate(CardShift, _placement.Horizontal ? TranslateTransform.YProperty : TranslateTransform.XProperty, 0, 220, from: from);
             Animate(Card, OpacityProperty, 1, 180);
         }
     }
@@ -1795,7 +1895,8 @@ public partial class EdgeWindow : Window
         Animate(Card, OpacityProperty, 0, 150);
     }
 
-    /// Centres the card on the active ring (clamped to the window) and points the beak at the ring.
+    /// Centres the card on the active ring (clamped to the window) and points the beak at the ring. The card is as wide
+    /// as its header needs (two long account tags), MinCardBody to MaxCardBody.
     private void PlaceCard(bool animate)
     {
         if (_activeRing < 0) return;
@@ -1803,22 +1904,49 @@ public partial class EdgeWindow : Window
         // Measure only the card, never UpdateLayout (that would remeasure the whole layered window on every sample).
         // Always unconstrained: a layout pass measures it within the card's current height (0 before the first show),
         // and Measure itself is a no-op while neither the content nor the constraint changed.
-        CardContent.Measure(new Size(CardBodyWidth, double.PositiveInfinity));
+        double body = MinCardBody;
+        if (_cards[_activeRing] is Panel { Children.Count: > 0 } card && card.Children[0] is FrameworkElement header)
+        {
+            header.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double margins = CardContent.Margin.Left + CardContent.Margin.Right;
+            body = Math.Clamp(Math.Ceiling(header.DesiredSize.Width + margins + 2), MinCardBody, MaxCardBody);
+        }
+        _cardBody = body;
+        CardContent.Measure(new Size(body, double.PositiveInfinity));
         double height = Math.Ceiling(CardContent.DesiredSize.Height);
+        if (_placement.Horizontal) height = Math.Min(height, MaxCardHeight);
 
-        // Measured against the panel's target top, so the card aims at where the ring ends up while the panel is
+        // Measured against the panel's target place, so the card aims at where the ring ends up while the panel is
         // still re-centring after a ring appeared or disappeared.
         FrameworkElement ring = _rings[_activeRing];
-        double ringCenter = _panelTop + ring.TranslatePoint(new Point(ring.ActualWidth / 2, ring.ActualHeight / 2), EdgePanel).Y;
-
-        double maxTop = Math.Max(CardVerticalRoom, _availableHeight - CardVerticalRoom - height);
-        double top = Math.Min(Math.Max(ringCenter - height / 2, CardVerticalRoom), maxTop);
-        double beakCenter = ringCenter - top;
-
+        Point ringPoint = ring.TranslatePoint(new Point(ring.ActualWidth / 2, ring.ActualHeight / 2), EdgePanel);
+        double ringCenter = _panelStart + (_placement.Horizontal ? ringPoint.X : ringPoint.Y);
         int ms = animate ? CardSlideMs : 0;
-        Animate(Card, Canvas.TopProperty, top, ms);
-        Animate(Card, HeightProperty, height, ms);
-        Animate(CardBackground, CardShape.BeakCenterProperty, beakCenter, ms);
+
+        if (_placement.Horizontal)
+        {
+            double maxLeft = Math.Max(CardVerticalRoom, _edgeLength - CardVerticalRoom - body);
+            double left = Math.Min(Math.Max(ringCenter - body / 2, CardVerticalRoom), maxLeft);
+            double cardHeight = height + BeakLength;
+            double top = _placement.Edge == PanelEdge.Top ? PanelWidth + CardGap : Thickness - PanelWidth - CardGap - cardHeight;
+            Animate(Card, Canvas.LeftProperty, left, ms);
+            Animate(Card, Canvas.TopProperty, top, ms);
+            Animate(Card, WidthProperty, body, ms);
+            Animate(Card, HeightProperty, cardHeight, ms);
+            Animate(CardBackground, CardShape.BeakCenterProperty, ringCenter - left, ms);
+        }
+        else
+        {
+            double maxTop = Math.Max(CardVerticalRoom, _edgeLength - CardVerticalRoom - height);
+            double top = Math.Min(Math.Max(ringCenter - height / 2, CardVerticalRoom), maxTop);
+            double cardWidth = body + BeakLength;
+            double left = _placement.Edge == PanelEdge.Left ? PanelWidth + CardGap : Thickness - PanelWidth - CardGap - cardWidth;
+            Animate(Card, Canvas.LeftProperty, left, ms);
+            Animate(Card, Canvas.TopProperty, top, ms);
+            Animate(Card, WidthProperty, cardWidth, ms);
+            Animate(Card, HeightProperty, height, ms);
+            Animate(CardBackground, CardShape.BeakCenterProperty, ringCenter - top, ms);
+        }
         // The canvas's own size never changes, so it would keep arranging the card in its previous slot (and clip it).
         Card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Root.InvalidateArrange();
@@ -1864,7 +1992,7 @@ public partial class EdgeWindow : Window
         if (!PreviewMode)
         {
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
-            PositionOnPrimaryScreen();
+            PositionOnScreen();
             SetClickThrough(true);
             _tickClock.Start();
             _pointerWatch.Start();
@@ -1880,12 +2008,12 @@ public partial class EdgeWindow : Window
         if (msg == WM_INPUT && _wakeOnInput) ResumePointerWatch();
         if (!PreviewMode && (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED
                              || (msg == WM_SETTINGCHANGE && wParam.ToInt64() == SPI_SETWORKAREA)))
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnPrimaryScreen));
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnScreen));
         return IntPtr.Zero;
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnPrimaryScreen));
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(PositionOnScreen));
 
     private void SetClickThrough(bool enabled)
     {
@@ -1895,37 +2023,33 @@ public partial class EdgeWindow : Window
         else AddExtendedStyle(hwnd, 0, WS_EX_TRANSPARENT);
     }
 
-    /// Right edge of the primary monitor's work area, full work-area height, in physical pixels. The scale follows
-    /// the work area in DIPs (resolution and DPI together).
-    private void PositionOnPrimaryScreen()
+    /// Along the chosen edge of the chosen monitor's work area (the primary one when that monitor is gone), the whole
+    /// length of the edge, in physical pixels. The scale follows the work area in DIPs (resolution and DPI together).
+    private void PositionOnScreen()
     {
         try
         {
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             if (hwnd == IntPtr.Zero) return;
 
-            IntPtr monitor = MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
-            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-            if (!GetMonitorInfo(monitor, ref info)) return;
-
-            double dpi = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0
-                ? dpiX / 96.0
-                : VisualTreeHelper.GetDpi(this).DpiScaleX;
-
-            RECT work = info.rcWork;
-            int height = work.Bottom - work.Top;
-            LayOut(height / dpi);
-            int width = (int)Math.Round(WindowWidthDip * _scale * dpi);
-            int x = work.Right - width;
+            if (Monitors.Find(_placement.Monitor) is not MonitorInfo monitor) return;
+            double dpi = monitor.Dpi / 96.0;
+            RECT work = monitor.Work;
+            int workWidth = work.Right - work.Left, workHeight = work.Bottom - work.Top;
+            LayOut(workWidth / dpi, workHeight / dpi);
+            int width = _placement.Horizontal ? workWidth : (int)Math.Round(_windowWidthDip * dpi);
+            int height = _placement.Horizontal ? (int)Math.Round(_windowHeightDip * dpi) : workHeight;
+            int x = _placement.Edge == PanelEdge.Right ? work.Right - width : work.Left;
+            int y = _placement.Edge == PanelEdge.Bottom ? work.Bottom - height : work.Top;
 #if DEBUG
             if (Offscreen) x += 20_000;
 #endif
 
-            SetWindowPos(hwnd, HWND_TOPMOST, x, work.Top, width, height, SWP_NOACTIVATE);
+            SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
 
             // Cached for the pointer poll's fast path; re-cached on every reposition (display or DPI change).
             _hasWindowRect = true;
-            Log.Trace("Edge", $"positioned at {x},{work.Top} {width}x{height} (dpi {dpi}, scale {_scale})");
+            Log.Trace("Edge", $"positioned at {x},{y} {width}x{height} on {monitor.Device} (dpi {dpi}, scale {_scale})");
         }
         catch (Exception ex)
         {
@@ -1968,7 +2092,7 @@ public partial class EdgeWindow : Window
     internal void SaveSnapshot(string path, bool transparent = false)
     {
         const double scale = 2;
-        double width = WindowWidthDip * _scale, height = _windowHeightDip;
+        double width = _windowWidthDip, height = _windowHeightDip;
         // The window is never shown here, so its layout queue never runs: lay out the rendered tree directly.
         Root.InvalidateArrange();
         Host.InvalidateArrange();

@@ -243,6 +243,7 @@ public partial class App : Application
         _edge.Offscreen = measureMode is not null;
 #endif
         Settings settings = SettingsStore.Load();
+        _edge.ApplyPlacement(settings.Placement);
         _edge.ApplyScale(settings.UiScale);
         _edge.ApplyViews(settings, animate: false);
         _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
@@ -291,9 +292,9 @@ public partial class App : Application
         _edge.AccountSelected += SelectAccount;
         _edge.SubscriptionRequested += provider => _ = ShowSubscriptionAsync(provider);
         _edge.OpenRequested += OpenAgent;
-        _edge.OrbOpenRequested += OpenOrb;
         _edge.GameModeClicked += () => _ = ToggleGameModeAsync();
         _edge.VisibleRingsChanged += UpdateFpsSampling;
+        _edge.PlacementDragged += placement => SettingsStore.Update(x => x with { Placement = placement });
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.ContentRendered += (_, _) =>
@@ -333,7 +334,6 @@ public partial class App : Application
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
         if (measureMode is null) ConfigureOrbBridge(SettingsStore.Load());
-        RefreshOrbApp();
         StartAutomaticUpdateCheck(atStartup: true);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
@@ -355,6 +355,7 @@ public partial class App : Application
         Settings previousSettings = SettingsStore.Load();
         _settingsWindow = new SettingsWindow(() => RefreshUsageAsync(), settings =>
         {
+            _edge?.ApplyPlacement(settings.Placement);
             _edge?.ApplyScale(settings.UiScale);
             _edge?.ApplyViews(settings, animate: true);
             ThemeManager.ApplyBackground(settings.PanelBackground);
@@ -569,7 +570,6 @@ public partial class App : Application
 
             _edge.ReassertTopmost();
             UpdateTooltip();
-            RefreshOrbApp();
             if (!_firstDataLogged)
             {
                 _firstDataLogged = true;
@@ -844,62 +844,6 @@ public partial class App : Application
             Log.Warn("Apps", $"{provider}: {error}");
     });
 
-    private string? _orbExecutable;
-    private bool _orbProbe;
-    private DateTime _orbProbedAt = DateTime.MinValue;
-    private static readonly TimeSpan OrbProbeInterval = TimeSpan.FromMinutes(10);
-
-    /// Whether Orb is installed (the ring is shown only then) and running; looked up off the UI thread. The executable
-    /// is looked for again only every OrbProbeInterval, or at once when forced (the bridge connected or dropped).
-    private async void RefreshOrbApp(bool force = false)
-    {
-        if (_edge is null || _orbProbe) return;
-        _orbProbe = true;
-        try
-        {
-            bool sharing = SettingsStore.Load().ShareWithOrb;
-            OrbStatus? bridge = _orb;
-            bool probe = force || _orbExecutable is null || DateTime.UtcNow - _orbProbedAt >= OrbProbeInterval;
-            string? known = _orbExecutable;
-            (string? exe, bool running) = await Task.Run(() =>
-            {
-                string? path = probe ? AppLauncher.OrbExecutable(bridge?.Pid) : known;
-                bool open = bridge is null && path is not null && IsProcessRunning("Orb");
-                return (path, open);
-            });
-            if (probe) _orbProbedAt = DateTime.UtcNow;
-            _orbExecutable = exe;
-            _edge?.SetOrbApp(exe is not null, running, sharing);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Apps", "Orb: " + ex.GetType().Name);
-        }
-        finally
-        {
-            _orbProbe = false;
-        }
-    }
-
-    private static bool IsProcessRunning(string name)
-    {
-        Process[] processes = Process.GetProcessesByName(name);
-        foreach (Process process in processes) process.Dispose();
-        return processes.Length > 0;
-    }
-
-    /// The Orb ring: Orb itself (Electron brings its open window to the front), or its download page.
-    private void OpenOrb()
-    {
-        string? exe = _orbExecutable;
-        _ = Task.Run(() =>
-        {
-            string? error = exe is not null ? AppLauncher.OpenOrb(exe)
-                : AppLauncher.OpenUrl($"https://github.com/{MoreAppsService.Orb.Repository}/releases/latest");
-            if (error is not null) Log.Warn("Apps", "Orb: " + error);
-        });
-    }
-
     // ───────────────────────────── FPS and Modo juego ─────────────────────────────
 
     /// The ETW session and the one-second timer exist only while the FPS ring is on screen.
@@ -1056,9 +1000,6 @@ public partial class App : Application
         if (connectionChanged)
             Log.Info("Orb", orb is null ? "Orb desconectado" : $"Orb conectado (versión {orb.Version ?? "sin datos"})");
         if (_edge is null) return;
-        if (connectionChanged || previous?.Tasks != orb?.Tasks || previous?.AssistantBusy != orb?.AssistantBusy)
-            _edge.SetOrb(orb);
-        if (connectionChanged) RefreshOrbApp(force: true);
         Settings settings = SettingsStore.Load();
         if (!_renewing && previous?.UsageFor("claude") != orb?.UsageFor("claude")) ShowClaude(settings);
         if (previous?.UsageFor("codex") != orb?.UsageFor("codex")) ShowCodex(settings);

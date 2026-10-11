@@ -409,21 +409,6 @@
                         <TextBlock x:Name="GameModeHint" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" />
                     </StackPanel>
 
-                    <!-- Orb: a shortcut that opens it (only while it is installed); what the bridge knows of it. -->
-                    <StackPanel x:Name="OrbCard" Visibility="Collapsed">
-                        <DockPanel>
-                            <TextBlock x:Name="OrbState" DockPanel.Dock="Right" Style="{StaticResource SecondaryText}"
-                                       VerticalAlignment="Center" Margin="10,0,0,0" />
-                            <StackPanel Orientation="Horizontal">
-                                <Image Source="{x:Static ui:Icons.OrbHead}" Width="20" Height="20" VerticalAlignment="Center" />
-                                <TextBlock Text="{DynamicResource Card.Orb}" Style="{StaticResource CardTitle}" Margin="8,0,0,0" />
-                            </StackPanel>
-                        </DockPanel>
-                        <TextBlock x:Name="OrbDetails" Style="{StaticResource ValueText}" TextWrapping="Wrap" Margin="0,11,0,0" />
-                        <TextBlock x:Name="OrbHint" Text="{DynamicResource Orb.RingHint}" Style="{StaticResource SecondaryText}"
-                                   TextWrapping="Wrap" Margin="0,11,0,0" />
-                    </StackPanel>
-
                     <!-- The bubble of a card's (i): the subscription of the account shown. Over the card's content, its tail
                          under the (i); closed by the (i) again, a click on the card or another ring. -->
                     <Grid x:Name="InfoBubble" Panel.ZIndex="10" VerticalAlignment="Top" HorizontalAlignment="Right"
@@ -450,7 +435,7 @@
                 <TranslateTransform x:Name="PanelShift" X="94" />
             </Grid.RenderTransform>
 
-            <ui:EdgeTabShape Fill="{DynamicResource Theme.Background}" CornerRadius="32" FlareHeight="38" />
+            <ui:EdgeTabShape x:Name="PanelShape" Fill="{DynamicResource Theme.Background}" CornerRadius="32" FlareHeight="38" />
 
             <Grid x:Name="PanelRoot" Margin="0,38,0,38">
                 <StackPanel x:Name="PanelStack" Margin="0,20,0,14">
@@ -575,18 +560,6 @@
                                 <TextBlock x:Name="GameModeLabel" Text="--" Style="{StaticResource RingLabel}" FontSize="13" Margin="0,9,0,2" />
                             </StackPanel>
                         </Grid>
-
-                        <!-- Orb: a shortcut to open it, only while it is installed (App.RefreshOrbInstalled); full ring
-                             while it is running. -->
-                        <Grid x:Name="OrbItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand" Visibility="Collapsed"
-                              ToolTip="{DynamicResource Orb.Open}" MouseLeftButtonUp="OnOrbClick">
-                            <StackPanel>
-                                <ui:RingGauge x:Name="OrbRing" Style="{StaticResource PanelRing}" IconSize="30" Icon="{x:Static ui:Icons.OrbHeadDrawing}">
-                                    <ui:RingGauge.RenderTransform><ScaleTransform /></ui:RingGauge.RenderTransform>
-                                </ui:RingGauge>
-                                <TextBlock x:Name="OrbLabel" Text="Orb" Style="{StaticResource RingLabel}" />
-                            </StackPanel>
-                        </Grid>
                     </StackPanel>
 
                     <!-- Round buttons, two by two: pin and view above, settings and close below (EdgeWindow.LayOutButtons). -->
@@ -615,26 +588,19 @@
                                              VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed" />
                                 </Grid>
                             </Button>
-                            <!-- Quits the whole application, like "Salir" in the tray menu. -->
+                            <!-- Quits the whole application, like "Salir" in the tray menu. In manual placement it is the
+                                 handle that drags the panel along the screen edges instead (EdgeWindow.OnHandleDown). -->
                             <Button x:Name="CloseButton" Style="{StaticResource PanelRoundButton}" Click="OnCloseClick"
+                                    PreviewMouseLeftButtonDown="OnHandleDown" PreviewMouseMove="OnHandleMove"
+                                    PreviewMouseLeftButtonUp="OnHandleUp" LostMouseCapture="OnHandleLost"
                                     ToolTip="{DynamicResource Tip.Close}" AutomationProperties.AutomationId="CloseButton"
                                     AutomationProperties.Name="{DynamicResource Tip.Close}">
-                                <ui:IconView Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
+                                <ui:IconView x:Name="CloseIcon" Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Orb is connected (OrbBridge): a small badge in the margin above the rings, so the layout does not
-                     move. The dot is green while Orb's assistant is working; the tooltip has its tasks. -->
-                <Border x:Name="OrbBadge" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top"
-                        Margin="0,3,0,0" Padding="4,0" Visibility="Collapsed" AutomationProperties.AutomationId="OrbBadge">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="OrbDot" Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource Theme.TextSecondary}" />
-                        <TextBlock Text="Orb" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Theme.TextSecondary}" />
-                    </StackPanel>
-                </Border>
             </Grid>
         </Grid>
 

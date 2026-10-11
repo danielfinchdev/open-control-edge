@@ -422,7 +422,6 @@
     <sys:String x:Key="Settings.AccountFolder.cursor">Data folder of the other Cursor account</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">{0} is not in that folder: maybe it is not that account’s, or you have not signed in yet. Add it anyway?</sys:String>
     <sys:String x:Key="Settings.AccountName">Name (optional, e.g. Work)</sys:String>
-    <sys:String x:Key="Settings.AccountNameMissing">Type a name for the account.</sys:String>
     <sys:String x:Key="Settings.AddAccount">Add account…</sys:String>
     <sys:String x:Key="Settings.GameMode">Game mode</sys:String>
     <sys:String x:Key="Settings.GameModeHint">Clicking the ring closes the listed programs without saving, stops the services and changes the power plan; clicking again restores everything. If the PC shuts down halfway, it is restored the next time the widget starts.</sys:String>
@@ -482,12 +481,6 @@
     <sys:String x:Key="Msg.FeedbackFailed">The message could not be sent</sys:String>
     <sys:String x:Key="Settings.ShareWithOrb">Share data with Orb</sys:String>
     <sys:String x:Key="Settings.ShareWithOrbHint">Exchanges readings with Orb through local files; nothing leaves this PC.</sys:String>
-    <sys:String x:Key="Orb.Connected">Orb connected</sys:String>
-    <sys:String x:Key="Orb.Tasks">Tasks: {0} running · {1} queued · {2} awaiting approval</sys:String>
-    <sys:String x:Key="Orb.TasksValue">Tasks: {0}</sys:String>
-    <sys:String x:Key="Orb.AssistantBusy">Assistant: working</sys:String>
-    <sys:String x:Key="Orb.AssistantIdle">Assistant: idle</sys:String>
-    <sys:String x:Key="Orb.AssistantValue">Assistant: {0}</sys:String>
     <sys:String x:Key="Orb.Source">From Orb</sys:String>
     <sys:String x:Key="Orb.SourceOf">From Orb · {0}</sys:String>
 
@@ -524,16 +517,24 @@
     <sys:String x:Key="Sub.Loading">Checking…</sys:String>
     <sys:String x:Key="Sub.Inactive">Your subscription is not active.</sys:String>
     <sys:String x:Key="Sub.Unknown">{0} does not report the renewal date.</sys:String>
-    <sys:String x:Key="RingName.orb">Orb</sys:String>
-    <sys:String x:Key="Card.Orb">Orb</sys:String>
-    <sys:String x:Key="Orb.Open">Open Orb</sys:String>
-    <sys:String x:Key="Orb.Running">Open</sys:String>
-    <sys:String x:Key="Orb.Closed">Closed</sys:String>
-    <sys:String x:Key="Orb.RingHint">Click the ring to open Orb.</sys:String>
-    <sys:String x:Key="Orb.NotSharing">Turn on «Share data with Orb» in Settings › Agents to see its tasks here.</sys:String>
     <sys:String x:Key="Game.On">On</sys:String>
     <sys:String x:Key="Game.Off">Off</sys:String>
     <sys:String x:Key="Msg.SubscriptionUnreadable">Could not read the subscription</sys:String>
     <sys:String x:Key="Msg.OpenFailed">Could not open the app</sys:String>
 
+    <sys:String x:Key="Tip.Drag">Drag to move the panel to any edge</sys:String>
+    <sys:String x:Key="Settings.Position">Position</sys:String>
+    <sys:String x:Key="Settings.PositionHint">Where the panel sticks: the edge, centred or wherever you leave it, and on which screen.</sys:String>
+    <sys:String x:Key="Settings.Monitor">Screen</sys:String>
+    <sys:String x:Key="Settings.MonitorName">Screen {0} · {1}×{2}</sys:String>
+    <sys:String x:Key="Settings.MonitorPrimary">{0} (primary)</sys:String>
+    <sys:String x:Key="Settings.Edge">Edge</sys:String>
+    <sys:String x:Key="Settings.Edge.Right">Right</sys:String>
+    <sys:String x:Key="Settings.Edge.Left">Left</sys:String>
+    <sys:String x:Key="Settings.Edge.Top">Top</sys:String>
+    <sys:String x:Key="Settings.Edge.Bottom">Bottom</sys:String>
+    <sys:String x:Key="Settings.Placement">Placement</sys:String>
+    <sys:String x:Key="Settings.Placement.Center">Centred</sys:String>
+    <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
+    <sys:String x:Key="Settings.ManualHint">In Manual, the panel's ✕ button becomes a handle: drag it to any edge of any screen and it stays where you drop it. To quit the app, use the tray icon.</sys:String>
 </ResourceDictionary>

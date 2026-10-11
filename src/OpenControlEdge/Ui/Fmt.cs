@@ -45,6 +45,7 @@ internal static class Fmt
             "go" => "Go",
             "plus" => "Plus",
             "pro" => "Pro",
+            "prolite" or "pro_lite" => "Pro Lite",
             "pro_plus" or "pro+" => "Pro+",
             "max" => "Max",
             "ultra" => "Ultra",

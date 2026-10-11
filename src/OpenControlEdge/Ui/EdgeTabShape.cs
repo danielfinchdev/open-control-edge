@@ -1,11 +1,13 @@
 using System.Windows;
 using System.Windows.Media;
+using OpenControlEdge.Services;
 
 namespace OpenControlEdge.Ui;
 
 /// Panel background: a tab glued to the right screen edge. Its left corners are rounded (CornerRadius) and, above
 /// and below the body, concave flares (FlareHeight tall) run back into the screen edge like an inverted notch.
 /// The body spans FlareHeight … ActualHeight - FlareHeight; the right edge of the element is the screen edge.
+/// Edge turns it to the other edges (the left one mirrored, the top and bottom ones lying along the element's width).
 public sealed class EdgeTabShape : FrameworkElement
 {
     public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
@@ -19,6 +21,16 @@ public sealed class EdgeTabShape : FrameworkElement
     public static readonly DependencyProperty FlareHeightProperty = DependencyProperty.Register(
         nameof(FlareHeight), typeof(double), typeof(EdgeTabShape),
         new FrameworkPropertyMetadata(30.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty EdgeProperty = DependencyProperty.Register(
+        nameof(Edge), typeof(PanelEdge), typeof(EdgeTabShape),
+        new FrameworkPropertyMetadata(PanelEdge.Right, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public PanelEdge Edge
+    {
+        get => (PanelEdge)GetValue(EdgeProperty);
+        set => SetValue(EdgeProperty, value);
+    }
 
     public Brush Fill
     {
@@ -40,8 +52,9 @@ public sealed class EdgeTabShape : FrameworkElement
 
     protected override void OnRender(DrawingContext dc)
     {
-        double w = ActualWidth;
-        double h = ActualHeight;
+        bool horizontal = Edge is PanelEdge.Top or PanelEdge.Bottom;
+        double w = horizontal ? ActualHeight : ActualWidth;
+        double h = horizontal ? ActualWidth : ActualHeight;
         double f = FlareHeight;
         if (w <= 0 || h <= 2 * f) return;
 
@@ -62,6 +75,7 @@ public sealed class EdgeTabShape : FrameworkElement
             ctx.ArcTo(new Point(r, h - f), corner, 0, false, SweepDirection.Counterclockwise, false, false);
             ctx.BezierTo(new Point(w - reach * 0.42, h - f), new Point(w, h - f * 0.62), new Point(w, h), false, false);
         }
+        geometry.Transform = new MatrixTransform(CardShape.ToEdge(Edge, ActualWidth, ActualHeight));
         geometry.Freeze();
 
         dc.DrawGeometry(Fill, null, geometry);

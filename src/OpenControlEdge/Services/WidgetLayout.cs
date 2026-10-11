@@ -10,6 +10,24 @@ internal enum WidgetView
     Custom,
 }
 
+/// The screen edge the panel is glued to. Public: the panel's shapes (Ui) are drawn for it.
+public enum PanelEdge
+{
+    Right,
+    Left,
+    Top,
+    Bottom,
+}
+
+/// Where the panel is: its edge, centred on it or at a place of the user's own along it (Offset: where its centre is,
+/// 0 at the start of the edge and 1 at its end), and the monitor (device name; null is the primary one).
+internal sealed record PanelPlacement(PanelEdge Edge, bool Manual, double Offset, string? Monitor)
+{
+    public static PanelPlacement Default { get; } = new(PanelEdge.Right, false, 0.5, null);
+
+    public bool Horizontal => Edge is PanelEdge.Top or PanelEdge.Bottom;
+}
+
 /// The rings of the panel, by the key used in the settings file.
 internal static class RingKeys
 {
@@ -24,14 +42,16 @@ internal static class RingKeys
     public const string Ram = "ram";
     public const string Fps = "fps";
     public const string GameMode = "gamemode";
-    /// A shortcut that opens Orb, on screen only while Orb is installed (AppLauncher.OrbExecutable).
-    public const string Orb = "orb";
 
-    /// Alphabetical by the name shown, which is the default order of every view (FPS goes first in the PC view).
+    /// Alphabetical by the name shown, which is the default order of every view; in the PC view FPS goes first and
+    /// Modo juego, a switch rather than a reading, last.
     public static ImmutableArray<string> Ai { get; } = [Claude, Codex, Cursor, DeepSeek, OpenCode, OpenRouter];
-    public static ImmutableArray<string> Pc { get; } = [Fps, Cpu, Gpu, GameMode, Ram, Orb];
+    public static ImmutableArray<string> Pc { get; } = [Fps, Cpu, Gpu, Ram, GameMode];
+
+    /// The default PC order of 2.2–2.3, saved by every settings file: read as today's default.
+    public static ImmutableArray<string> OldPcDefault { get; } = [Fps, Cpu, Gpu, GameMode, Ram];
     public static ImmutableArray<string> All { get; } =
-        [Claude, Codex, Cpu, Cursor, DeepSeek, Fps, Gpu, GameMode, OpenCode, OpenRouter, Orb, Ram];
+        [Claude, Codex, Cpu, Cursor, DeepSeek, Fps, Gpu, GameMode, OpenCode, OpenRouter, Ram];
 
     public static ImmutableArray<string> For(WidgetView view) => view switch
     {

@@ -53,7 +53,6 @@
     <Resource Include="Assets\Fonts\Outfit-SemiBold.ttf" />
     <!-- Shown in the welcome / install window. -->
     <Resource Include="Assets\app.ico" />
-    <Resource Include="Assets\Orb\orb-head.png" />
     <Resource Include="Assets\Orb\orb-icon.png" />
   </ItemGroup>
 

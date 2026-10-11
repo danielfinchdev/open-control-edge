@@ -512,6 +512,7 @@ internal sealed class SettingsWindow : Window
         AddRingThemes(s);
         AddBackground(s);
         AddScale(s);
+        AddPosition(s);
     }
 
 
@@ -520,7 +521,7 @@ internal sealed class SettingsWindow : Window
         RingKeys.Claude => Icons.ClaudeSpark, RingKeys.Codex => Icons.Codex, RingKeys.Cursor => Icons.Cursor,
         RingKeys.OpenCode => Icons.OpenCode, RingKeys.DeepSeek => Icons.DeepSeek, RingKeys.OpenRouter => Icons.OpenRouter,
         RingKeys.Cpu => Icons.Cpu, RingKeys.Gpu => Icons.Gpu, RingKeys.Ram => Icons.Ram, RingKeys.Fps => Icons.Fps,
-        RingKeys.GameMode => Icons.Gamepad, RingKeys.Orb => Icons.OrbHeadDrawing, _ => null,
+        RingKeys.GameMode => Icons.Gamepad, _ => null,
     };
 
     /// The view the panel shows, and for each view which rings it has and in what order (↑ ↓ and a switch per ring).
@@ -795,6 +796,38 @@ internal sealed class SettingsWindow : Window
         }
         Inside(card).Children.Add(choices);
     }
+    /// Where the panel goes: the monitor, the edge, and centred or manual (then the panel's ✕ is a drag handle).
+    private void AddPosition(Settings s)
+    {
+        var p = Inside(Card(Loc.Get("Settings.Position"), Loc.Get("Settings.PositionHint")));
+        PanelPlacement placement = s.Placement;
+        void Save(Func<PanelPlacement, PanelPlacement> change)
+        {
+            Settings? updated = SettingsStore.Update(x => x with { Placement = change(x.Placement) });
+            if (updated is not null) _apply(updated);
+        }
+
+        IReadOnlyList<MonitorInfo> monitors = Preview ? [] : Monitors.All();
+        if (monitors.Count > 0)
+        {
+            string Name(MonitorInfo m)
+            {
+                string name = Loc.Format("Settings.MonitorName", m.Number, m.Width, m.Height);
+                return m.Primary ? Loc.Format("Settings.MonitorPrimary", name) : name;
+            }
+            MonitorInfo? current = Monitors.Find(placement.Monitor);
+            int selected = current is null ? 0 : monitors.ToList().FindIndex(m => m.Device == current.Device);
+            AddChoice(p, Loc.Get("Settings.Monitor"), [.. monitors.Select(Name)], Math.Max(0, selected),
+                i => Save(x => x with { Monitor = monitors[i].Primary ? null : monitors[i].Device }));
+        }
+        PanelEdge[] edges = [PanelEdge.Right, PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom];
+        AddChoice(p, Loc.Get("Settings.Edge"), [.. edges.Select(e => Loc.Get("Settings.Edge." + e))], Array.IndexOf(edges, placement.Edge),
+            i => Save(x => x with { Edge = edges[i] }));
+        AddChoice(p, Loc.Get("Settings.Placement"), [Loc.Get("Settings.Placement.Center"), Loc.Get("Settings.Placement.Manual")],
+            placement.Manual ? 1 : 0, i => Save(x => x with { Manual = i == 1 }));
+        p.Children.Add(Muted(Loc.Get("Settings.ManualHint"), new Thickness(0, 6, 0, 0), 12));
+    }
+
     private void AddScale(Settings s)
     {
         var card = Card(Loc.Get("Settings.WidgetSize"));

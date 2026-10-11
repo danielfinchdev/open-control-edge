@@ -422,7 +422,6 @@
     <sys:String x:Key="Settings.AccountFolder.cursor">Carpeta de datos de la otra cuenta de Cursor</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">En esa carpeta no está {0}: quizá no es la de esa cuenta, o aún no has iniciado sesión. ¿Añadirla igualmente?</sys:String>
     <sys:String x:Key="Settings.AccountName">Nombre (opcional, p. ej. Trabajo)</sys:String>
-    <sys:String x:Key="Settings.AccountNameMissing">Escribe un nombre para la cuenta.</sys:String>
     <sys:String x:Key="Settings.AddAccount">Añadir cuenta…</sys:String>
     <sys:String x:Key="Settings.GameMode">Modo juego</sys:String>
     <sys:String x:Key="Settings.GameModeHint">Al pulsar el anillo cierra los programas de la lista sin guardar, detiene los servicios y cambia la energía; al volver a pulsarlo lo restaura todo. Si el equipo se apaga a medias, se restaura al volver a abrir el widget.</sys:String>
@@ -482,12 +481,6 @@
     <sys:String x:Key="Msg.FeedbackFailed">No se pudo enviar el mensaje</sys:String>
     <sys:String x:Key="Settings.ShareWithOrb">Compartir datos con Orb</sys:String>
     <sys:String x:Key="Settings.ShareWithOrbHint">Intercambia lecturas con Orb mediante archivos locales; nada sale de este equipo.</sys:String>
-    <sys:String x:Key="Orb.Connected">Orb conectado</sys:String>
-    <sys:String x:Key="Orb.Tasks">Tareas: {0} en curso · {1} en cola · {2} por aprobar</sys:String>
-    <sys:String x:Key="Orb.TasksValue">Tareas: {0}</sys:String>
-    <sys:String x:Key="Orb.AssistantBusy">Asistente: trabajando</sys:String>
-    <sys:String x:Key="Orb.AssistantIdle">Asistente: en espera</sys:String>
-    <sys:String x:Key="Orb.AssistantValue">Asistente: {0}</sys:String>
     <sys:String x:Key="Orb.Source">Dato de Orb</sys:String>
     <sys:String x:Key="Orb.SourceOf">Dato de Orb · {0}</sys:String>
 
@@ -524,16 +517,24 @@
     <sys:String x:Key="Sub.Loading">Consultando…</sys:String>
     <sys:String x:Key="Sub.Inactive">Su suscripción no está activa.</sys:String>
     <sys:String x:Key="Sub.Unknown">{0} no informa de la fecha de renovación.</sys:String>
-    <sys:String x:Key="RingName.orb">Orb</sys:String>
-    <sys:String x:Key="Card.Orb">Orb</sys:String>
-    <sys:String x:Key="Orb.Open">Abrir Orb</sys:String>
-    <sys:String x:Key="Orb.Running">Abierto</sys:String>
-    <sys:String x:Key="Orb.Closed">Cerrado</sys:String>
-    <sys:String x:Key="Orb.RingHint">Pulsa el anillo para abrir Orb.</sys:String>
-    <sys:String x:Key="Orb.NotSharing">Activa «Compartir datos con Orb» en Ajustes › Agentes para ver aquí sus tareas.</sys:String>
     <sys:String x:Key="Game.On">Encendido</sys:String>
     <sys:String x:Key="Game.Off">Apagado</sys:String>
     <sys:String x:Key="Msg.SubscriptionUnreadable">No se pudo leer la suscripción</sys:String>
     <sys:String x:Key="Msg.OpenFailed">No se pudo abrir la aplicación</sys:String>
 
+    <sys:String x:Key="Tip.Drag">Arrastra para mover el panel a cualquier borde</sys:String>
+    <sys:String x:Key="Settings.Position">Posición</sys:String>
+    <sys:String x:Key="Settings.PositionHint">Dónde se pega el panel: el borde, centrado o donde tú lo dejes, y en qué pantalla.</sys:String>
+    <sys:String x:Key="Settings.Monitor">Pantalla</sys:String>
+    <sys:String x:Key="Settings.MonitorName">Pantalla {0} · {1}×{2}</sys:String>
+    <sys:String x:Key="Settings.MonitorPrimary">{0} (principal)</sys:String>
+    <sys:String x:Key="Settings.Edge">Borde</sys:String>
+    <sys:String x:Key="Settings.Edge.Right">Derecha</sys:String>
+    <sys:String x:Key="Settings.Edge.Left">Izquierda</sys:String>
+    <sys:String x:Key="Settings.Edge.Top">Arriba</sys:String>
+    <sys:String x:Key="Settings.Edge.Bottom">Abajo</sys:String>
+    <sys:String x:Key="Settings.Placement">Colocación</sys:String>
+    <sys:String x:Key="Settings.Placement.Center">Centrado</sys:String>
+    <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
+    <sys:String x:Key="Settings.ManualHint">En Manual, el botón ✕ del panel pasa a ser un asa: arrástralo a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Para cerrar la app, usa el icono de la bandeja.</sys:String>
 </ResourceDictionary>
