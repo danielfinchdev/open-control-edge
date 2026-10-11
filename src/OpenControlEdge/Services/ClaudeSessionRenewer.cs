@@ -138,10 +138,10 @@ internal static class ClaudeSessionRenewer
 
     public static bool IsAvailable => Locate() is not null;
 
-    /// Token expiry from .credentials.json (only expiresAt is looked at), or null.
-    public static DateTimeOffset? ReadExpiry()
+    /// Token expiry from .credentials.json (only expiresAt is looked at), or null. credentialsPath: another account's.
+    public static DateTimeOffset? ReadExpiry(string? credentialsPath = null)
     {
-        try { return CredentialReader.Read(CredentialReader.DefaultPath)?.ExpiresAt; }
+        try { return CredentialReader.Read(credentialsPath ?? CredentialReader.DefaultPath)?.ExpiresAt; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Warn("Claude", "credenciales no legibles: " + ex.GetType().Name);
@@ -149,16 +149,21 @@ internal static class ClaudeSessionRenewer
         }
     }
 
-    /// Runs the CLI once and reports what happened to the token. Runs on a worker thread; never throws.
-    public static Task<RenewResult> RenewAsync() => Task.Run(Renew);
+    /// Runs the CLI once and reports what happened to the token. Runs on a worker thread; never throws. configFolder:
+    /// another account's CLAUDE_CONFIG_DIR (the CLI is run with it), the default account otherwise.
+    public static Task<RenewResult> RenewAsync(string? configFolder = null) => Task.Run(() => Renew(configFolder));
 
-    private static RenewResult Renew()
+    private static RenewResult Renew(string? configFolder)
     {
         try
         {
+            string credentials = configFolder is null ? CredentialReader.DefaultPath : Path.Combine(configFolder, ".credentials.json");
+            DateTimeOffset? ReadExpiry() => ClaudeSessionRenewer.ReadExpiry(credentials);
+            bool HasSignIn() => CredentialReader.HasSignIn(credentials);
+            Dictionary<string, string>? environment = configFolder is null ? null : new() { ["CLAUDE_CONFIG_DIR"] = configFolder };
             Command? cli = Locate();
             if (cli is null) return new RenewResult(RenewOutcome.CliMissing, ReadExpiry());
-            if (!HasSignIn)
+            if (!HasSignIn())
             {
                 Log.Info("Claude", "sin sesión en Claude Code (token y renovación vacíos): no se ejecuta la CLI");
                 return new RenewResult(RenewOutcome.SignedOut, null);
@@ -167,7 +172,7 @@ internal static class ClaudeSessionRenewer
             DateTimeOffset? before = ReadExpiry();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             UnelevatedLauncher.Result run = UnelevatedLauncher.Run(cli.Application, cli.Arguments, UserProfile, hidden: true, Timeout,
-                captureOutput: true);
+                captureOutput: true, environment: environment);
             DateTimeOffset? after = ReadExpiry();
             // The output is only logged when the CLI failed: then it is its error message, sanitised (no tokens).
             Log.Info("Claude", $"CLI {(run.Started ? "ejecutada" : "no iniciada")} en {clock.ElapsedMilliseconds} ms"
@@ -178,7 +183,7 @@ internal static class ClaudeSessionRenewer
                                + (run.ExitCode is not (null or 0) && run.Output is string output ? " · salida: " + output : string.Empty));
 
             if (!run.Started) return new RenewResult(RenewOutcome.Failed, after, run.Error);
-            if (run.ExitCode is not (null or 0) && !HasSignIn) return new RenewResult(RenewOutcome.SignedOut, null);
+            if (run.ExitCode is not (null or 0) && !HasSignIn()) return new RenewResult(RenewOutcome.SignedOut, null);
             if (run.TimedOut) return new RenewResult(RenewOutcome.TimedOut, after);
             if (after is DateTimeOffset newExpiry && (before is null || newExpiry > before.Value))
                 return new RenewResult(RenewOutcome.Renewed, newExpiry);

@@ -335,6 +335,7 @@ public partial class App : Application
         if (measureMode is null) ConfigureOrbBridge(SettingsStore.Load());
         StartAutomaticUpdateCheck(atStartup: true);
         if (measureMode is null) ScheduleAccountScan();
+        if (measureMode is null) _ = Task.Run(AutoStartService.Upgrade);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
 
@@ -763,12 +764,15 @@ public partial class App : Application
         wait.Tick += (_, _) =>
         {
             wait.Stop();
-            if (!GameModeService.IsActive) _ = ScanAccountsAsync();
+            // At most once a day: the walk spins every fixed drive up.
+            if (!GameModeService.IsActive && !(SettingsStore.Load().LastAccountScan is DateTimeOffset last && DateTimeOffset.Now - last < AccountScanInterval))
+                _ = ScanAccountsAsync();
         };
         wait.Start();
     }
 
     private static readonly TimeSpan AccountScanDelay = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan AccountScanInterval = TimeSpan.FromDays(1);
     private Task<int>? _accountScan;
 
     /// The search of the whole PC (joins one already running); returns how many accounts it added.
@@ -799,7 +803,8 @@ public partial class App : Application
                     added += fresh.Count;
                     if (fresh.Count > 0) map[provider] = current.AddRange(fresh);
                 }
-                return added == 0 ? x : x with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+                return (added == 0 ? x : x with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal) })
+                    with { LastAccountScan = report.Complete ? DateTimeOffset.Now : x.LastAccountScan };
             });
             Log.Info("Accounts", $"búsqueda de cuentas: {added} nuevas ({report.Folders} carpetas, {report.Elapsed.TotalSeconds:0.0} s{(report.Complete ? "" : ", incompleta")})");
             if (added > 0 && updated is not null && SyncAccounts(updated)) _ = RefreshUsageAsync();
@@ -1256,7 +1261,10 @@ public partial class App : Application
             if (!automatic) _edge.SetClaudeRenewing();
             Log.Info("Claude", automatic ? "renovación automática de la sesión" : "renovación de sesión pedida desde el anillo");
 
-            RenewResult result = await ClaudeSessionRenewer.RenewAsync();
+            // A click renews the account the ring shows (its CLAUDE_CONFIG_DIR); the background renewal, the default one.
+            int shown = automatic ? 0 : SettingsStore.Load().SelectedAccount(AiProviderSettings.Claude);
+            string? folder = shown > 0 ? _claudeExtras.ElementAtOrDefault(shown - 1).Account?.Folder : null;
+            RenewResult result = await ClaudeSessionRenewer.RenewAsync(folder);
             Log.Info("Claude", $"renovación: {result.Outcome}");
 
             // Not renewed: the background renewal gives up on this token until expiresAt changes (a click still tries).
@@ -1266,7 +1274,7 @@ public partial class App : Application
 
             // Signed out: nothing to renew. A click opens the sign-in (the one way to sign in again).
             string? loginError = null;
-            if (result.Outcome == RenewOutcome.SignedOut && !automatic)
+            if (result.Outcome == RenewOutcome.SignedOut && !automatic && folder is null)
             {
                 loginError = ClaudeSessionRenewer.StartLogin();
                 if (loginError is null) WatchClaudeSignIn();
@@ -1346,7 +1354,8 @@ public partial class App : Application
 
         TimeSpan due = expiry - AutoRenewLead - DateTimeOffset.UtcNow;
         _autoRenewTimer ??= CreateOneShot(() => _ = AutoRenewAsync());
-        _autoRenewTimer.Interval = due > TimeSpan.FromSeconds(1) ? due : TimeSpan.FromSeconds(1);
+        // DispatcherTimer takes at most Int32.MaxValue ms; a day is plenty (the timer is re-armed after every refresh).
+        _autoRenewTimer.Interval = due > TimeSpan.FromDays(1) ? TimeSpan.FromDays(1) : due > TimeSpan.FromSeconds(1) ? due : TimeSpan.FromSeconds(1);
         _autoRenewTimer.Start();
     }
 

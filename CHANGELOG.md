@@ -1,37 +1,54 @@
 # Registro de cambios
 
-## 2.3.1 — 2026-10-11
+## 3.0.0 — 2026-10-11
 
-- **Ajustes renovados.** Arriba solo pone «Open Control Edge», centrado; el lateral lleva el título «Ajustes» y, abajo,
-  tu cuenta de GitHub (@danielfinchdev, con enlace) y la versión instalada, como en Orb.
-- **Contribuye** (antes Feedback): apoyar el desarrollo con PayPal y el mismo formulario de comentarios con capturas.
-- **Más aplicaciones**: Orb, con su última versión publicada en GitHub, y los botones Descargar (el instalador de la
-  Release), Ver en GitHub y, si ya está instalado, Abrir.
-- **Varias cuentas, mejor**: en la tarjeta, junto al título, una etiqueta por cuenta («Go» y «Pro», o el nombre que le
-  pongas, p. ej. «Personal» y «Trabajo»); la rellena es la que se ve y un clic en otra cambia de cuenta. Sustituye a las
-  pestañas de cuenta. En Ajustes → Agentes → Cuentas cada cuenta, también la principal, tiene un nombre opcional; sin
-  nombre, la etiqueta enseña el plan. La primera vez que arranca la 2.3.1 añade sola las otras sesiones de Codex y Claude
-  Code que hay en tu carpeta de usuario (`.codex-*`, `.codex_*`, `.claude-*`…), sin repetir dos carpetas de la misma
-  cuenta; después aparecen en «Encontradas en este equipo» para añadirlas con un clic.
-- **(i) de suscripción** en la esquina superior derecha de cada tarjeta de IA: un globo que dice «Su suscripción se
-  renovará el …» de la cuenta que se ve. Codex lo saca de su `id_token`
-  (`chatgpt_subscription_active_until`); Cursor, del final del ciclo de facturación; Claude, de `GET
-  /api/oauth/profile` (solo al abrir el globo y como mucho cada 6 h): como Anthropic no da la fecha de renovación, se
-  calcula con el día de alta (renovación mensual). DeepSeek, OpenRouter y OpenCode no llevan (i) (no tienen suscripción), y
-  tampoco los planes gratuitos. Si la fecha del `id_token` de Codex ya ha pasado, se da la siguiente renovación mensual.
-- **Botón «Abrir …»** en la esquina inferior derecha de cada tarjeta de IA: abre la app de escritorio (Claude y Codex de
-  la Microsoft Store, Cursor, ChatGPT) o, si no está, su web; OpenCode en una consola. Siempre sin permisos de
-  administrador.
-- **Anillo de Orb** en la vista PC (y en Personalizada): un acceso directo a Orb que solo aparece si Orb está instalado
-  (su entrada de desinstalación, `%LOCALAPPDATA%\Programs\Orb` o el proceso que anuncia el puente). Lleno y verde
-  mientras Orb está abierto; la tarjeta enseña sus tareas y su asistente cuando el puente está activo.
-- **Vista Personalizada opcional** (Ajustes → Personalización → Vistas, `"customView"`): apagada, el botón de vista pasa
-  solo de IA a PC y la escala del panel deja de reservar sitio para esa vista.
-- **Botones del panel**: el de fijar es una chincheta que se rellena (blanca en el tema oscuro) mientras el panel está
-  fijado; el de vista tiene un icono de cambio (↓↑) y su ayuda dice solo «Cambiar de vista».
-- **Modo juego**: el anillo pone «Encendido» / «Apagado» en vez de ON / OFF.
-- `--snapshot` comprueba los lectores nuevos (perfil de Claude, fechas del `id_token` de Codex y la Release de Orb) y
-  añade las capturas de las etiquetas de cuenta, el globo de suscripción y el anillo de Orb.
+La versión definitiva. Incluye lo preparado para la 2.3.1, que no llegó a publicarse.
+
+- **Donde tú quieras.** Ajustes → Personalización → Posición: el panel va en el borde derecho, izquierdo, superior o
+  inferior (arriba y abajo, con los anillos en fila y la tarjeta debajo o encima), centrado o en **Manual**: entonces
+  el botón ✕ del panel es un asa (↔) para arrastrarlo a cualquier borde de cualquier pantalla, y se queda donde lo
+  sueltas. Se guarda en `"edge"`, `"placement"` y `"offset"`.
+- **Varias pantallas.** Eliges en qué pantalla va (`"monitor"`, por su nombre de Windows); si esa pantalla se
+  desconecta, vuelve a la principal, y se recoloca solo al cambiar la resolución, el DPI o la barra de tareas.
+- **Todas tus cuentas, sin buscarlas.** Tras cada arranque, en segundo plano y con prioridad baja, busca las demás
+  sesiones de Claude Code, Codex y Cursor en tu carpeta de usuario y en todos los discos fijos (C:, D:…), sin seguir
+  enlaces y saltándose Windows, Program Files y similares; reconoce la misma cuenta en varias carpetas (Codex por su
+  `account_id`, Claude por su `accountUuid`, Cursor por su id de usuario, siempre como huella SHA-256, nunca el valor).
+  Las que quitas a mano no vuelven (`"dismissedAccounts"`). En Ajustes → Agentes → Cuentas, «Buscar en todo el equipo»
+  lo hace al momento. Las carpetas por defecto respetan `CODEX_HOME` y `CLAUDE_CONFIG_DIR`.
+- **Tarjeta adaptable**: se ensancha lo que haga falta para que quepan las etiquetas de cuenta. «prolite» se muestra
+  «Pro Lite».
+- **Etiquetas de cuenta** junto al título («Go», «Pro Lite» o el nombre que pongas, p. ej. «Personal» y «Trabajo»): la
+  rellena es la que se ve y un clic en otra cambia de cuenta; con más de tres pasan a una segunda línea. Cada cuenta,
+  también la principal, tiene un nombre opcional en Ajustes → Agentes → Cuentas.
+- **(i) de suscripción** en Claude, Codex y Cursor: «Su suscripción se renovará el …» de la cuenta que se ve (Codex: su
+  `id_token`; Cursor: el fin del ciclo; Claude: `GET /api/oauth/profile`, solo al abrir el globo y como mucho cada
+  6 h, calculada con el día de alta porque Anthropic no da la fecha).
+- **Botón «Abrir …»** abajo a la derecha de cada tarjeta de IA: la app de escritorio (Claude y Codex de la Microsoft
+  Store, Cursor, ChatGPT) o su web; siempre sin permisos de administrador.
+- **Ajustes renovados**: «Open Control Edge» centrado arriba, «Ajustes» en el lateral y, abajo, @danielfinchdev (con
+  enlace) y la versión. **Contribuye** (PayPal y comentarios con capturas) y **Más aplicaciones** (Orb, con su última
+  versión de GitHub, Descargar, Ver en GitHub y Abrir si ya lo tienes).
+- **Vista Personalizada opcional** (`"customView"`); **Modo juego**, el último de la vista PC por defecto (también si
+  tenías el orden de antes sin tocar) y con «Encendido» / «Apagado»; el botón de fijar es una chincheta que se rellena;
+  el de vista, «Cambiar de vista» con un icono ↓↑.
+- Se quitan la marca «Orb» de encima de los anillos y el anillo de Orb; el puente con Orb sigue igual.
+- Correcciones: el globo de suscripción y las etiquetas ya no salen recortadas al cambiar su texto; al borrar una cuenta,
+  la tarjeta sigue enseñando la misma; renombrar una cuenta no reinicia su lectura; etiquetas iguales se numeran bien
+  («Pro», «Pro 2», «Pro 3»); una app de la Store desinstalada abre su web.
+- **Seguridad**: la tarea de inicio ya no abre el programa directamente, sino `start.cmd` (en Program Files, con
+  `conhost --headless` y `cmd /d`, sin ventana), que borra las variables `DOTNET_*`, `COMPlus_*`, `CORECLR_*` y `COR_*`
+  del entorno del usuario y fija el `PATH` antes de abrir el widget elevado: ya no se puede cargar un *profiler* ni abrir
+  un puerto de diagnóstico desde `HKCU\Environment`. La copia instalada escribe `start.cmd` y actualiza la tarea sola
+  al arrancar. Los archivos de sesión (también los de la cuenta principal) se leen sin seguir enlaces, con un solo enlace
+  duro y solo si son de tu usuario; fuera del hilo de la interfaz.
+- **Búsqueda de cuentas, prudente**: como mucho una vez al día, solo perfiles de Cursor cuya ruta lo diga, y nunca
+  sesiones que nadie ha usado en 60 días (copias o backups). Un clic en el anillo de Claude renueva la cuenta que se ve.
+- **Más correcciones**: en el borde de la barra de tareas o en arriba/abajo, la franja del modo automático espera un
+  momento antes de abrir el panel; arrastrar el panel es más fluido; el asa del modo Manual nunca cierra la app; un
+  token de muy larga duración ya no rompe el temporizador de renovación; las carpetas de cuenta largas se conservan.
+- `--snapshot` comprueba la búsqueda de cuentas, el perfil de Claude, las fechas de Codex y la Release de Orb, y añade
+  las capturas del panel en los cuatro bordes y en Manual.
 
 ## 2.3.0 — 2026-10-11
 

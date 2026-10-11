@@ -31,20 +31,19 @@ internal static class CodexCredentialReader
     /// %USERPROFILE%\.codex otherwise.
     public static string DefaultPath => Path.Combine(DefaultFolder, "auth.json");
 
-    public static string DefaultFolder => LoginFolder.FromEnvironment("CODEX_HOME")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+    public static string DefaultFolder => DefaultFolderOnce.Value;
 
+    private static readonly Lazy<string> DefaultFolderOnce = new(() => LoginFolder.FromEnvironment("CODEX_HOME")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex"));
+
+    /// Read the checked way (LoginFolder.Read: not a link, a single hard link, owned by this account): this process runs
+    /// elevated and the folder may be anywhere the plain user can write.
     public static Credentials? Read(string path)
     {
         if (!File.Exists(path)) return null;
 
-        byte[] buffer;
-        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        {
-            if (stream.Length is 0 or > 1024 * 1024) return null;
-            buffer = new byte[stream.Length];
-            stream.ReadExactly(buffer);
-        }
+        byte[]? buffer = LoginFolder.Read(path, 1024 * 1024, LoginFolder.UserProfile, out _);
+        if (buffer is null) return null;
 
         try
         {

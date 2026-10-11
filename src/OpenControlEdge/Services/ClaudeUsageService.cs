@@ -29,7 +29,10 @@ internal sealed class ClaudeUsageService
     /// hours when retried at the refresh interval).
     internal static readonly TimeSpan MinRateLimitBackoff = TimeSpan.FromMinutes(5);
 
-    public async Task<ClaudeSnapshot> FetchAsync()
+    /// On a worker thread: the login file (maybe on a slow or sleeping drive) is never read on the UI thread.
+    public Task<ClaudeSnapshot> FetchAsync() => Task.Run(FetchCoreAsync);
+
+    private async Task<ClaudeSnapshot> FetchCoreAsync()
     {
         try
         {

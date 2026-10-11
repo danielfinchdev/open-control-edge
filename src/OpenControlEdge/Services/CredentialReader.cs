@@ -17,20 +17,19 @@ internal static class CredentialReader
     /// %USERPROFILE%\.claude otherwise.
     public static string DefaultPath => Path.Combine(DefaultFolder, ".credentials.json");
 
-    public static string DefaultFolder => LoginFolder.FromEnvironment("CLAUDE_CONFIG_DIR")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+    public static string DefaultFolder => DefaultFolderOnce.Value;
 
+    private static readonly Lazy<string> DefaultFolderOnce = new(() => LoginFolder.FromEnvironment("CLAUDE_CONFIG_DIR")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude"));
+
+    /// Read the checked way (LoginFolder.Read: not a link, a single hard link, owned by this account): this process runs
+    /// elevated and the folder may be anywhere the plain user can write.
     public static Credentials? Read(string path)
     {
         if (!File.Exists(path)) return null;
 
-        byte[] buffer;
-        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        {
-            if (stream.Length is 0 or > 1024 * 1024) return null;
-            buffer = new byte[stream.Length];
-            stream.ReadExactly(buffer);
-        }
+        byte[]? buffer = LoginFolder.Read(path, 1024 * 1024, LoginFolder.UserProfile, out _);
+        if (buffer is null) return null;
 
         try
         {
@@ -111,13 +110,8 @@ internal static class CredentialReader
         try
         {
             if (!File.Exists(path)) return false;
-            byte[] buffer;
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            {
-                if (stream.Length is 0 or > 1024 * 1024) return false;
-                buffer = new byte[stream.Length];
-                stream.ReadExactly(buffer);
-            }
+            byte[]? buffer = LoginFolder.Read(path, 1024 * 1024, LoginFolder.UserProfile, out _);
+            if (buffer is null) return false;
             try { return HasSignIn(buffer); }
             finally { Array.Clear(buffer); }
         }

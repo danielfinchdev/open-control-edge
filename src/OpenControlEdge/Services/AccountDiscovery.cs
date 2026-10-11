@@ -268,7 +268,9 @@ internal static class AccountDiscovery
             {
                 continue;
             }
-            if (hasUser && CursorDatabase(item.Path) is not null) add(AiProviderSettings.Cursor, item.Path);
+            // Only profiles whose path says Cursor: VS Code, VSCodium, Windsurf… have the same database.
+            if (hasUser && item.Path.Contains("cursor", StringComparison.OrdinalIgnoreCase) && CursorDatabase(item.Path) is not null)
+                add(AiProviderSettings.Cursor, item.Path);
         }
         return true;
     }
@@ -357,8 +359,19 @@ internal static class AccountDiscovery
         return result;
     }
 
-    /// The account a folder is a real login of (its ids and when its login was written); null when it is not one.
+    /// A login file nobody has written for this long is a copy or a backup (an active client rewrites it when its token is
+    /// renewed): not added.
+    private static readonly TimeSpan StaleLogin = TimeSpan.FromDays(60);
+
+    /// The account a folder is a real login of (its ids and when its login was written); null when it is not one, or a
+    /// stale one.
     private static Account? Identify(string provider, string folder, Scope scope)
+    {
+        Account? account = IdentifyAny(provider, folder, scope);
+        return account is not null && DateTime.UtcNow - account.Written > StaleLogin ? null : account;
+    }
+
+    private static Account? IdentifyAny(string provider, string folder, Scope scope)
     {
         switch (provider)
         {

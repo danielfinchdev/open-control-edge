@@ -29,7 +29,10 @@ internal sealed class CodexUsageService
             : CodexSnapshot.NotAvailable(reason == "access token expired" ? RenewMessage : AiDetector.CodexLoginMessage);
     }
 
-    public async Task<CodexSnapshot> FetchAsync()
+    /// On a worker thread: the login file (maybe on a slow or sleeping drive) is never read on the UI thread.
+    public Task<CodexSnapshot> FetchAsync() => Task.Run(FetchCoreAsync);
+
+    private async Task<CodexSnapshot> FetchCoreAsync()
     {
         try
         {

@@ -699,9 +699,9 @@ internal sealed class SettingsWindow : Window
 
     /// The background of the theme itself (black when dark), shown while no colour of the user's own is set.
     private static Color DefaultBackground() => ThemeManager.IsLight ? Color.FromRgb(0xF4, 0xF4, 0xF6) : Colors.Black;
-    private void AddChoice(Panel panel, string label, string[] choices, int selected, Action<int> changed)
+    private void AddChoice(Panel panel, string label, string[] choices, int selected, Action<int> changed, double width = 180)
     {
-        var combo = new ComboBox { Width = 180, ItemsSource = choices, SelectedIndex = selected, Style = StyleOf("Oce.Select"),
+        var combo = new ComboBox { Width = width, ItemsSource = choices, SelectedIndex = selected, Style = StyleOf("Oce.Select"),
             ItemContainerStyle = StyleOf("Oce.Select.Item"), VerticalAlignment = VerticalAlignment.Center };
         combo.SelectionChanged += (_, _) => { if (combo.SelectedIndex >= 0) changed(combo.SelectedIndex); };
         Row(panel, label, combo);
@@ -825,7 +825,7 @@ internal sealed class SettingsWindow : Window
             MonitorInfo? current = Preview ? monitors[0] : Monitors.Find(placement.Monitor);
             int selected = current is null ? 0 : monitors.ToList().FindIndex(m => m.Device == current.Device);
             AddChoice(p, Loc.Get("Settings.Monitor"), [.. monitors.Select(Name)], Math.Max(0, selected),
-                i => Save(x => x with { Monitor = monitors[i].Primary ? null : monitors[i].Device }));
+                i => Save(x => x with { Monitor = monitors[i].Primary ? null : monitors[i].Device }), width: 280);
         }
         PanelEdge[] edges = [PanelEdge.Right, PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom];
         AddChoice(p, Loc.Get("Settings.Edge"), [.. edges.Select(e => Loc.Get("Settings.Edge." + e))], Array.IndexOf(edges, placement.Edge),
@@ -1025,7 +1025,7 @@ internal sealed class SettingsWindow : Window
                     return WithAccounts(x, provider, x.AccountsOf(provider).RemoveAt(at)) with
                     {
                         SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal),
-                        DismissedAccounts = x.DismissedAccounts.Append(folder).Take(64).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                        DismissedAccounts = new[] { folder }.Concat(x.DismissedAccounts).Take(256).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
                     };
                 });
                 if (updated is not null) { _apply(updated); RenderPage(); }

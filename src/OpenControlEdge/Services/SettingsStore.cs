@@ -123,6 +123,9 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Accounts the user removed (their folders): the automatic search (AccountDiscovery) never adds them again.
     public FrozenSet<string> DismissedAccounts { get; init; } = FrozenSet<string>.Empty;
 
+    /// When the whole PC was last searched for accounts: the automatic search runs at most once a day.
+    public DateTimeOffset? LastAccountScan { get; init; }
+
     public string? MainAccountName(string provider) => AccountNames.TryGetValue(provider, out string? name) ? name : null;
 
     public ImmutableArray<ExtraAccount> AccountsOf(string provider) =>
@@ -273,7 +276,8 @@ internal static class SettingsStore
                 Accounts = ParseAccounts(root),
                 SelectedAccounts = ParseSelected(root),
                 AccountNames = ParseAccountNames(root),
-                DismissedAccounts = GetStrings(root, "dismissedAccounts").Where(Path.IsPathFullyQualified).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                DismissedAccounts = GetStrings(root, "dismissedAccounts", max: 256, maxLength: MaxFolderLength).Where(Path.IsPathFullyQualified).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                LastAccountScan = GetDate(root, "lastAccountScan"),
             };
         }
         catch (Exception ex)
@@ -412,6 +416,7 @@ internal static class SettingsStore
                     writer.WriteEndObject();
                 }
                 if (settings.DismissedAccounts.Count > 0) WriteStrings(writer, "dismissedAccounts", settings.DismissedAccounts.Order(StringComparer.OrdinalIgnoreCase));
+                if (settings.LastAccountScan is DateTimeOffset scanned) writer.WriteString("lastAccountScan", scanned.ToString("o"));
                 if (settings.SelectedAccounts.Count > 0)
                 {
                     writer.WriteStartObject("selectedAccounts");
@@ -575,7 +580,7 @@ internal static class SettingsStore
             {
                 if (parsed.Count >= AccountLimit || item.ValueKind != JsonValueKind.Object) continue;
                 string? name = GetString(item, "name")?.Trim(), folder = GetString(item, "folder")?.Trim();
-                if (name is { Length: <= 40 } && folder is { Length: > 0 and <= 260 } && Path.IsPathFullyQualified(folder))
+                if (name is { Length: <= 40 } && folder is { Length: > 0 and <= MaxFolderLength } && Path.IsPathFullyQualified(folder))
                     parsed.Add(new ExtraAccount(name, folder));
             }
             if (parsed.Count > 0) map[provider] = [.. parsed];
@@ -584,6 +589,9 @@ internal static class SettingsStore
     }
 
     public const int AccountNameLimit = 40;
+
+    /// Account folders (and dismissed ones) may be long: discovered ones lie up to six levels deep anywhere.
+    public const int MaxFolderLength = 1024;
 
     /// "edge", "placement", "offset" and "monitor"; anything missing or invalid is the default (right edge, centred,
     /// primary monitor).

@@ -9,7 +9,7 @@ encima y te lo cuenta. Es gratis, es de código abierto y no te espía.
 > *A Windows edge widget that shows your remaining Claude / Codex / Cursor quota, your CPU & GPU temperature and your
 > game's FPS at a glance. The app speaks Spanish and English.*
 
-![versión](https://img.shields.io/badge/versión-2.2.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-10%20y%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+![versión](https://img.shields.io/badge/versión-3.0.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-10%20y%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
 ## Descárgalo
 
@@ -22,7 +22,8 @@ Dentro está `OpenControlEdge-win-x64.zip`. Para instalarlo:
    pulsa «Más información» y luego «Ejecutar de todas formas»: sale porque el programa todavía no tiene un certificado de
    pago, no porque haga nada raro.
 3. Verás **«Comprobando tu sistema…»**: revisa tu PC y prepara lo que falte (por ejemplo, el controlador para leer la
-   temperatura). Pulsa **«Aceptar e instalar»** y ya está: aparece en el borde derecho y arranca solo con Windows.
+   temperatura). Pulsa **«Aceptar e instalar»** y ya está: aparece en el borde derecho (luego lo pones donde quieras)
+   y arranca solo con Windows.
 
 A partir de ahí no tienes que volver por aquí: cuando saque una versión nueva verás **un punto rojo en el botón de
 ajustes** y la instalas con un clic. (Si vienes de la 2.1.0, esta vez instálala a mano una sola vez.)
@@ -34,22 +35,28 @@ ajustes** y la instalas con un clic. (Si vienes de la 2.1.0, esta vez instálala
 - **Cómo va tu PC**: temperatura de la CPU y de la gráfica, la RAM y los **FPS** del juego que tengas delante.
 - **Modo juego**: un clic cierra lo que sobra en segundo plano, ajusta la energía para que no se caliente y, al
   quitarlo, lo deja todo como estaba.
+- **Todas tus cuentas, sin buscarlas**: encuentra solo tus otras sesiones de Claude, Codex y Cursor, estén en el disco
+  que estén. Cada una lleva su etiqueta («Go», «Pro Lite» o el nombre que quieras) y un clic cambia de cuenta. La (i)
+  te dice cuándo se renueva tu suscripción y otro botón abre la app de esa IA.
+- **Donde tú quieras**: a la derecha, a la izquierda, arriba o abajo, centrado o justo donde lo sueltes, y en la
+  pantalla que elijas si tienes varias.
 - **Dos vistas y un botón**: una para tus IA, otra para el PC, y una a tu gusto. Así no se te llena la pantalla de anillos.
-- **Varias cuentas**: si tienes una cuenta personal y otra del trabajo, eliges cuál ver al pasar el ratón.
 - Lo pones a tu gusto: tema claro u oscuro, colores, **color de fondo**, tamaño, orden de los anillos.
 
-![Vistas IA y PC](docs/showcase/vistas.png)
+![Varias cuentas](docs/showcase/cuentas.png)
+
+![Donde tú quieras](docs/showcase/bordes.png)
 
 ![FPS y modo juego](docs/showcase/juego.png)
 
-![Varias cuentas](docs/showcase/cuentas.png)
+![Ajustes](docs/showcase/ajustes.png)
 
 ## ¿Es de fiar?
 
 - **Tu sesión solo va a su propio servicio.** Lee la sesión de Claude Code, Codex o Cursor únicamente para preguntarle
   a Anthropic, OpenAI o Cursor cuánto has usado; no la manda a nadie más y nunca la modifica.
 - **Nada de telemetría.** No hay estadísticas, ni anuncios, ni cuentas. Solo habla con los servicios de tus IA, con
-  GitHub para saber si hay versión nueva y, si tú pulsas «Enviar» en el feedback, con el servicio que me lo hace llegar.
+  GitHub para saber si hay versión nueva y, si tú pulsas «Enviar» en Contribuye, con el servicio que me lo hace llegar.
 - **El código está aquí**, a la vista de cualquiera. Las actualizaciones van firmadas y la app no instala nada que no
   lleve esa firma.
 
@@ -57,7 +64,7 @@ Todos los detalles, para quien los quiera, están más abajo, en [Privacidad y s
 
 ## ¿Dudas, errores o ideas?
 
-Desde la propia app: **Ajustes › Feedback**. Me escribes, añades una captura si quieres y pulsas «Enviar»; no hace
+Desde la propia app: **Ajustes › Contribuye**. Me escribes, añades una captura si quieres y pulsas «Enviar»; no hace
 falta cuenta de nada. Si tienes cuenta de GitHub, también puedes abrir un
 [issue](https://github.com/danielfinchdev/open-control-edge/issues).
 
@@ -88,31 +95,34 @@ el anillo de CPU debe mostrar grados en vez del aviso.
 
 ## Más capturas
 
-| Panel real (datos reales) | Pestaña «Sesión» | Pestaña «Total» |
-|---|---|---|
-| <img src="docs/screenshots/panel-real.png" height="360"> | <img src="docs/screenshots/pestana-sesion.png" height="360"> | <img src="docs/screenshots/pestana-total.png" height="360"> |
-
-| Cursor | DeepSeek | Claves de API | Sin PawnIO |
+| Vista IA | Vista PC | Dos cuentas de Codex | Su suscripción |
 |---|---|---|---|
-| <img src="docs/screenshots/tarjeta-cursor.png" height="300"> | <img src="docs/screenshots/tarjeta-deepseek.png" height="300"> | <img src="docs/screenshots/claves-api.png" height="300"> | <img src="docs/screenshots/cpu-sin-pawnio.png" height="300"> |
+| <img src="docs/screenshots/vista-ia.png" height="300"> | <img src="docs/screenshots/vista-pc.png" height="300"> | <img src="docs/screenshots/tarjeta-codex-cuentas.png" height="300"> | <img src="docs/screenshots/tarjeta-suscripcion.png" height="300"> |
 
-| Vista IA | Vista PC | FPS | Modo juego | Dos cuentas de Claude |
-|---|---|---|---|---|
-| <img src="docs/screenshots/vista-ia.png" height="300"> | <img src="docs/screenshots/vista-pc.png" height="300"> | <img src="docs/screenshots/tarjeta-fps.png" height="300"> | <img src="docs/screenshots/tarjeta-modo-juego.png" height="300"> | <img src="docs/screenshots/tarjeta-claude-dos-cuentas.png" height="300"> |
+| Arriba | Abajo |
+|---|---|
+| <img src="docs/screenshots/borde-arriba.png" width="420"> | <img src="docs/screenshots/borde-abajo.png" width="420"> |
 
-| Ajustes › Personalización | Ajustes › Modo juego | Instalación |
-|---|---|---|
-| <img src="docs/screenshots/ajustes-vistas.png" height="300"> | <img src="docs/screenshots/ajustes-modo-juego.png" height="300"> | <img src="docs/screenshots/instalacion-comprobacion.png" height="300"> |
+| Izquierda | Manual | FPS | Modo juego |
+|---|---|---|---|
+| <img src="docs/screenshots/borde-izquierda.png" height="300"> | <img src="docs/screenshots/colocacion-manual.png" height="300"> | <img src="docs/screenshots/tarjeta-fps.png" height="300"> | <img src="docs/screenshots/tarjeta-modo-juego.png" height="300"> |
 
-La captura «Panel real» es del widget ejecutándose con cuentas reales (compilación Debug, sin administrador: por eso
-la CPU sale sin dato). El resto las genera `--snapshot` con datos de ejemplo.
+| Cursor | DeepSeek | Dos cuentas de Claude | Sin PawnIO |
+|---|---|---|---|
+| <img src="docs/screenshots/tarjeta-cursor.png" height="300"> | <img src="docs/screenshots/tarjeta-deepseek.png" height="300"> | <img src="docs/screenshots/tarjeta-claude-dos-cuentas.png" height="300"> | <img src="docs/screenshots/cpu-sin-pawnio.png" height="300"> |
+
+| Ajustes › Posición | Ajustes › Cuentas | Más aplicaciones | Instalación |
+|---|---|---|---|
+| <img src="docs/screenshots/ajustes-posicion.png" height="260"> | <img src="docs/screenshots/ajustes-cuentas.png" height="260"> | <img src="docs/screenshots/ajustes-mas-aplicaciones.png" height="260"> | <img src="docs/screenshots/instalacion-comprobacion.png" height="260"> |
+
+Todas las genera `--snapshot` con datos de ejemplo.
 
 ---
 
 ## Qué hace
 
-Un panel negro anclado al borde derecho, siempre encima del resto de ventanas y sin botón en la barra
-de tareas. Cada anillo es una fuente; al pasar el ratón por encima se despliega una tarjeta con el
+Un panel negro anclado al borde de la pantalla (el derecho por defecto; ver [Posición](#posición)), siempre encima del
+resto de ventanas y sin botón en la barra de tareas. Cada anillo es una fuente; al pasar el ratón por encima se despliega una tarjeta con el
 detalle, que se desliza de un anillo a otro sin desaparecer.
 
 | Anillo | Qué muestra |
@@ -141,7 +151,7 @@ al mostrar u ocultar anillos.
 El panel enseña una sola vista a la vez:
 
 - **IA** — los anillos de las IA (Claude, Codex, Cursor, OpenCode, DeepSeek y OpenRouter).
-- **PC** — FPS, CPU, GPU, Modo juego, RAM y, si tienes Orb instalado, un anillo que lo abre.
+- **PC** — FPS, CPU, GPU, RAM y Modo juego (el último: es un interruptor).
 - **Personalizada** — la mezcla que quieras de anillos de las dos anteriores. Se puede apagar en Ajustes →
   Personalización; entonces el botón de vista pasa solo de IA a PC.
 
@@ -159,7 +169,18 @@ pasan solos a la variante oscura.
 
 Se cambia con el botón de la chincheta del propio panel, que se rellena mientras está fijado, y la elección se
 recuerda. Los cuatro botones redondos
-van de dos en dos: fijar/ocultar y vista arriba, ajustes y cerrar abajo.
+van de dos en dos: fijar y vista arriba, ajustes y cerrar abajo.
+
+### Posición
+
+En Ajustes → Personalización → **Posición** eliges:
+
+- **Pantalla** — si tienes varias. Si esa pantalla se desconecta, el panel vuelve a la principal; se recoloca solo al
+  cambiar la resolución, el DPI o la barra de tareas.
+- **Borde** — derecha (por defecto), izquierda, arriba o abajo. Arriba y abajo los anillos van en fila y la tarjeta
+  sale debajo o encima.
+- **Colocación** — **Centrado** en ese borde o **Manual**: entonces el botón ✕ del panel pasa a ser un asa; arrástralo
+  a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Para cerrar la app, usa el icono de la bandeja.
 
 ### Pestañas «Sesión» / «Total»
 
@@ -190,9 +211,17 @@ configuración y un nombre:
 
 Sigue habiendo un anillo por IA. Junto al título de la tarjeta hay una etiqueta por cuenta: el nombre que le pongas
 («Personal», «Trabajo») o, sin nombre, su plan («Go», «Pro»). La rellena es la que enseña el anillo; un clic en otra
-cambia de cuenta y la elección se recuerda. La primera vez que arranca la 2.3.1 añade sola las otras sesiones de Codex
-y Claude Code de tu carpeta de usuario (`.codex-pro`, `.codex_2`, `.claude-trabajo`…), sin repetir dos carpetas de la
-misma cuenta.
+cambia de cuenta y la elección se recuerda; con más de tres, las etiquetas pasan a una segunda línea y la tarjeta se
+ensancha lo que haga falta.
+
+**No hace falta añadirlas.** Tras cada arranque, en segundo plano y con prioridad baja, el widget busca las demás
+sesiones de Claude Code, Codex y Cursor en tu carpeta de usuario y en todos los discos fijos (C:, D:…), hasta seis
+niveles de profundidad, sin entrar en enlaces y saltándose Windows, Program Files, ProgramData, papeleras,
+`node_modules` y similares. Solo cuenta una carpeta si su archivo de sesión es válido y es tuyo, y reconoce la misma
+cuenta en varias carpetas (Codex por su `account_id`, Claude por su `accountUuid`, Cursor por su id de usuario; siempre
+como huella SHA-256, nunca el valor). La primera búsqueda puede tardar unos segundos; las siguientes, casi nada. Las
+cuentas que quitas a mano no vuelven a añadirse, y **Buscar en todo el equipo** (Ajustes → Agentes → Cuentas) lo hace
+al momento. Las carpetas por defecto respetan `CODEX_HOME` y `CLAUDE_CONFIG_DIR`.
 
 ### Suscripción y «Abrir»
 
@@ -242,8 +271,7 @@ Open Control Edge y [Orb](https://github.com/danielfinchdev/orb-dev) se enseñan
 - **`orb.json`** lo escribe Orb cada 5 s y el widget solo lo lee (máximo 256 KB): sus tareas (en curso, en cola y por
   aprobar), si su asistente está trabajando y el uso de sus cuentas de IA.
 - Orb cuenta como **conectado** solo si `orb.json` se entiende, es del esquema 1, tiene menos de 15 s y su `pid` es un
-  proceso en marcha. Entonces aparece una marca «Orb» encima de los anillos (el punto se pone verde mientras su
-  asistente trabaja; al pasar el ratón, sus tareas). Si no, no se enseña nada de Orb.
+  proceso en marcha.
 - Si un anillo de Claude, Codex o Cursor no tiene lectura propia, enseña la de Orb y la tarjeta lo indica («Dato de
   Orb · cuenta · ventana»). Esas lecturas no se guardan en la caché ni se reenvían en `oce.json`.
 - Se apaga en Ajustes → Agentes → **Compartir datos con Orb** (`"shareWithOrb": false`): deja de escribir, borra
@@ -344,12 +372,12 @@ hacer con privilegios elevados; contar los FPS de otros programas con ETW, tambi
 dárselos, la compilación en modo Debug funciona sin elevar: verás todo menos la temperatura de la CPU y los FPS reales
 del programa en primer plano (el anillo de FPS enseña entonces los de composición del escritorio).
 
-Un límite que conviene conocer: la copia instalada arranca con la tarea programada y hereda el entorno de tu usuario.
-Desde la 2.2 ignora `DOTNET_STARTUP_HOOKS` y no busca DLL en el `PATH`, pero .NET sigue leyendo del entorno las variables
-de *profiler* (`CORECLR_ENABLE_PROFILING`, `CORECLR_PROFILER_PATH`) antes de que la aplicación arranque, y ningún ajuste
-de la aplicación lo evita. Un programa que ya se ejecute con tu usuario podría usarlas para cargar código con permisos de
-administrador al iniciar sesión; es la misma clase de riesgo que Microsoft no considera una frontera de seguridad del
-control de cuentas (UAC), pero si te preocupa, no instales la copia elevada.
+La copia instalada arranca con la tarea programada y heredaría el entorno de tu usuario, que cualquier programa tuyo
+puede cambiar. Desde la 3.0 la tarea no abre el programa directamente: pasa por `start.cmd`, en la carpeta de Program
+Files (solo administradores pueden escribir ahí), que borra todas las variables `DOTNET_*`, `COMPlus_*`, `CORECLR_*` y
+`COR_*` (las que .NET lee antes de arrancar: *profilers*, puertos de diagnóstico, volcados…) y deja el `PATH` en las
+carpetas de Windows antes de abrir el widget. Además ignora `DOTNET_STARTUP_HOOKS`, no busca DLL en el `PATH` y lee los
+archivos de sesión sin seguir enlaces y solo si son de tu usuario.
 
 ---
 
@@ -389,6 +417,10 @@ El registro está junto a los ajustes; los blobs DPAPI de las claves están en l
 | `shareWithOrb` | `true` (defecto) \| `false` | Intercambia lecturas con Orb en `%LOCALAPPDATA%\OrbPuente` (ver [Conexión con Orb](#conexión-con-orb)). |
 | `view` | `"ai"` (defecto) \| `"pc"` \| `"custom"` | Vista del panel. La escribe el propio botón de vista. |
 | `customView` | `true` (defecto) \| `false` | Si la vista Personalizada se puede elegir. |
+| `edge` | `"right"` (defecto) \| `"left"` \| `"top"` \| `"bottom"` | Borde del panel. |
+| `placement` / `offset` | `"center"` (defecto) \| `"manual"` / `0`…`1` | Centrado o donde lo dejaste con el asa (`offset`: dónde queda su centro a lo largo del borde). |
+| `monitor` | `"\\\\.\\DISPLAY2"` (opcional) | Pantalla del panel por su nombre de Windows; si falta o ya no está, la principal. |
+| `dismissedAccounts` | lista opcional | Carpetas de cuentas que quitaste: la búsqueda automática no las vuelve a añadir. |
 | `accountNames` | objeto opcional | Nombre de la cuenta principal de `claude`, `codex` o `cursor` para su etiqueta. |
 | `layouts` | objeto opcional | Por vista (`ai`, `pc`, `custom`): `order` (orden de los anillos) y `hidden` (los apagados). Lo escribe Ajustes → Personalización. |
 | `panelBackground` | `"#RRGGBB"` (opcional) | Color de fondo del panel; si falta, el del tema (negro en el oscuro). |
@@ -535,7 +567,7 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   falla, recortada a 160 caracteres y con cualquier secuencia de 24 o más caracteres de aspecto de clave o token
   sustituida por «…».
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README,
-  a las Releases de este repositorio (actualizaciones) y, solo si pulsas **Enviar** en Feedback, a FormSubmit con lo que
+  a las Releases de este repositorio (actualizaciones) y, solo si pulsas **Enviar** en Contribuye, a FormSubmit con lo que
   se detalla en «Destinos de red y seguridad». OpenCode no usa red, y el puente con Orb tampoco: son dos archivos en
   `%LOCALAPPDATA%\OrbPuente` (ver [Conexión con Orb](#conexión-con-orb)).
   Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
@@ -649,12 +681,13 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net10.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **219 PNG** con los dos modos, las tres vistas, las pestañas, las tarjetas (RAM, FPS y Modo juego
+Renderiza **242 PNG** con los dos modos, los cuatro bordes y la colocación manual, las tres vistas, las pestañas, las tarjetas (RAM, FPS y Modo juego
 incluidos), los estados de la renovación de Claude, el gasto de Claude / Codex / Cursor, varias cuentas, estados de
 error y sin datos, una cuenta gratuita de Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas,
-la marca de Orb conectado, menú de bandeja, diálogo de claves y la ventana de instalación (bienvenida, comprobación del sistema, progreso, hecho,
+el globo de suscripción, las etiquetas de cuenta, menú de bandeja, diálogo de claves y la ventana de instalación (bienvenida, comprobación del sistema, progreso, hecho,
 error y desinstalar), y la ventana de Ajustes en varios tamaños de pantalla. Incluye pruebas de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales
-observadas, del puente con Orb (cuándo cuenta como conectado y la forma exacta de `oce.json`), y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
+observadas, del puente con Orb (cuándo cuenta como conectado y la forma exacta de `oce.json`), de la búsqueda de cuentas
+(con carpetas de prueba que se borran al terminar), y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
 toca los ajustes ni abre los sensores ni escribe en el registro.
 
 ---
@@ -728,7 +761,7 @@ services the user is signed in to or has added an API key for (listed in «De d�
 user's own credentials; it has no telemetry. It also checks this repository's GitHub Releases for updates at start-up
 and every 6 hours (on by default, can be turned off in Settings; installing an update always takes a click), PawnIO is
 downloaded from its official release only when the user asks for it or accepts the installation window's system check,
-and feedback is sent to FormSubmit (formsubmit.co) only when the user presses "Enviar" in Settings → Feedback.
+and feedback is sent to FormSubmit (formsubmit.co) only when the user presses "Enviar" in Settings → Contribuye.
 
 ---
 
@@ -791,7 +824,7 @@ asociado con Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter ni OpenCode.
 
 # Feedback
 
-Errores e ideas, desde Ajustes → Feedback, de dos maneras:
+Errores e ideas, desde Ajustes → Contribuye, de dos maneras:
 
 - **Enviar**: no necesita ninguna cuenta. El mensaje llega por correo al autor a través de [FormSubmit](https://formsubmit.co)
   (su dirección queda detrás de un alias de FormSubmit), con hasta 3 capturas (PNG o JPEG de hasta 5 MB: **Capturar

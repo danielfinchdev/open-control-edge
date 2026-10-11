@@ -485,6 +485,8 @@ public partial class EdgeWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
+        // In manual placement this button is the drag handle: a keyboard or UI Automation "click" must not quit.
+        if (_placement.Manual) return;
         Log.Trace("Edge", "close button clicked");
         CloseRequested?.Invoke();
     }
@@ -711,6 +713,12 @@ public partial class EdgeWindow : Window
         if (_cardVisible) PlaceCard(animate: true);
     }
 
+    private static void InvalidateTree(DependencyObject element)
+    {
+        if (element is UIElement ui) ui.InvalidateMeasure();
+        for (int i = 0, n = VisualTreeHelper.GetChildrenCount(element); i < n; i++) InvalidateTree(VisualTreeHelper.GetChild(element, i));
+    }
+
     /// A new text in the card only invalidates its own TextBlock until the next layout pass, and PlaceCard measures the
     /// card itself: every level up to it is invalidated so that measure is not served from the cache.
     private static void InvalidateUpTo(UIElement from, UIElement to)
@@ -878,7 +886,9 @@ public partial class EdgeWindow : Window
     /// "uiScale" from the settings: a fixed scale, or null for automatic. Takes effect immediately.
     internal void ApplyScale(double? uiScale)
     {
-        _uiScale = uiScale is double s ? Math.Clamp(s, SettingsStore.MinUiScale, SettingsStore.MaxUiScale) : null;
+        double? scale = uiScale is double s ? Math.Clamp(s, SettingsStore.MinUiScale, SettingsStore.MaxUiScale) : null;
+        if (scale == _uiScale && _hasWindowRect && !PreviewMode) return;
+        _uiScale = scale;
         if (PreviewMode || !_hasWindowRect) LayOut(_workWidthDip, _workHeightDip);
         else PositionOnScreen();
     }
@@ -1041,6 +1051,8 @@ public partial class EdgeWindow : Window
     // The drag: the panel follows the pointer along the nearest edge of the monitor under it.
     private bool _dragging;
     private double _dragGrab;          // pointer minus the panel's centre along the edge at the start (design units)
+    private IReadOnlyList<MonitorInfo> _dragMonitors = [];
+    private bool _dragQueued;
     private const int EdgeHysteresis = 32;  // physical px nearer another edge before the panel jumps to it
 
     private void OnHandleDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1048,6 +1060,7 @@ public partial class EdgeWindow : Window
         if (!_placement.Manual || PreviewMode) return;
         e.Handled = true;  // no Click: in manual placement this button never closes the app
         HideCard();
+        _dragMonitors = Monitors.All();
         _dragging = CloseButton.CaptureMouse();
         Point local = System.Windows.Input.Mouse.GetPosition(Root);
         _dragGrab = (_placement.Horizontal ? local.X : local.Y) - (_panelStart + PanelLength() / 2);
@@ -1056,13 +1069,25 @@ public partial class EdgeWindow : Window
 
     private void OnHandleMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // Every move relays the whole layered window out: one per frame is enough.
+        if (!_dragging || _dragQueued) return;
+        _dragQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() => { _dragQueued = false; DragTo(); }));
+    }
+
+    private void DragTo()
+    {
         if (!_dragging || !GetCursorPos(out POINT cursor)) return;
-        if (Monitors.At(cursor.X, cursor.Y) is not MonitorInfo monitor) return;
+        MonitorInfo? monitor = _dragMonitors.FirstOrDefault(m => cursor.X >= m.Bounds.Left && cursor.X < m.Bounds.Right
+                                                                  && cursor.Y >= m.Bounds.Top && cursor.Y < m.Bounds.Bottom)
+                               ?? Monitors.At(cursor.X, cursor.Y);
+        if (monitor is null) return;
         RECT work = monitor.Work;
         int left = cursor.X - work.Left, right = work.Right - cursor.X, top = cursor.Y - work.Top, bottom = work.Bottom - cursor.Y;
         int Distance(PanelEdge edge) => edge switch { PanelEdge.Left => left, PanelEdge.Top => top, PanelEdge.Bottom => bottom, _ => right };
         PanelEdge nearest = new[] { PanelEdge.Right, PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom }.MinBy(Distance);
-        bool sameMonitor = monitor.Device.Equals(Monitors.Find(_placement.Monitor)?.Device, StringComparison.OrdinalIgnoreCase);
+        string? current = _placement.Monitor ?? _dragMonitors.FirstOrDefault(m => m.Primary)?.Device;
+        bool sameMonitor = monitor.Device.Equals(current, StringComparison.OrdinalIgnoreCase);
         PanelEdge edge = sameMonitor && Distance(_placement.Edge) <= Distance(nearest) + EdgeHysteresis ? _placement.Edge : nearest;
         bool horizontal = edge is PanelEdge.Top or PanelEdge.Bottom;
         double along = horizontal ? (cursor.X - work.Left) / (double)Math.Max(1, work.Right - work.Left)
@@ -1677,7 +1702,12 @@ public partial class EdgeWindow : Window
         if (!_expanded)
         {
             // Mouse button held = probably dragging a window to the edge; don't pop the panel over it.
-            if (_mode == PanelMode.Auto && Contains(Strip, screen) && !IsAnyMouseButtonDown()) Expand();
+            if (_mode == PanelMode.Auto && Contains(Strip, screen) && !IsAnyMouseButtonDown())
+            {
+                if (!_stripDwell.IsRunning) _stripDwell.Restart();
+                if (!_edgeNeedsDwell || _stripDwell.Elapsed >= StripDwell) { _stripDwell.Reset(); Expand(); }
+            }
+            else _stripDwell.Reset();
             return;
         }
 
@@ -1917,6 +1947,10 @@ public partial class EdgeWindow : Window
         // Measure only the card, never UpdateLayout (that would remeasure the whole layered window on every sample).
         // Always unconstrained: a layout pass measures it within the card's current height (0 before the first show),
         // and Measure itself is a no-op while neither the content nor the constraint changed.
+        // A new text or tag only invalidates its own element until the next layout pass: the whole card is invalidated so
+        // these measures are not served from the cache (the card is a few dozen elements, and only on screen here).
+        InvalidateTree(_cards[_activeRing]);
+        InvalidateUpTo(_cards[_activeRing], CardContent);
         double body = MinCardBody;
         if (_cards[_activeRing] is Panel { Children.Count: > 0 } card && card.Children[0] is FrameworkElement header)
         {
@@ -2038,6 +2072,11 @@ public partial class EdgeWindow : Window
 
     /// Along the chosen edge of the chosen monitor's work area (the primary one when that monitor is gone), the whole
     /// length of the edge, in physical pixels. The scale follows the work area in DIPs (resolution and DPI together).
+    /// Pointers cross the strip on its way to the taskbar, a title bar or another monitor: there it waits this long.
+    private static readonly TimeSpan StripDwell = TimeSpan.FromMilliseconds(250);
+    private readonly Stopwatch _stripDwell = new();
+    private bool _edgeNeedsDwell;
+
     private void PositionOnScreen()
     {
         try
@@ -2049,6 +2088,12 @@ public partial class EdgeWindow : Window
             double dpi = monitor.Dpi / 96.0;
             RECT work = monitor.Work;
             int workWidth = work.Right - work.Left, workHeight = work.Bottom - work.Top;
+            // The work area's edge is not the screen's here (the taskbar sits there), or it is a top or bottom edge.
+            _edgeNeedsDwell = _placement.Horizontal || _placement.Edge switch
+            {
+                PanelEdge.Left => work.Left != monitor.Bounds.Left,
+                _ => work.Right != monitor.Bounds.Right,
+            };
             LayOut(workWidth / dpi, workHeight / dpi);
             int width = _placement.Horizontal ? workWidth : (int)Math.Round(_windowWidthDip * dpi);
             int height = _placement.Horizontal ? (int)Math.Round(_windowHeightDip * dpi) : workHeight;

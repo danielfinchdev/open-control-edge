@@ -11,9 +11,13 @@ namespace OpenControlEdge.Services;
 /// rights (needed by the CPU sensors) when the interactive user signs in — with no delay and normal priority (tasks
 /// default to priority 7, below normal, which slows the first paint) — and without a UAC prompt.
 ///
-/// The task only ever points at C:\Program Files\OpenControlEdge\OpenControlEdge.exe, where only administrators can
+/// The task only ever starts C:\Program Files\OpenControlEdge\OpenControlEdge.exe, where only administrators can
 /// write: an elevated autostart pointing at a folder the user can write to would hand those rights to any program
-/// that replaces the file. schtasks.exe reads the task definition from an XML file written inside that same folder
+/// that replaces the file. It runs it through start.cmd in that same folder (System32's conhost --headless and cmd /d,
+/// no window): the task inherits the user's environment, which any program of the user can change in
+/// HKCU\Environment, and the .NET runtime reads CORECLR_* / COR_* (a profiler DLL loaded before Main), DOTNET_* and
+/// COMPlus_* (diagnostic ports, dumps written anywhere…) from it. start.cmd clears every variable with those prefixes
+/// and sets PATH to Windows' own folders before starting the widget, so none of them reaches the elevated process. schtasks.exe reads the task definition from an XML file written inside that same folder
 /// (never a temp folder the user could tamper with between the write and the read) and deleted right after.
 ///
 /// Every method returns null on success or a Spanish message; none throws.
@@ -28,6 +32,94 @@ internal static class AutoStartService
     private const string TaskNamespace = "http://schemas.microsoft.com/windows/2004/02/mit/task";
 
     private static string Schtasks => Path.Combine(Environment.SystemDirectory, "schtasks.exe");
+
+    /// The launcher the task runs (see the class): written by the installed copy itself, elevated.
+    public static string StartScript => Path.Combine(Installer.InstallDir, "start.cmd");
+
+    private static string Conhost => Path.Combine(Environment.SystemDirectory, "conhost.exe");
+    private static string Cmd => Path.Combine(Environment.SystemDirectory, "cmd.exe");
+    private static string TaskArguments => $"--headless \"{Cmd}\" /d /c \"{StartScript}\"";
+
+    /// start.cmd as it must be: the prefixes cleared one by one ("set PREFIX" lists them), then the widget started.
+    private static string StartScriptText
+    {
+        get
+        {
+            string windows = Path.GetDirectoryName(Environment.SystemDirectory) ?? @"C:\Windows";
+            var text = new StringBuilder();
+            text.Append("@echo off\r\n");
+            text.Append("rem Open Control Edge: starts the installed copy without the .NET runtime variables of the user's environment.\r\n");
+            text.Append("setlocal\r\n");
+            foreach (string prefix in new[] { "DOTNET_", "COMPlus_", "CORECLR_", "COR_" })
+                text.Append($"for /f \"delims==\" %%V in ('set {prefix} 2^>nul') do set \"%%V=\"\r\n");
+            text.Append($"set \"PATH={Environment.SystemDirectory};{windows};{Path.Combine(Environment.SystemDirectory, "Wbem")}\"\r\n");
+            text.Append($"start \"\" \"{Installer.InstalledExe}\"\r\n");
+            return text.ToString();
+        }
+    }
+
+    /// Writes start.cmd when it is missing or different (an update replaces the whole folder). Elevated only, and only
+    /// into the protected install folder. Null on success or a Spanish message.
+    internal static string? EnsureStartScript()
+    {
+        try
+        {
+            if (!UnelevatedLauncher.IsElevated) return "Hace falta ejecutar como administrador";
+            if (!Directory.Exists(Installer.InstallDir) || DataFolder.NonAdminsCanWrite(Installer.InstallDir, directory: true))
+                return "La carpeta de instalación no está protegida; no se registra el inicio";
+            string text = StartScriptText;
+            if (File.Exists(StartScript) && (File.GetAttributes(StartScript) & FileAttributes.ReparsePoint) == 0
+                && File.ReadAllText(StartScript, Encoding.ASCII) == text) return null;
+            string temporary = StartScript + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, Encoding.ASCII))
+                writer.Write(text);
+            File.Move(temporary, StartScript, overwrite: true);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("AutoStart", "start.cmd: " + ex.GetType().Name);
+            return "No se pudo registrar el inicio con Windows";
+        }
+    }
+
+    /// The installed copy, once per start: start.cmd is (re)written and a task of an earlier version, which started the
+    /// executable straight away, is registered again through it. Never throws.
+    internal static void Upgrade()
+    {
+        try
+        {
+            if (!Installer.IsInstalledCopy || !UnelevatedLauncher.IsElevated) return;
+            if (EnsureStartScript() is string error) { Log.Warn("AutoStart", error); return; }
+            if (QueryCommand() is (string command, _) && string.Equals(command.Trim('"'), Installer.InstalledExe, StringComparison.OrdinalIgnoreCase))
+            {
+                string? result = Register();
+                Log.Info("AutoStart", result is null ? "tarea actualizada: arranca mediante start.cmd" : "no se pudo actualizar la tarea: " + result);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("AutoStart", "actualizar la tarea: " + ex.GetType().Name);
+        }
+    }
+
+    /// The command and arguments of the task; null when it does not exist or cannot be read.
+    private static (string Command, string Arguments)? QueryCommand()
+    {
+        if (RunSchtasks($"/Query /TN \"{TaskName}\" /XML ONE", out string xml, QueryTimeoutMs) != SchtasksRun.Ok) return null;
+        XDocument document = XDocument.Parse(xml.TrimStart('\uFEFF'));
+        XNamespace ns = TaskNamespace;
+        XElement? exec = document.Root?.Element(ns + "Actions")?.Element(ns + "Exec");
+        string? command = exec?.Element(ns + "Command")?.Value;
+        return command is null ? null : (command, exec?.Element(ns + "Arguments")?.Value ?? "");
+    }
+
+    /// The task starts the installed copy: through start.cmd, or (earlier versions) the executable itself.
+    private static bool StartsInstalledCopy(string command, string arguments) =>
+        string.Equals(command.Trim('"'), Installer.InstalledExe, StringComparison.OrdinalIgnoreCase)
+        || (string.Equals(command.Trim('"'), Conhost, StringComparison.OrdinalIgnoreCase)
+            && arguments.Contains(StartScript, StringComparison.OrdinalIgnoreCase));
 
     /// The task exists, is enabled and starts the installed copy.
     public static bool IsEnabled() => Query().Enabled;
@@ -47,10 +139,11 @@ internal static class AutoStartService
             XDocument document = XDocument.Parse(xml.TrimStart('\uFEFF'));
             XNamespace ns = TaskNamespace;
             string? enabled = document.Root?.Element(ns + "Settings")?.Element(ns + "Enabled")?.Value;
-            string? command = document.Root?.Element(ns + "Actions")?.Element(ns + "Exec")?.Element(ns + "Command")?.Value;
+            XElement? exec = document.Root?.Element(ns + "Actions")?.Element(ns + "Exec");
+            string? command = exec?.Element(ns + "Command")?.Value;
             return (!string.Equals(enabled, "false", StringComparison.OrdinalIgnoreCase)
                     && command is not null
-                    && string.Equals(command.Trim('"'), Installer.InstalledExe, StringComparison.OrdinalIgnoreCase), null);
+                    && StartsInstalledCopy(command, exec?.Element(ns + "Arguments")?.Value ?? ""), null);
         }
         catch (Exception ex)
         {
@@ -99,12 +192,14 @@ internal static class AutoStartService
         }
     }
 
-    /// Creates (or replaces) the task pointing at the installed executable. Elevated only.
+    /// Creates (or replaces) the task that starts the installed executable through start.cmd. Elevated only.
     internal static string? Register()
     {
+        if (EnsureStartScript() is string scriptError) return scriptError;
         using var identity = WindowsIdentity.GetCurrent();
         string user = SecurityElement.Escape(identity.Name) ?? identity.Name;
-        string exe = SecurityElement.Escape(Installer.InstalledExe) ?? Installer.InstalledExe;
+        string exe = SecurityElement.Escape(Conhost) ?? Conhost;
+        string arguments = SecurityElement.Escape(TaskArguments) ?? TaskArguments;
         string dir = SecurityElement.Escape(Installer.InstallDir) ?? Installer.InstallDir;
         string xml = $"""
             <?xml version="1.0" encoding="UTF-16"?>
@@ -148,6 +243,7 @@ internal static class AutoStartService
               <Actions Context="Author">
                 <Exec>
                   <Command>{exe}</Command>
+                  <Arguments>{arguments}</Arguments>
                   <WorkingDirectory>{dir}</WorkingDirectory>
                 </Exec>
               </Actions>
@@ -163,7 +259,7 @@ internal static class AutoStartService
             using (var writer = new StreamWriter(stream, new UnicodeEncoding(false, true)))
                 writer.Write(xml);
             if (!RunSchtasks($"/Create /TN \"{TaskName}\" /XML \"{file}\" /F", out _)) return "No se pudo registrar el inicio con Windows";
-            Log.Info("AutoStart", $"tarea '{TaskName}' -> {Installer.InstalledExe}");
+            Log.Info("AutoStart", $"tarea '{TaskName}' -> {StartScript} -> {Installer.InstalledExe}");
             return null;
         }
         catch (Exception ex)
