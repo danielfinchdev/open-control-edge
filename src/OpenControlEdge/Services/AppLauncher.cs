@@ -93,7 +93,8 @@ internal static class AppLauncher
 
     public static string? OpenOrb(string executable) => Start(executable, "");
 
-    /// The per-user NSIS installer of Orb (appId dev.orb.app) registers DisplayName "Orb" and its InstallLocation.
+    /// The per-user NSIS installer of Orb (appId dev.orb.app) registers DisplayName "Orb". Its InstallLocation is empty
+    /// (seen 2026-10-11): the folder comes from DisplayIcon ("…\Orb\Orb.exe,0"), InstallLocation when it has one.
     private static string? OrbFromUninstallEntry()
     {
         using RegistryKey? uninstall = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
@@ -101,9 +102,19 @@ internal static class AppLauncher
         foreach (string name in uninstall.GetSubKeyNames())
         {
             using RegistryKey? entry = uninstall.OpenSubKey(name);
-            if (entry?.GetValue("DisplayName") is not "Orb" || entry.GetValue("InstallLocation") is not string folder) continue;
-            if (folder.Length is 0 or > 260 || !Path.IsPathFullyQualified(folder)) continue;
-            if (ExistingFile(Path.Combine(folder, "Orb.exe")) is string exe) return exe;
+            if (entry?.GetValue("DisplayName") is not "Orb") continue;
+            string? folder = entry.GetValue("InstallLocation") as string;
+            if (string.IsNullOrWhiteSpace(folder) && entry.GetValue("DisplayIcon") is string icon)
+            {
+                // "C:\…\Orb.exe,0" or "\"C:\…\Orb.exe\"": the path without its icon index and quotes.
+                string path = icon.Trim();
+                int comma = path.LastIndexOf(',');
+                if (comma > 0 && int.TryParse(path[(comma + 1)..], out _)) path = path[..comma];
+                path = path.Trim().Trim('"');
+                folder = Path.GetFileName(path).Equals("Orb.exe", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(path) : null;
+            }
+            if (folder is null || folder.Length is 0 or > 260 || !Path.IsPathFullyQualified(folder)) continue;
+            if (ExistingFile(Path.Combine(folder.Trim('"'), "Orb.exe")) is string exe) return exe;
         }
         return null;
     }
