@@ -1,5 +1,27 @@
 # Registro de cambios
 
+## 2.3.0 — 2026-10-11
+
+- **Conexión con Orb.** El widget y Orb se enseñan sus datos reales con dos archivos en `%LOCALAPPDATA%\OrbPuente\`,
+  sin red. El widget escribe `oce.json` cada 2 s (en `oce.json.tmp` y renombrándolo encima) con la carga y temperatura
+  de CPU, la GPU, la RAM en uso, los FPS y el uso de cada IA de la cuenta principal; lo que no se ha podido leer va como
+  `null`, y nunca lleva tokens, correos ni rutas. Lee `orb.json` (máximo 256 KB, fuera del hilo de la interfaz) y solo
+  lo da por bueno con el esquema 1, menos de 15 s de antigüedad y un `pid` en marcha.
+- **Marca «Orb» encima de los anillos** mientras Orb está conectado: el punto se pone verde cuando su asistente trabaja
+  y, al pasar el ratón, enseña sus tareas en curso, en cola y por aprobar («sin datos» si Orb no las envía). No mueve
+  nada del panel.
+- **Uso de Orb donde falta el propio**: si el anillo de Claude, Codex o Cursor no tiene lectura, enseña la de Orb y la
+  tarjeta dice de dónde viene («Dato de Orb · cuenta · ventana»). Esas lecturas no se guardan en la caché ni vuelven a
+  Orb.
+- **Ajustes → Agentes → Compartir datos con Orb** (`"shareWithOrb"`, activado por defecto): al apagarlo deja de
+  escribir, borra `oce.json` y deja de leer `orb.json`. Al cerrar el widget también se borra `oce.json`.
+- La copia instalada (elevada) toca esa carpeta, que es del usuario, con una copia de su token sin privilegios, sin el
+  grupo Administradores y con nivel de integridad medio, para que un enlace puesto en ella no pueda redirigir una
+  escritura elevada.
+- `--snapshot` comprueba el puente (qué cuenta como conectado, qué queda en `null` y la forma exacta de `oce.json`) y
+  añade las capturas de la marca de Orb y de una tarjeta con datos de Orb (219 PNG). En Debug, `--orb-probe <archivo>`
+  hace tres intercambios reales y borra `oce.json` al terminar.
+
 ## 2.2.0 — 2026-10-08
 
 - **Vistas del panel.** El panel enseña una sola vista: **IA** (los anillos de las IA), **PC** (FPS, CPU, GPU, Modo juego

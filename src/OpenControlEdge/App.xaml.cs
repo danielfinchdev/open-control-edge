@@ -106,6 +106,14 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private readonly Dictionary<AiProviderId, (string Message, DateTimeOffset At)> _agentFailures = new();
     private DateTimeOffset? _lastUsageRefresh;
+
+    /// The file bridge with Orb (OrbBridge): oce.json written and orb.json read every 2 s off the UI thread, while
+    /// «Compartir datos con Orb» is on. _orb is Orb's status while it is connected, null otherwise.
+    private readonly OrbBridge _orbBridge = new();
+    private DispatcherTimer? _bridgeTimer;
+    private Task _bridgeIo = Task.CompletedTask;
+    private OrbStatus? _orb;
+    private FpsService.Sample? _lastFps;
 #if DEBUG
     private bool _startupException;
 #endif
@@ -320,6 +328,7 @@ public partial class App : Application
         _sensorTimer.Start();
         _ = RefreshUsageAsync();
         _ = RefreshSensorsAsync();
+        if (measureMode is null) ConfigureOrbBridge(SettingsStore.Load());
         StartAutomaticUpdateCheck(atStartup: true);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
@@ -354,6 +363,7 @@ public partial class App : Application
             if (updateCheckEnabled) StartAutomaticUpdateCheck();
             bool providersChanged = !previousSettings.Providers.OrderBy(x => x.Key).SequenceEqual(settings.Providers.OrderBy(x => x.Key));
             bool refreshChanged = previousSettings.UsageRefreshMinutes != settings.UsageRefreshMinutes;
+            if (previousSettings.ShareWithOrb != settings.ShareWithOrb) ConfigureOrbBridge(settings);
             previousSettings = settings;
             if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
@@ -627,7 +637,7 @@ public partial class App : Application
     {
         if (_edge is null || _lastClaude is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Claude);
-        _edge.SetClaude(_lastClaude.Hidden || index == 0 ? _lastClaude
+        _edge.SetClaude(_lastClaude.Hidden || index == 0 ? WithOrbUsage(_lastClaude)
             : _claudeExtraReadings.ElementAtOrDefault(index - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
     }
 
@@ -635,7 +645,7 @@ public partial class App : Application
     {
         if (_edge is null || _lastCodex is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Codex);
-        _edge.SetCodex(_lastCodex.Hidden || index == 0 ? _lastCodex
+        _edge.SetCodex(_lastCodex.Hidden || index == 0 ? WithOrbUsage(_lastCodex)
             : _codexExtraReadings.ElementAtOrDefault(index - 1) ?? CodexSnapshot.Failed("Cargando…"));
     }
 
@@ -643,7 +653,7 @@ public partial class App : Application
     {
         if (_edge is null || _lastCursor is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Cursor);
-        _edge.SetCursor(_lastCursor.Hidden || index == 0 ? _lastCursor
+        _edge.SetCursor(_lastCursor.Hidden || index == 0 ? WithOrbUsage(_lastCursor)
             : _cursorExtraReadings.ElementAtOrDefault(index - 1) ?? CursorSnapshot.Failed("Cargando…"));
     }
 
@@ -727,10 +737,15 @@ public partial class App : Application
         {
             _fpsTimer.Stop();
             _fps.Stop();
+            _lastFps = null;
         }
     }
 
-    private void OnFpsTick(object? sender, EventArgs e) => _edge?.SetFps(_fps.Read());
+    private void OnFpsTick(object? sender, EventArgs e)
+    {
+        _lastFps = _fps.Read();
+        _edge?.SetFps(_lastFps);
+    }
 
     /// The ring switches game mode on and off; while it is not enabled in the settings it opens that page instead.
     private async Task ToggleGameModeAsync()
@@ -775,6 +790,130 @@ public partial class App : Application
         _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
         _edge.SetGameMode(_gameMode);
     }
+
+    // ───────────────────────────── Orb ─────────────────────────────
+
+    /// «Compartir datos con Orb» on: the exchange runs every 2 s. Off: it stops, Orb's data leaves the panel and
+    /// oce.json is deleted once any exchange in flight has finished (so that one cannot write it again).
+    private void ConfigureOrbBridge(Settings settings)
+    {
+        if (settings.ShareWithOrb)
+        {
+            if (_bridgeTimer is null)
+            {
+                _bridgeTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = OrbBridge.WriteInterval };
+                _bridgeTimer.Tick += (_, _) => ExchangeWithOrb();
+            }
+            if (_bridgeTimer.IsEnabled) return;
+            _bridgeTimer.Start();
+            ExchangeWithOrb();
+            Log.Info("Orb", "compartir datos con Orb: activado");
+            return;
+        }
+        _bridgeTimer?.Stop();
+        ApplyOrb(null);
+        _bridgeIo = _bridgeIo.ContinueWith(_ => _orbBridge.Delete(), TaskScheduler.Default);
+        Log.Info("Orb", "compartir datos con Orb: desactivado");
+    }
+
+    /// One exchange: OCE's readings are gathered here, the files are written and read on a worker thread, and Orb's
+    /// status comes back here. Skipped while the previous one is still running.
+    private async void ExchangeWithOrb()
+    {
+        if (!_bridgeIo.IsCompleted) return;
+        OceReading reading = OwnReading();
+        Task<OrbStatus?> io = Task.Run(() => _orbBridge.Exchange(reading with
+        {
+            RamUsedPct = MemoryService.Read() is { Message: null } ram ? ram.Percent : null,
+        }));
+        _bridgeIo = io;
+        try
+        {
+            OrbStatus? orb = await io;
+            if (_bridgeTimer is { IsEnabled: true }) ApplyOrb(orb);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Orb", ex);
+        }
+    }
+
+    /// OCE's own last readings, for oce.json: the default account of each provider and the short window (Claude's
+    /// 5 h session, Codex's shorter window, Cursor's cycle), never anything that came from Orb. Providers without a
+    /// percentage (OpenCode, DeepSeek; OpenRouter without a limit) say only that they are read, with null values.
+    private OceReading OwnReading()
+    {
+        var usage = ImmutableArray.CreateBuilder<OceUsage>();
+        if (_lastClaude is { Hidden: false, Session: UsageWindow session } claude)
+            usage.Add(new OceUsage("claude", session.Percent, session.ResetsAt, claude.Plan));
+        if (_lastCodex is { Hidden: false, Primary: CodexWindow primary } codex)
+        {
+            CodexWindow shorter = codex.Secondary is CodexWindow secondary
+                && (primary.Length ?? TimeSpan.Zero) > (secondary.Length ?? TimeSpan.MaxValue) ? secondary : primary;
+            usage.Add(new OceUsage("codex", shorter.Percent, shorter.ResetsAt, codex.Plan));
+        }
+        if (_lastCursor is { Hidden: false, Cycle: UsageWindow cycle } cursor)
+            usage.Add(new OceUsage("cursor", cycle.Percent, cycle.ResetsAt, cursor.Plan));
+        if (_lastOpenCode is { Hidden: false, Message: null })
+            usage.Add(new OceUsage("opencode", null, null, null));
+        if (_lastDeepSeek is { Hidden: false, Balance: not null })
+            usage.Add(new OceUsage("deepseek", null, null, null));
+        if (_lastOpenRouter is { Hidden: false, Message: null } router)
+            usage.Add(new OceUsage("openrouter", router.LimitUsd is decimal limit && limit > 0
+                ? (double)Math.Clamp(router.UsageUsd / limit * 100, 0, 100) : null, null, null));
+        return new OceReading(_lastCpu, _lastGpu, null, _lastFps?.Fps, usage.ToImmutable());
+    }
+
+    /// Orb's status after an exchange (null: disconnected). The badge, and the Claude, Codex and Cursor rings, are
+    /// repainted only when what they show of Orb changed: every repaint redraws the whole layered window.
+    private void ApplyOrb(OrbStatus? orb)
+    {
+        OrbStatus? previous = _orb;
+        _orb = orb;
+        bool connectionChanged = (previous is null) != (orb is null);
+        if (connectionChanged)
+            Log.Info("Orb", orb is null ? "Orb desconectado" : $"Orb conectado (versión {orb.Version ?? "sin datos"})");
+        if (_edge is null) return;
+        if (connectionChanged || previous?.Tasks != orb?.Tasks || previous?.AssistantBusy != orb?.AssistantBusy)
+            _edge.SetOrb(orb);
+        Settings settings = SettingsStore.Load();
+        if (!_renewing && previous?.UsageFor("claude") != orb?.UsageFor("claude")) ShowClaude(settings);
+        if (previous?.UsageFor("codex") != orb?.UsageFor("codex")) ShowCodex(settings);
+        if (previous?.UsageFor("cursor") != orb?.UsageFor("cursor")) ShowCursor(settings);
+    }
+
+    /// OCE's own reading whenever it has one; otherwise Orb's for that agent, marked with its source, while Orb is
+    /// connected and has a percentage. Never for a hidden ring; the plan badge stays empty (Orb's account may be
+    /// another one). Only shown: never cached, never written to oce.json.
+    private ClaudeSnapshot WithOrbUsage(ClaudeSnapshot own) =>
+        own is { Hidden: false, Session: null } && _orb?.UsageFor("claude") is { UsedPct: double used } orb
+            ? new ClaudeSnapshot(false, new UsageWindow(used, orb.ResetAt), null, null, null) { Source = OrbSource(orb) }
+            : own;
+
+    private CodexSnapshot WithOrbUsage(CodexSnapshot own) =>
+        own is { Hidden: false, Primary: null } && _orb?.UsageFor("codex") is { UsedPct: double used } orb
+            ? new CodexSnapshot(false, new CodexWindow(used, null, orb.ResetAt), null, null) { Source = OrbSource(orb) }
+            : own;
+
+    private CursorSnapshot WithOrbUsage(CursorSnapshot own) =>
+        own is { Hidden: false, Cycle: null } && _orb?.UsageFor("cursor") is { UsedPct: double used } orb
+            ? new CursorSnapshot(false, new UsageWindow(used, orb.ResetAt), null, null) { Source = OrbSource(orb) }
+            : own;
+
+    /// "Personal · 5h": the account and window Orb names, "" when it names neither.
+    private static string OrbSource(OrbUsage usage) =>
+        string.Join(" · ", new[] { usage.Label, usage.Window }.Where(part => part is not null));
+
+    /// Closing: no more exchanges, and oce.json goes, so Orb shows Open Control Edge as disconnected at once.
+    private void StopOrbBridge()
+    {
+        bool sharing = _bridgeTimer is { IsEnabled: true };
+        _bridgeTimer?.Stop();
+        try { _bridgeIo.Wait(TimeSpan.FromSeconds(2)); }
+        catch (AggregateException) { }
+        if (sharing) _orbBridge.Delete();
+    }
+
     private async Task ApplyOpenCodeAsync(Settings s) { _lastOpenCode = await RefreshOpenCodeAsync(s); TrackAgent(AiProviderId.OpenCode, _lastOpenCode.Message); _edge?.SetOpenCode(_lastOpenCode); }
     private async Task ApplyDeepSeekAsync(Settings s) { _lastDeepSeek = await RefreshDeepSeekAsync(s); TrackAgent(AiProviderId.DeepSeek, _lastDeepSeek.Message); _edge?.SetDeepSeek(_lastDeepSeek); }
     private async Task ApplyOpenRouterAsync(Settings s) { _lastOpenRouter = await RefreshOpenRouterAsync(s); TrackAgent(AiProviderId.OpenRouter, _lastOpenRouter.Message); _edge?.SetOpenRouter(_lastOpenRouter); }
@@ -1269,6 +1408,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         GameModeService.DeactivateOnExit();
+        StopOrbBridge();
         _fpsTimer?.Stop();
         _fps.Dispose();
         _refreshTimer?.Stop();

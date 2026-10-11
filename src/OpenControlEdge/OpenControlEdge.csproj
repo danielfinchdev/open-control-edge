@@ -12,7 +12,7 @@
     <AssemblyName>OpenControlEdge</AssemblyName>
     <RootNamespace>OpenControlEdge</RootNamespace>
     <StartupObject>OpenControlEdge.Program</StartupObject>
-    <Version>2.2.0</Version>
+    <Version>2.3.0</Version>
     <!-- Version resource: SignPath Foundation requires the product name to be the project's name and the same product
          version in every build (no "+commit" suffix); its artifact configuration enforces both. -->
     <Product>Open Control Edge</Product>

@@ -926,6 +926,10 @@ internal sealed class SettingsWindow : Window
             if (_keyEditor == id) p.Children.Add(KeyEditor(id, name));
             if (_accountEditor == id) p.Children.Add(AccountEditor(id, settings));
         }
+
+        // The file bridge with Orb (OrbBridge): readings both ways, through %LOCALAPPDATA%\OrbPuente only.
+        Row(Inside(Card("Orb")), Loc.Get("Settings.ShareWithOrb"), SettingSwitch(settings.ShareWithOrb,
+            (x, v) => x with { ShareWithOrb = v }, x => x.ShareWithOrb, _apply), Loc.Get("Settings.ShareWithOrbHint"));
     }
     /// More accounts of Claude Code, Codex or Cursor: each one is the configuration folder that account signs in to
     /// (CLAUDE_CONFIG_DIR, CODEX_HOME, Cursor's --user-data-dir) and a name for the tab of its card.

@@ -480,5 +480,15 @@
     <sys:String x:Key="Msg.FeedbackNoForm">El envío sin cuenta no está disponible en esta versión</sys:String>
     <sys:String x:Key="Msg.FeedbackEmpty">Escribe un mensaje antes de enviarlo</sys:String>
     <sys:String x:Key="Msg.FeedbackFailed">No se pudo enviar el mensaje</sys:String>
+    <sys:String x:Key="Settings.ShareWithOrb">Compartir datos con Orb</sys:String>
+    <sys:String x:Key="Settings.ShareWithOrbHint">Intercambia lecturas con Orb mediante archivos locales; nada sale de este equipo.</sys:String>
+    <sys:String x:Key="Orb.Connected">Orb conectado</sys:String>
+    <sys:String x:Key="Orb.Tasks">Tareas: {0} en curso · {1} en cola · {2} por aprobar</sys:String>
+    <sys:String x:Key="Orb.TasksValue">Tareas: {0}</sys:String>
+    <sys:String x:Key="Orb.AssistantBusy">Asistente: trabajando</sys:String>
+    <sys:String x:Key="Orb.AssistantIdle">Asistente: en espera</sys:String>
+    <sys:String x:Key="Orb.AssistantValue">Asistente: {0}</sys:String>
+    <sys:String x:Key="Orb.Source">Dato de Orb</sys:String>
+    <sys:String x:Key="Orb.SourceOf">Dato de Orb · {0}</sys:String>
 
 </ResourceDictionary>

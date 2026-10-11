@@ -218,6 +218,28 @@ Nunca cierra procesos protegidos ni del sistema, el proceso de la ventana en pri
 `gamemode.json`, en la carpeta de datos, antes de cada cambio; se restaura al salir del widget y, si el equipo se apagó
 con el modo encendido, al volver a abrirlo.
 
+### Conexión con Orb
+
+Open Control Edge y [Orb](https://github.com/danielfinchdev/orb-dev) se enseñan sus datos reales con dos archivos en
+`%LOCALAPPDATA%\OrbPuente\`. Nada sale del equipo: no hay red, solo esa carpeta.
+
+- **`oce.json`** lo escribe el widget cada 2 s (en `oce.json.tmp` y renombrándolo encima): carga y temperatura de CPU,
+  GPU (nombre, carga, temperatura y VRAM), RAM en uso, FPS (solo mientras su anillo está a la vista) y, por IA, el
+  porcentaje de la ventana corta, cuándo se reinicia y el plan de la cuenta principal. Lo que no se ha podido leer va
+  como `null`. Nunca lleva tokens, correos ni rutas.
+- **`orb.json`** lo escribe Orb cada 5 s y el widget solo lo lee (máximo 256 KB): sus tareas (en curso, en cola y por
+  aprobar), si su asistente está trabajando y el uso de sus cuentas de IA.
+- Orb cuenta como **conectado** solo si `orb.json` se entiende, es del esquema 1, tiene menos de 15 s y su `pid` es un
+  proceso en marcha. Entonces aparece una marca «Orb» encima de los anillos (el punto se pone verde mientras su
+  asistente trabaja; al pasar el ratón, sus tareas). Si no, no se enseña nada de Orb.
+- Si un anillo de Claude, Codex o Cursor no tiene lectura propia, enseña la de Orb y la tarjeta lo indica («Dato de
+  Orb · cuenta · ventana»). Esas lecturas no se guardan en la caché ni se reenvían en `oce.json`.
+- Se apaga en Ajustes → Agentes → **Compartir datos con Orb** (`"shareWithOrb": false`): deja de escribir, borra
+  `oce.json` y no lee `orb.json`. Al cerrar el widget también se borra `oce.json`.
+- La copia instalada corre como administrador, pero toca esa carpeta con una copia de su token sin privilegios ni grupo
+  Administradores y con nivel de integridad medio: un enlace puesto en la carpeta no puede llevar sus escrituras a
+  ningún sitio donde tu cuenta normal no pudiera escribir.
+
 ### Detalles
 
 - **Un clic en el anillo de Claude renueva la sesión sin abrir ninguna ventana** (ver
@@ -352,6 +374,7 @@ El registro está junto a los ajustes; los blobs DPAPI de las claves están en l
 | `autoRenewClaude` | `true` (defecto) \| `false` | Renueva la sesión de Claude en segundo plano antes de que caduque. |
 | `ramCleanup` | `false` (defecto) \| `true` | Permite «Liberar RAM» con un clic en el anillo de RAM. |
 | `checkUpdates` | `true` (defecto) \| `false` | Busca versiones nuevas al arrancar y cada 6 h. Sustituye a `autoCheckUpdates` de la 2.1. |
+| `shareWithOrb` | `true` (defecto) \| `false` | Intercambia lecturas con Orb en `%LOCALAPPDATA%\OrbPuente` (ver [Conexión con Orb](#conexión-con-orb)). |
 | `view` | `"ai"` (defecto) \| `"pc"` \| `"custom"` | Vista del panel. La escribe el propio botón de vista. |
 | `layouts` | objeto opcional | Por vista (`ai`, `pc`, `custom`): `order` (orden de los anillos) y `hidden` (los apagados). Lo escribe Ajustes → Personalización. |
 | `panelBackground` | `"#RRGGBB"` (opcional) | Color de fondo del panel; si falta, el del tema (negro en el oscuro). |
@@ -494,7 +517,8 @@ en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clea
   sustituida por «…».
 - Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README,
   a las Releases de este repositorio (actualizaciones) y, solo si pulsas **Enviar** en Feedback, a FormSubmit con lo que
-  se detalla en «Destinos de red y seguridad». OpenCode no usa red.
+  se detalla en «Destinos de red y seguridad». OpenCode no usa red, y el puente con Orb tampoco: son dos archivos en
+  `%LOCALAPPDATA%\OrbPuente` (ver [Conexión con Orb](#conexión-con-orb)).
   Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
 - No tiene telemetría, ni analítica ni servicios residentes. La comprobación de actualizaciones (al arrancar y cada
   6 h) está activada por defecto y se apaga en Ajustes → Actualizaciones; la descarga e instalación siempre se piden con
@@ -606,12 +630,12 @@ git push origin v1.2.0
 .\src\OpenControlEdge\bin\Debug\net10.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
 ```
 
-Renderiza **210 PNG** con los dos modos, las tres vistas, las pestañas, las tarjetas (RAM, FPS y Modo juego
+Renderiza **219 PNG** con los dos modos, las tres vistas, las pestañas, las tarjetas (RAM, FPS y Modo juego
 incluidos), los estados de la renovación de Claude, el gasto de Claude / Codex / Cursor, varias cuentas, estados de
 error y sin datos, una cuenta gratuita de Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas,
-menú de bandeja, diálogo de claves y la ventana de instalación (bienvenida, comprobación del sistema, progreso, hecho,
+la marca de Orb conectado, menú de bandeja, diálogo de claves y la ventana de instalación (bienvenida, comprobación del sistema, progreso, hecho,
 error y desinstalar), y la ventana de Ajustes en varios tamaños de pantalla. Incluye pruebas de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales
-observadas, y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
+observadas, del puente con Orb (cuándo cuenta como conectado y la forma exacta de `oce.json`), y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
 toca los ajustes ni abre los sensores ni escribe en el registro.
 
 ---
