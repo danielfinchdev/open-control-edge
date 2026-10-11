@@ -695,6 +695,7 @@ public partial class EdgeWindow : Window
             InfoTitle.Text = Loc.Get("Sub.Title");
             InfoText.Text = Loc.Get("Sub.Loading");
             InfoBubble.Visibility = Visibility.Visible;
+            InvalidateUpTo(InfoText, CardContent);
             if (_cardVisible) PlaceCard(animate: true);
             SubscriptionRequested?.Invoke(provider);
             return;
@@ -706,7 +707,19 @@ public partial class EdgeWindow : Window
     {
         if (_infoFor != provider) return;
         InfoText.Text = text;
+        InvalidateUpTo(InfoText, CardContent);
         if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// A new text in the card only invalidates its own TextBlock until the next layout pass, and PlaceCard measures the
+    /// card itself: every level up to it is invalidated so that measure is not served from the cache.
+    private static void InvalidateUpTo(UIElement from, UIElement to)
+    {
+        for (DependencyObject? element = from; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is UIElement ui) ui.InvalidateMeasure();
+            if (ReferenceEquals(element, to)) break;
+        }
     }
 
     /// place: re-fit the card to its content now (not when the card is about to be placed or hidden anyway).

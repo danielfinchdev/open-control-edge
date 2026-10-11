@@ -509,6 +509,15 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(showcase, "ia_claude.png"), transparent: true);
         window.ShowCardNow(EdgeWindow.RingCodex);
         window.SaveSnapshot(Path.Combine(showcase, "ia_codex.png"), transparent: true);
+        // Two Codex accounts, the one shown with its subscription bubble open.
+        window.SetAccounts(AiProviderId.Codex, ["Go", "Pro Lite"], 1);
+        window.SetCodex(new CodexSnapshot(false, new CodexWindow(18, TimeSpan.FromHours(5), now.AddHours(2)),
+            new CodexWindow(37, TimeSpan.FromDays(7), now.AddDays(4)), null) { Plan = "prolite", SubscriptionUntil = now.AddDays(12) });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.OpenInfoNow(AiProviderId.Codex, Loc.Format("Sub.Renews", now.AddDays(12).ToString("d MMM", Loc.Culture)));
+        window.SaveSnapshot(Path.Combine(showcase, "ia_codex_accounts.png"), transparent: true);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
         window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
         window.SetCpu(new CpuSnapshot("Intel Core i7-8750H", 68, 81, 34, null));
         window.SetFps(new FpsService.Sample(143, "League of Legends", false, 144, null));
@@ -519,6 +528,19 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(showcase, "pc_game_mode.png"), transparent: true);
         window.ShowCardNow(EdgeWindow.RingCpu);
         window.SaveSnapshot(Path.Combine(showcase, "pc_cpu.png"), transparent: true);
+        // Other edges: the PC view along the bottom, the AI view on the left.
+        window.ApplyPlacement(PanelPlacement.Default with { Edge = PanelEdge.Bottom });
+        window.ShowCardNow(EdgeWindow.RingFps);
+        window.SaveSnapshot(Path.Combine(showcase, "edge_bottom_pc.png"), transparent: true);
+        window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
+        window.ApplyPlacement(PanelPlacement.Default with { Edge = PanelEdge.Left });
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        window.SaveSnapshot(Path.Combine(showcase, "edge_left_ai.png"), transparent: true);
+        window.ApplyPlacement(PanelPlacement.Default with { Edge = PanelEdge.Top });
+        window.ShowCardNow(EdgeWindow.RingCursor);
+        window.SaveSnapshot(Path.Combine(showcase, "edge_top_ai.png"), transparent: true);
+        window.ApplyPlacement(PanelPlacement.Default);
+        window.ApplyViews(everything with { View = WidgetView.Pc }, animate: false);
         window.ApplyMode(PanelMode.Auto);
         window.ApplyMode(PanelMode.Pinned);
         ThemeManager.Apply(AppTheme.Light, RingColorTheme.Classic, null);
