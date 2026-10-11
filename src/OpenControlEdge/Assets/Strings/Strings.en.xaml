@@ -505,8 +505,6 @@
     <sys:String x:Key="Settings.CustomView">Custom view</sys:String>
     <sys:String x:Key="Settings.CustomViewHint">When off, the panel's view button only switches between AI and PC.</sys:String>
     <sys:String x:Key="Settings.AccountNameHint">Without a name, the card's tag shows the plan (Go, Pro…).</sys:String>
-    <sys:String x:Key="Settings.Detected">Found on this PC</sys:String>
-    <sys:String x:Key="Settings.Add">Add</sys:String>
     <sys:String x:Key="Account.Fallback">Account {0}</sys:String>
     <sys:String x:Key="Account.Switch">Show the {0} account</sys:String>
     <sys:String x:Key="Account.Shown">{0}: the account shown</sys:String>
@@ -537,4 +535,8 @@
     <sys:String x:Key="Settings.Placement.Center">Centred</sys:String>
     <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
     <sys:String x:Key="Settings.ManualHint">In Manual, the panel's ✕ button becomes a handle: drag it to any edge of any screen and it stays where you drop it. To quit the app, use the tray icon.</sys:String>
+    <sys:String x:Key="Settings.ScanAccounts">Search the whole PC</sys:String>
+    <sys:String x:Key="Settings.Scanning">Searching every drive… this can take a while.</sys:String>
+    <sys:String x:Key="Settings.ScanAdded">Added {0} new accounts.</sys:String>
+    <sys:String x:Key="Settings.ScanNone">No new accounts.</sys:String>
 </ResourceDictionary>

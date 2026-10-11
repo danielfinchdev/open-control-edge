@@ -248,7 +248,6 @@ public partial class App : Application
         _edge.ApplyViews(settings, animate: false);
         _gameMode = _gameMode with { Allowed = settings.GameMode.Enabled };
         _edge.SetGameMode(_gameMode);
-        if (measureMode is null) settings = DiscoverAccounts(settings);
         SyncAccounts(settings);
 
         // The last reading, painted before any network request (UsageCache); the first refresh replaces it.
@@ -335,6 +334,7 @@ public partial class App : Application
         _ = RefreshSensorsAsync();
         if (measureMode is null) ConfigureOrbBridge(SettingsStore.Load());
         StartAutomaticUpdateCheck(atStartup: true);
+        if (measureMode is null) ScheduleAccountScan();
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
 
@@ -373,7 +373,7 @@ public partial class App : Application
             previousSettings = settings;
             if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
-            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge };
+            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge, ScanAccounts = ScanAccountsAsync };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
         if (category == "Agentes" && !_agentsProbed)
         {
@@ -754,26 +754,62 @@ public partial class App : Application
         return labels;
     }
 
-    /// Once (the first start of 2.3.1 or later): the other logins of Claude Code and Codex already on this PC
-    /// (AccountDiscovery) are added as accounts without a name, so their tag shows their plan.
-    private static Settings DiscoverAccounts(Settings settings)
+    /// After start-up, once things settle: the other logins of Claude Code, Codex and Cursor anywhere on this PC
+    /// (AccountDiscovery: user profile, then every fixed drive, low priority) are added as accounts without a name, so
+    /// their tag shows their plan. Not while game mode is on (the disk is for the game).
+    private void ScheduleAccountScan()
     {
-        if (settings.AccountsDiscovered) return settings;
-        if (AccountDiscovery.Find(settings) is not IReadOnlyDictionary<string, IReadOnlyList<string>> found) return settings;
-        Settings? updated = SettingsStore.Update(x =>
+        var wait = new DispatcherTimer(DispatcherPriority.Background) { Interval = AccountScanDelay };
+        wait.Tick += (_, _) =>
         {
-            var map = x.Accounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-            foreach ((string provider, IReadOnlyList<string> folders) in found)
+            wait.Stop();
+            if (!GameModeService.IsActive) _ = ScanAccountsAsync();
+        };
+        wait.Start();
+    }
+
+    private static readonly TimeSpan AccountScanDelay = TimeSpan.FromSeconds(45);
+    private Task<int>? _accountScan;
+
+    /// The search of the whole PC (joins one already running); returns how many accounts it added.
+    internal Task<int> ScanAccountsAsync()
+    {
+        if (_accountScan is null || _accountScan.IsCompleted) _accountScan = RunAccountScanAsync();
+        return _accountScan;
+    }
+
+    private async Task<int> RunAccountScanAsync()
+    {
+        try
+        {
+            Settings settings = SettingsStore.Load();
+            AccountDiscovery.Report? report = await AccountDiscovery.ScanAsync(settings, settings.DismissedAccounts, CancellationToken.None);
+            if (report is null) return 0;
+            int added = 0;
+            Settings? updated = SettingsStore.Update(x =>
             {
-                ImmutableArray<ExtraAccount> current = x.AccountsOf(provider);
-                map[provider] = current.AddRange(folders.Where(f => !current.Any(a => a.Folder.Equals(f, StringComparison.OrdinalIgnoreCase)))
-                    .Select(f => new ExtraAccount("", f)).Take(SettingsStore.AccountLimit - current.Length));
-            }
-            return x with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal), AccountsDiscovered = true };
-        });
-        int added = found.Values.Sum(f => f.Count);
-        if (added > 0) Log.Info("Accounts", $"cuentas encontradas en este equipo: {added}");
-        return updated ?? settings;
+                added = 0;
+                var map = x.Accounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+                foreach ((string provider, IReadOnlyList<string> folders) in report.Found)
+                {
+                    ImmutableArray<ExtraAccount> current = x.AccountsOf(provider);
+                    var fresh = folders.Where(f => !x.DismissedAccounts.Contains(f)
+                            && !current.Any(a => a.Folder.Equals(f, StringComparison.OrdinalIgnoreCase)))
+                        .Take(Math.Max(0, SettingsStore.AccountLimit - current.Length)).Select(f => new ExtraAccount("", f)).ToList();
+                    added += fresh.Count;
+                    if (fresh.Count > 0) map[provider] = current.AddRange(fresh);
+                }
+                return added == 0 ? x : x with { Accounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+            });
+            Log.Info("Accounts", $"búsqueda de cuentas: {added} nuevas ({report.Folders} carpetas, {report.Elapsed.TotalSeconds:0.0} s{(report.Complete ? "" : ", incompleta")})");
+            if (added > 0 && updated is not null && SyncAccounts(updated)) _ = RefreshUsageAsync();
+            return added;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Accounts", ex);
+            return 0;
+        }
     }
 
     // ───────────────────────────── (i), "Abrir" and Orb ─────────────────────────────

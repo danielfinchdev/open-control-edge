@@ -505,8 +505,6 @@
     <sys:String x:Key="Settings.CustomView">Vista personalizada</sys:String>
     <sys:String x:Key="Settings.CustomViewHint">Apagada, el botón de vista del panel pasa solo de IA a PC.</sys:String>
     <sys:String x:Key="Settings.AccountNameHint">Sin nombre, la etiqueta de la tarjeta muestra el plan (Go, Pro…).</sys:String>
-    <sys:String x:Key="Settings.Detected">Encontradas en este equipo</sys:String>
-    <sys:String x:Key="Settings.Add">Añadir</sys:String>
     <sys:String x:Key="Account.Fallback">Cuenta {0}</sys:String>
     <sys:String x:Key="Account.Switch">Ver la cuenta {0}</sys:String>
     <sys:String x:Key="Account.Shown">{0}: la cuenta que se muestra</sys:String>
@@ -537,4 +535,8 @@
     <sys:String x:Key="Settings.Placement.Center">Centrado</sys:String>
     <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
     <sys:String x:Key="Settings.ManualHint">En Manual, el botón ✕ del panel pasa a ser un asa: arrástralo a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Para cerrar la app, usa el icono de la bandeja.</sys:String>
+    <sys:String x:Key="Settings.ScanAccounts">Buscar en todo el equipo</sys:String>
+    <sys:String x:Key="Settings.Scanning">Buscando en todos los discos… puede tardar.</sys:String>
+    <sys:String x:Key="Settings.ScanAdded">Añadidas {0} cuentas nuevas.</sys:String>
+    <sys:String x:Key="Settings.ScanNone">No hay cuentas nuevas.</sys:String>
 </ResourceDictionary>

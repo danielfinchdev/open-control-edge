@@ -125,6 +125,9 @@ internal sealed class SettingsWindow : Window
     /// Snapshots: never placed on screen, never reads or saves the window position.
     internal bool Preview { get; init; }
 
+    /// "Buscar en todo el equipo" (Ajustes › Agentes › Cuentas): the owner's search; returns the accounts added.
+    internal Func<Task<int>>? ScanAccounts { get; init; }
+
     // Size at zoom 1, in design units. DesignHeight fits the tallest page (General of the installed copy, Updates
     // with release notes); Snapshot fails if any page needs to scroll at the default size.
     private const double DesignWidth = 820;
@@ -807,7 +810,11 @@ internal sealed class SettingsWindow : Window
             if (updated is not null) _apply(updated);
         }
 
-        IReadOnlyList<MonitorInfo> monitors = Preview ? [] : Monitors.All();
+        // Snapshots: two sample screens instead of this PC's.
+        IReadOnlyList<MonitorInfo> monitors = Preview
+            ? [new(@"\\.\DISPLAY1", new RECT { Right = 1920, Bottom = 1080 }, new RECT { Right = 1920, Bottom = 1040 }, 96, true, 1),
+               new(@"\\.\DISPLAY2", new RECT { Left = 1920, Right = 4480, Bottom = 1440 }, new RECT { Left = 1920, Right = 4480, Bottom = 1440 }, 96, false, 2)]
+            : Monitors.All();
         if (monitors.Count > 0)
         {
             string Name(MonitorInfo m)
@@ -815,7 +822,7 @@ internal sealed class SettingsWindow : Window
                 string name = Loc.Format("Settings.MonitorName", m.Number, m.Width, m.Height);
                 return m.Primary ? Loc.Format("Settings.MonitorPrimary", name) : name;
             }
-            MonitorInfo? current = Monitors.Find(placement.Monitor);
+            MonitorInfo? current = Preview ? monitors[0] : Monitors.Find(placement.Monitor);
             int selected = current is null ? 0 : monitors.ToList().FindIndex(m => m.Device == current.Device);
             AddChoice(p, Loc.Get("Settings.Monitor"), [.. monitors.Select(Name)], Math.Max(0, selected),
                 i => Save(x => x with { Monitor = monitors[i].Primary ? null : monitors[i].Device }));
@@ -1014,8 +1021,12 @@ internal sealed class SettingsWindow : Window
                     int selected = x.SelectedAccount(provider);
                     var map = x.SelectedAccounts.ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
                     map[provider] = selected == at + 1 ? 0 : selected > at + 1 ? selected - 1 : selected;
-                    return WithAccounts(x, provider, x.AccountsOf(provider).RemoveAt(at))
-                        with { SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
+                    // Removed by hand: the automatic search does not bring it back.
+                    return WithAccounts(x, provider, x.AccountsOf(provider).RemoveAt(at)) with
+                    {
+                        SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal),
+                        DismissedAccounts = x.DismissedAccounts.Append(folder).Take(64).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                    };
                 });
                 if (updated is not null) { _apply(updated); RenderPage(); }
             }, name => SettingsStore.Update(x =>
@@ -1026,28 +1037,26 @@ internal sealed class SettingsWindow : Window
         }
 
         if (accounts.Length >= SettingsStore.AccountLimit) return editor;
-        // The logins of this PC that are not accounts yet (AccountDiscovery reads no secret).
-        if (!Preview && id is AiProviderId.Claude or AiProviderId.Codex
-            && AccountDiscovery.Find(settings) is { } discovered && discovered.TryGetValue(provider, out IReadOnlyList<string>? found) && found.Count > 0)
+        // The other logins anywhere on this PC (AccountDiscovery reads no secret); the widget also looks by itself after
+        // each start-up. Folders removed by hand are skipped.
+        if (!Preview && ScanAccounts is not null)
         {
-            editor.Children.Add(FieldLabel(Loc.Get("Settings.Detected")));
-            foreach (string folder in found)
+            var scanStatus = Muted("", new Thickness(10, 0, 0, 0), 12);
+            scanStatus.VerticalAlignment = VerticalAlignment.Center;
+            Button scan = SmallButton(Loc.Get("Settings.ScanAccounts"), async (sender, _) =>
             {
-                var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-                Button add = SmallButton(Loc.Get("Settings.Add"), (_, _) =>
-                {
-                    Settings? updated = SettingsStore.Update(x => x.AccountsOf(provider).Any(a => a.Folder.Equals(folder, StringComparison.OrdinalIgnoreCase))
-                        ? x : WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount("", folder))));
-                    if (updated is not null) { _apply(updated); RenderPage(); }
-                });
-                DockPanel.SetDock(add, Dock.Right);
-                row.Children.Add(add);
-                var path = Muted(folder, new Thickness(0, 0, 12, 0), 12);
-                path.TextTrimming = TextTrimming.CharacterEllipsis; path.TextWrapping = TextWrapping.NoWrap; path.ToolTip = folder;
-                path.VerticalAlignment = VerticalAlignment.Center;
-                row.Children.Add(path);
-                editor.Children.Add(row);
-            }
+                var button = (Button)sender;
+                button.IsEnabled = false;
+                scanStatus.Text = Loc.Get("Settings.Scanning");
+                int added = await ScanAccounts();
+                scanStatus.Text = added > 0 ? Loc.Format("Settings.ScanAdded", added) : Loc.Get("Settings.ScanNone");
+                button.IsEnabled = true;
+                if (added > 0) RenderPage();
+            });
+            var scanRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            scanRow.Children.Add(scan);
+            scanRow.Children.Add(scanStatus);
+            editor.Children.Add(scanRow);
         }
 
         var nameBox = new TextBox { Style = StyleOf("Oce.Input"), MaxLength = SettingsStore.AccountNameLimit, Width = 180 };
@@ -1066,7 +1075,8 @@ internal sealed class SettingsWindow : Window
             };
             if (!File.Exists(expected) && MessageBox.Show(Loc.Format("Settings.AccountFolderEmpty", IOPath.GetFileName(expected)),
                     "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount(name, folder))));
+            Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount(name, folder)))
+                with { DismissedAccounts = x.DismissedAccounts.Where(d => !d.Equals(folder, StringComparison.OrdinalIgnoreCase)).ToFrozenSet(StringComparer.OrdinalIgnoreCase) });
             if (updated is not null) { _apply(updated); RenderPage(); }
         }, true);
         addAccount.Margin = new Thickness(8, 0, 0, 0);
@@ -1596,6 +1606,10 @@ internal sealed class SettingsWindow : Window
             window._category = "Personalización"; window._editingView = WidgetView.Pc;
             Save($"settings_{themeName}_{languageName}_personalizacion_vista_pc.png", "");
             window._editingView = null;
+            window._category = "Personalización";
+            window.RenderPage(); window.UpdateLayout(); window._scroll.ScrollToEnd();
+            Save($"settings_{themeName}_{languageName}_personalizacion_posicion.png", "");
+            window._scroll.ScrollToHome();
             window._category = "Agentes"; window._accountEditor = AiProviderId.Claude;
             Save($"settings_{themeName}_{languageName}_agentes_cuentas.png", "");
             window._accountEditor = null;

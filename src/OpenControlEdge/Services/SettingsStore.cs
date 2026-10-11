@@ -120,8 +120,8 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     /// Names of the default accounts ("Personal"), per provider; none shows the account's plan instead.
     public FrozenDictionary<string, string> AccountNames { get; init; } = FrozenDictionary<string, string>.Empty;
 
-    /// The other logins on this PC were looked for once (AccountDiscovery) and added; never again automatically.
-    public bool AccountsDiscovered { get; init; }
+    /// Accounts the user removed (their folders): the automatic search (AccountDiscovery) never adds them again.
+    public FrozenSet<string> DismissedAccounts { get; init; } = FrozenSet<string>.Empty;
 
     public string? MainAccountName(string provider) => AccountNames.TryGetValue(provider, out string? name) ? name : null;
 
@@ -167,7 +167,7 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "accounts": { "claude" | "codex" | "cursor": [ { "name": "Trabajo", "folder": "D:\\…" } ] },
 ///     "selectedAccounts": { "claude": 0 | 1 | … },
 ///     "accountNames": { "codex": "Personal" }, // names of the default accounts; optional
-///     "accountsDiscovered": true, // the other logins on this PC were already looked for; optional
+///     "dismissedAccounts": ["D:\\…\\.codex-old"], // removed accounts the automatic search skips; optional
 ///     "grok": { ... } // ignored for compatibility with older settings files
 ///   }
 ///
@@ -273,7 +273,7 @@ internal static class SettingsStore
                 Accounts = ParseAccounts(root),
                 SelectedAccounts = ParseSelected(root),
                 AccountNames = ParseAccountNames(root),
-                AccountsDiscovered = GetBool(root, "accountsDiscovered") ?? false,
+                DismissedAccounts = GetStrings(root, "dismissedAccounts").Where(Path.IsPathFullyQualified).ToFrozenSet(StringComparer.OrdinalIgnoreCase),
             };
         }
         catch (Exception ex)
@@ -411,7 +411,7 @@ internal static class SettingsStore
                         writer.WriteString(entry.Key, entry.Value);
                     writer.WriteEndObject();
                 }
-                if (settings.AccountsDiscovered) writer.WriteBoolean("accountsDiscovered", true);
+                if (settings.DismissedAccounts.Count > 0) WriteStrings(writer, "dismissedAccounts", settings.DismissedAccounts.Order(StringComparer.OrdinalIgnoreCase));
                 if (settings.SelectedAccounts.Count > 0)
                 {
                     writer.WriteStartObject("selectedAccounts");
