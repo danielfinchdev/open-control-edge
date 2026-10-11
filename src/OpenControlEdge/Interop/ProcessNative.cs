@@ -209,6 +209,16 @@ internal static class ProcessNative
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, out BY_HANDLE_FILE_INFORMATION info);
 
+    /// THREAD_MODE_BACKGROUND_BEGIN / _END: low CPU, I/O and memory priority for the calling thread (AccountDiscovery's walk).
+    public const int THREAD_MODE_BACKGROUND_BEGIN = 0x00010000;
+    public const int THREAD_MODE_BACKGROUND_END = 0x00020000;
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentThread();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetThreadPriority(IntPtr thread, int priority);
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool MoveFileExW(string existing, string? replacement, uint flags);
 

@@ -93,11 +93,10 @@ internal static class AiDetector
         return CommandOnPath("cursor");
     }
 
-    private static string ClaudeConfigDir =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+    // The folders the clients themselves use: CLAUDE_CONFIG_DIR / CODEX_HOME when set, the profile's otherwise.
+    private static string ClaudeConfigDir => CredentialReader.DefaultFolder;
 
-    private static string CodexConfigDir =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+    private static string CodexConfigDir => CodexCredentialReader.DefaultFolder;
 
     private static string NpmClaudeCmd => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "claude.cmd");

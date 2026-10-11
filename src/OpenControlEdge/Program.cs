@@ -50,6 +50,30 @@ internal static class Program
             System.IO.File.WriteAllLines(args[1], lines);
             return 0;
         }
+
+        // --find-accounts <file>: the quick look and the full walk of AccountDiscovery with default settings (no extra
+        // account configured), written to the file: folders, counts and times only, never a secret.
+        if (args.Length == 2 && args[0] == "--find-accounts")
+        {
+            var lines = new List<string> { $"elevated={Services.UnelevatedLauncher.IsElevated}",
+                $"claude default={Services.CredentialReader.DefaultFolder}", $"codex default={Services.CodexCredentialReader.DefaultFolder}" };
+            static void Print(List<string> into, IReadOnlyDictionary<string, IReadOnlyList<string>>? found)
+            {
+                if (found is null) { into.Add("  (null)"); return; }
+                foreach ((string provider, IReadOnlyList<string> folders) in found)
+                    foreach (string folder in folders) into.Add($"  {provider}: {folder}");
+            }
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var quick = Services.AccountDiscovery.Find(Services.Settings.Defaults);
+            lines.Add($"quick look: {clock.ElapsedMilliseconds} ms");
+            Print(lines, quick);
+            Services.AccountDiscovery.Report? report = Services.AccountDiscovery.ScanAsync(Services.Settings.Defaults, null, CancellationToken.None).GetAwaiter().GetResult();
+            lines.Add(report is null ? "walk: null" : $"walk: {report.Folders} folders in {report.Elapsed.TotalSeconds:0.0} s, complete={report.Complete}");
+            if (report is not null) lines.AddRange(report.Roots.Select(r => "  root " + r));
+            Print(lines, report?.Found);
+            System.IO.File.WriteAllLines(args[1], lines);
+            return 0;
+        }
 #endif
 
         // Run from the unzipped release: hold the exe so it cannot be swapped before it is installed (Installer). Not

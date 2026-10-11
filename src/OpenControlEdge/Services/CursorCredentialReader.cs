@@ -21,11 +21,17 @@ internal static class CursorCredentialReader
         string token = session.Token;
         string? membership = session.Membership;
 
+        return UserIdOf(token) is string userId ? new Credentials(userId, token, membership) : null;
+    }
+
+    /// The user id of a session token (the "sub" claim after the provider prefix); null when there is none.
+    internal static string? UserIdOf(string token)
+    {
         string? subject = JwtSubject(token);
         if (string.IsNullOrWhiteSpace(subject)) return null;
         int separator = subject.IndexOf('|');
         string userId = separator >= 0 ? subject[(separator + 1)..] : subject;
-        return string.IsNullOrWhiteSpace(userId) ? null : new Credentials(userId, token, membership);
+        return string.IsNullOrWhiteSpace(userId) ? null : userId;
     }
 
     /// The "sub" claim of a JWT; null when the token is not a JWT or has none. The decoded payload is cleared.

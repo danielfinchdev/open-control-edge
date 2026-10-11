@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -65,6 +66,7 @@ internal static class Snapshot
             throw new InvalidDataException("Cursor parser accepted a non-numeric percentage");
         CheckOrbBridge();
         CheckSubscriptionParsers();
+        CheckAccountDiscovery(directory);
 
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
         {
@@ -578,6 +580,97 @@ internal static class Snapshot
         MoreAppsService.Latest latest = MoreAppsService.Parse(MoreAppsService.Orb, release.RootElement, "page");
         if (latest.Version != "2.7.2" || !latest.Download.EndsWith("/Orb-2.7.2-instalador.exe", StringComparison.Ordinal))
             throw new InvalidDataException("Orb release parser check failed");
+    }
+
+    /// AccountDiscovery against fixture folders of made-up logins (never the real ones), created under the snapshot
+    /// directory and deleted: what counts as a login, the same account in two folders (the freshest is kept, and none
+    /// of the default account's), dismissed and configured folders, the depth limit, skipped folders, Cursor profiles.
+    /// Skipped when run elevated: the fixture files would then be owned by Administrators outside the profile.
+    private static void CheckAccountDiscovery(string directory)
+    {
+        if (UnelevatedLauncher.IsElevated) return;
+        string root = Path.Combine(directory, "accounts-fixture");
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        string home = Path.Combine(root, "home"), drive = Path.Combine(root, "drive");
+        DateTime written = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+        static string Base64Url(string text) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        void Login(string folder, string name, string json, int minutes = 0)
+        {
+            string path = Path.Combine(folder, name);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(path, json);
+            File.SetLastWriteTimeUtc(path, written.AddMinutes(minutes));
+        }
+        void Codex(string folder, string account, int minutes = 0) =>
+            Login(Path.Combine(root, folder), "auth.json", $$$"""{"auth_mode":"chatgpt","tokens":{"access_token":"at-{{{account}}}-{{{folder.Length}}}","account_id":"{{{account}}}"}}""", minutes);
+        void Claude(string folder, string? uuid, string token = "sk-ant-fixture", int minutes = 0)
+        {
+            Login(Path.Combine(root, folder), ".credentials.json", $$$"""{"claudeAiOauth":{"accessToken":"{{{(token.Length == 0 ? "" : token + folder.Length)}}}","expiresAt":1}}""", minutes);
+            if (uuid is not null) Login(Path.Combine(root, folder), ".claude.json", $$$"""{"projects":{"x":{}},"oauthAccount":{"accountUuid":"{{{uuid}}}"}}""");
+        }
+        void Cursor(string folder, string? user, int minutes = 0)
+        {
+            string storage = Path.Combine(root, folder, "User", "globalStorage");
+            Directory.CreateDirectory(storage);
+            string token = user is null ? "" : Base64Url("""{"alg":"none"}""") + "." + Base64Url($$"""{"sub":"auth0|{{user}}"}""") + ".sig";
+            UntrustedSqlite.CreateFixture(Path.Combine(storage, "state.vscdb"),
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);"
+                + (user is null ? "" : $"INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', '{token}');"));
+            File.SetLastWriteTimeUtc(Path.Combine(storage, "state.vscdb"), written.AddMinutes(minutes));
+        }
+        try
+        {
+            Codex(@"home\.codex", "acct-a");                       // default
+            Codex(@"home\.codex-pro", "acct-b", minutes: 5);         // kept: the freshest of acct-b
+            Codex(@"home\.codex_2", "acct-b", minutes: 1);           // same account, older
+            Codex(@"home\.codex-copy", "acct-a");                    // the default account again
+            Codex(@"home\.codex-gone", "acct-f");                    // dismissed
+            Codex(@"home\.codex-mine", "acct-g");                    // configured already
+            Codex(@"home\.codex-mine2", "acct-g");                   // the configured account again
+            Login(Path.Combine(home, "composer"), "auth.json", """{"http-basic":{"repo":{"username":"u","password":"p"}}}""");
+            Codex(@"drive\a\b\c\.codex-deep", "acct-c");             // only the walk finds it
+            Codex(@"drive\1\2\3\4\5\6\7", "acct-d");                 // deeper than MaxDepth
+            Codex(@"drive\node_modules\pkg", "acct-e");              // never entered
+            Claude(@"home\.claude", null);                            // default (its account is in home\.claude.json)
+            Login(home, ".claude.json", """{"oauthAccount":{"accountUuid":"uuid-0"}}""");
+            Claude(@"home\.claude-work", "uuid-1");
+            Claude(@"home\.claude-dup", "uuid-0", token: "sk-ant-other");  // the default account again
+            Claude(@"home\.claude-empty", null, token: "");           // signed out: not a login
+            Cursor(@"home\cursor-default", "user_1");                 // default
+            Cursor(@"home\Cursor-2", "user_2");
+            Cursor(@"drive\code", null);                              // a VS Code profile: no Cursor session
+            Cursor(@"drive\work\cursor-dup", "user_1");               // the default account again
+
+            var scope = new AccountDiscovery.Scope(home, Path.Combine(home, ".claude"), Path.Combine(home, ".codex"),
+                Path.Combine(home, "cursor-default"), [home], [], []);
+            Settings settings = Settings.Defaults with
+            {
+                Accounts = new Dictionary<string, System.Collections.Immutable.ImmutableArray<ExtraAccount>>
+                {
+                    [AiProviderSettings.Codex] = [new ExtraAccount("", Path.Combine(home, ".codex-mine"))],
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+            };
+            var dismissed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path.Combine(home, ".codex-gone") + @"\" };
+            string Describe(IReadOnlyDictionary<string, IReadOnlyList<string>> found) => string.Join("; ",
+                found.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "=" + string.Join(",", p.Value.Select(f => Path.GetRelativePath(root, f)))));
+
+            string quick = Describe(AccountDiscovery.Search(scope, settings, dismissed, CancellationToken.None).Found);
+            const string quickExpected = @"claude=home\.claude-work; codex=home\.codex-pro; cursor=home\Cursor-2";
+            if (quick != quickExpected) throw new InvalidDataException($"Account discovery check failed (quick look): {quick}");
+
+            AccountDiscovery.Report full = AccountDiscovery.Search(scope with { Roots = [home, drive] }, settings, dismissed, CancellationToken.None);
+            string all = Describe(full.Found);
+            const string allExpected = @"claude=home\.claude-work; codex=home\.codex-pro,drive\a\b\c\.codex-deep; cursor=home\Cursor-2";
+            if (all != allExpected || !full.Complete) throw new InvalidDataException($"Account discovery check failed (walk): {all}");
+
+            if (AccountDiscovery.StringHash("""{"tokens":{"access_token":""}}"""u8, "tokens", "access_token") is not null
+                || AccountDiscovery.StringHash("""{"tokens":{"access_token":"x"},"""u8, "tokens", "access_token") is not null)
+                throw new InvalidDataException("Account discovery check failed: an empty or broken login counted");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     /// The bridge with Orb against fixed files: when orb.json counts as connected (schema, app, pid running, "at" less

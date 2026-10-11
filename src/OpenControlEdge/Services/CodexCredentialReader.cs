@@ -27,8 +27,12 @@ internal static class CodexCredentialReader
     /// The claims of the id_token that are read.
     internal readonly record struct AuthClaims(string? PlanType, DateTimeOffset? SubscriptionUntil, DateTimeOffset? SubscriptionCheckedAt);
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json");
+    /// In CODEX_HOME when it names a usable folder (LoginFolder.FromEnvironment), as the Codex CLI does;
+    /// %USERPROFILE%\.codex otherwise.
+    public static string DefaultPath => Path.Combine(DefaultFolder, "auth.json");
+
+    public static string DefaultFolder => LoginFolder.FromEnvironment("CODEX_HOME")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
 
     public static Credentials? Read(string path)
     {

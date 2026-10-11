@@ -91,6 +91,26 @@ internal static class LocalDatabaseReader
         return new CursorSession(value, membership);
     }
 
+    /// Which Cursor account a state.vscdb is signed in to, for AccountDiscovery: the SHA-256 (hex) of the user id of its
+    /// session token, computed where the database is parsed; the token itself never reaches this process. Null when the
+    /// database holds no session. Only the hash is remembered (per file stamp).
+    public static string? ReadCursorAccount(string path)
+    {
+        if (!UnelevatedLauncher.IsElevated || _uacOff) return CursorAccountInProcess(path);
+        try { return Cached("cursor-account|" + path, [path], () => CursorAccountFromHelper(path)); }
+        catch (ReadException) when (_uacOff) { return CursorAccountInProcess(path); }
+    }
+
+    private static string? CursorAccountFromHelper(string path)
+    {
+        using JsonDocument answer = AskHelper("cursor-account", path);
+        if (!answer.RootElement.TryGetProperty("account", out JsonElement account)) return null;
+        string? value = account.ValueKind == JsonValueKind.String ? account.GetString() : null;
+        if (value is not { Length: 64 } || !value.All(char.IsAsciiHexDigitUpper))
+            throw new ReadException(Failure.Invalid, "respuesta del lector con una cuenta no válida");
+        return value;
+    }
+
     /// OpenCode's session totals; path null finds the database the way OpenCode does (OPENCODE_DB, XDG_DATA_HOME…).
     public static OpenCodeTotals ReadOpenCode(string? path)
     {
@@ -183,6 +203,13 @@ internal static class LocalDatabaseReader
         return string.IsNullOrWhiteSpace(token) ? null : new CursorSession(token, membership);
     }
 
+    private static string? CursorAccountInProcess(string path)
+    {
+        if (CursorInProcess(path) is not CursorSession session) return null;
+        string? userId = CursorCredentialReader.UserIdOf(session.Token);
+        return userId is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(userId)));
+    }
+
     private static OpenCodeTotals OpenCodeInProcess(string? path)
     {
         string[] paths = path is not null and not "auto" ? new[] { path } : OpenCodeDatabasePaths();
@@ -252,7 +279,7 @@ internal static class LocalDatabaseReader
 
     // ───────────────────────────── Helper process ─────────────────────────────
 
-    /// `OpenControlEdge.exe --read-database cursor|opencode <path|auto>`: one JSON object on stdout, exit code 0.
+    /// `OpenControlEdge.exe --read-database cursor|cursor-account|opencode <path|auto>`: one JSON object on stdout, exit code 0.
     /// Refuses to run elevated: the whole point is that the file is parsed without administrator rights.
     internal static int RunHelper(string[] args)
     {
@@ -279,6 +306,9 @@ internal static class LocalDatabaseReader
                         writer.WriteString("token", session.Token);
                         if (session.Membership is not null) writer.WriteString("membership", session.Membership);
                     }
+                    break;
+                case "cursor-account":
+                    if (CursorAccountInProcess(path) is string account) writer.WriteString("account", account);
                     break;
                 case "opencode":
                     OpenCodeTotals totals = OpenCodeInProcess(path);

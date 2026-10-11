@@ -7,6 +7,7 @@ namespace OpenControlEdge.Interop;
 /// in after the check cannot redirect them).
 internal static class SecurityNative
 {
+    public const uint GENERIC_READ = 0x80000000;
     public const uint READ_CONTROL = 0x00020000;
     public const uint WRITE_DAC = 0x00040000;
     public const uint WRITE_OWNER = 0x00080000;
@@ -53,6 +54,10 @@ internal static class SecurityNative
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition,
         uint flags, IntPtr template);
+
+    /// The path an open handle really points at (LoginFolder: where a file owned by Administrators lies).
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, [Out] char[] path, uint length, uint flags);
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool ConvertStringSecurityDescriptorToSecurityDescriptorW(string sddl, uint revision,

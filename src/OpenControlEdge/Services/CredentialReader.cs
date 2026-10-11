@@ -13,8 +13,12 @@ internal static class CredentialReader
 {
     internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? SubscriptionType);
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", ".credentials.json");
+    /// In CLAUDE_CONFIG_DIR when it names a usable folder (LoginFolder.FromEnvironment), as Claude Code does;
+    /// %USERPROFILE%\.claude otherwise.
+    public static string DefaultPath => Path.Combine(DefaultFolder, ".credentials.json");
+
+    public static string DefaultFolder => LoginFolder.FromEnvironment("CLAUDE_CONFIG_DIR")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
 
     public static Credentials? Read(string path)
     {
