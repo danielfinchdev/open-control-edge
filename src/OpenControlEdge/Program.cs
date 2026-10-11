@@ -29,6 +29,27 @@ internal static class Program
             System.IO.File.WriteAllLines(args[1], lines);
             return 0;
         }
+
+        // --orb-probe <file>: three real exchanges with Orb (OrbBridge, with the plain-user token) and the deletion of
+        // oce.json, written to the file (bridge checks; the parsing itself is checked by --snapshot).
+        if (args.Length == 2 && args[0] == "--orb-probe")
+        {
+            var bridge = new Services.OrbBridge();
+            string oce = System.IO.Path.Combine(Services.OrbBridge.FolderPath, Services.OrbBridge.OceFileName);
+            var lines = new List<string> { $"elevated={Services.UnelevatedLauncher.IsElevated}" };
+            for (int i = 0; i < 3; i++)
+            {
+                Services.RamSnapshot ram = Services.MemoryService.Read();
+                Services.OrbStatus? orb = bridge.Exchange(new Services.OceReading(null, null, ram.Message is null ? ram.Percent : null, null, []));
+                var written = new System.IO.FileInfo(oce);
+                lines.Add($"oce.json={(written.Exists ? written.Length + " bytes" : "missing")} · orb={(orb is null ? "desconectado" : $"conectado {orb.Version} tasks={orb.Tasks} busy={orb.AssistantBusy} usage={orb.Usage.Length}")}");
+                Thread.Sleep(Services.OrbBridge.WriteInterval);
+            }
+            bridge.Delete();
+            lines.Add($"after delete: oce.json {(System.IO.File.Exists(oce) ? "still there" : "deleted")}");
+            System.IO.File.WriteAllLines(args[1], lines);
+            return 0;
+        }
 #endif
 
         // Run from the unzipped release: hold the exe so it cannot be swapped before it is installed (Installer). Not

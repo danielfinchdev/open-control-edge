@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -62,6 +63,7 @@ internal static class Snapshot
             throw new InvalidDataException("Cursor on-demand fixture parser check failed");
         if (CursorUsageParser.Parse(cursorFixture.Replace("\"totalPercentUsed\":2.886868686868687", "\"totalPercentUsed\":null")).Cycle is not null)
             throw new InvalidDataException("Cursor parser accepted a non-numeric percentage");
+        CheckOrbBridge();
 
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
         {
@@ -446,6 +448,25 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "79_update_dot.png"));
         window.SetUpdateAvailable(false);
 
+        // Orb connected (OrbBridge): the badge above the rings, grey while Orb's assistant waits and green while it
+        // works; then a Codex ring with no reading of its own showing Orb's, with its source under the card.
+        var orb = new OrbStatus("1.4.0", 4242, DateTimeOffset.UtcNow,
+            [new OrbUsage("codex", "Personal", 37, "5h", DateTimeOffset.Now.AddHours(2))], new OrbTasks(2, 1, 1), false);
+        window.SetOrb(orb);
+        if (window.OrbBadge.ToolTip is not string tip || tip != "Orb conectado\nTareas: 2 en curso · 1 en cola · 1 por aprobar\nAsistente: en espera")
+            throw new InvalidDataException("Orb badge tooltip check failed");
+        window.SaveSnapshot(Path.Combine(directory, "82_orb_connected.png"));
+        window.SetOrb(orb with { AssistantBusy = true });
+        window.SaveSnapshot(Path.Combine(directory, "83_orb_assistant_busy.png"));
+        window.SetOrb(orb with { Tasks = null, AssistantBusy = null });
+        if (window.OrbBadge.ToolTip is not "Orb conectado\nTareas: sin datos\nAsistente: sin datos")
+            throw new InvalidDataException("Orb badge without tasks check failed");
+        window.SetCodex(new CodexSnapshot(false, new CodexWindow(37, null, DateTimeOffset.Now.AddHours(2)), null, null) { Source = "Personal · 5h" });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "84_card_codex_from_orb.png"));
+        window.SetOrb(null);
+        if (window.OrbBadge.Visibility == Visibility.Visible) throw new InvalidDataException("Orb badge stayed after disconnecting");
+
         ThemeManager.Apply(AppTheme.Dark, RingColorTheme.Classic, Color.FromRgb(0x0B, 0x1E, 0x33));
         window.ShowCardNow(EdgeWindow.RingClaude);
         window.SaveSnapshot(Path.Combine(directory, "80_background_navy.png"));
@@ -488,6 +509,99 @@ internal static class Snapshot
         window.SetFps(fps);
         window.SetClaude(claude);
         window.ApplyViews(everything, animate: false);
+    }
+
+    /// The bridge with Orb against fixed files: when orb.json counts as connected (schema, app, pid running, "at" less
+    /// than 15 s old), what is left null instead of guessed, and the exact shape of oce.json. Fails the run otherwise.
+    private static void CheckOrbBridge()
+    {
+        var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+        static bool Running(int pid) => pid == 4242;
+        static byte[] Utf8(string text) => System.Text.Encoding.UTF8.GetBytes(text);
+        static string OrbFile(string at, string rest = "") =>
+            $$"""{"schema":1,"app":"Orb","version":"1.4.0","pid":4242,"at":"{{at}}"{{rest}}}""";
+        void Expect(bool condition, string what)
+        {
+            if (!condition) throw new InvalidDataException("Orb bridge check failed: " + what);
+        }
+
+        const string full = """
+            ,"cpu":{"loadPct":12},"ramUsedPct":40,"disk":{"usedPct":71,"freeGb":120.5},
+            "usage":[{"agent":"claude","label":"Personal","usedPct":42.5,"window":"5h","resetAt":"2026-10-11T14:00:00.000Z"},
+                     {"agent":"codex","label":null,"usedPct":null,"window":null,"resetAt":null},
+                     {"agent":"Not An Id","usedPct":10},
+                     {"agent":"cursor","label":"Trabajo\u0007","usedPct":"12","window":5,"resetAt":"mañana"}],
+            "tasks":{"running":2,"queued":1,"awaitingApproval":0},"assistant":{"busy":true}
+            """;
+        OrbStatus? orb = OrbBridge.Parse(Utf8(OrbFile("2026-10-11T11:59:55.000Z", full)), now, Running);
+        Expect(orb is { Version: "1.4.0", Pid: 4242, Tasks: { Running: 2, Queued: 1, AwaitingApproval: 0 }, AssistantBusy: true }, "full file");
+        Expect(orb!.Usage.Length == 3, "an agent id that is not one was kept");
+        Expect(orb.UsageFor("claude") is { Label: "Personal", UsedPct: 42.5, Window: "5h" } claude
+               && claude.ResetAt == new DateTimeOffset(2026, 10, 11, 14, 0, 0, TimeSpan.Zero), "claude line");
+        Expect(orb.UsageFor("codex") is null && orb.Usage[1] is { Agent: "codex", Label: null, UsedPct: null }, "codex line with nulls");
+        Expect(orb.Usage[2] is { Agent: "cursor", Label: "Trabajo", UsedPct: null, Window: null, ResetAt: null }, "values of the wrong type");
+
+        // Connected only while fresh: 14 s old yes, 15 s no; a little ahead yes, 6 s ahead no.
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T11:59:46.000Z")), now, Running) is { Tasks: null, AssistantBusy: null }, "14 s old, no tasks");
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T11:59:45.000Z")), now, Running) is null, "15 s old");
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T12:00:04.000Z")), now, Running) is not null, "4 s ahead");
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T12:00:06.000Z")), now, Running) is null, "6 s ahead");
+        Expect(OrbBridge.Parse([0xEF, 0xBB, 0xBF, .. Utf8(OrbFile("2026-10-11T11:59:58Z"))], now, Running) is not null, "UTF-8 BOM");
+
+        string fresh = OrbFile("2026-10-11T11:59:58.000Z");
+        foreach ((string file, string what) in new[]
+        {
+            (fresh.Replace("\"schema\":1", "\"schema\":2"), "schema 2"),
+            (fresh.Replace("\"schema\":1", "\"schema\":\"1\""), "schema as text"),
+            (fresh.Replace("\"app\":\"Orb\"", "\"app\":\"OpenControlEdge\""), "another app"),
+            (fresh.Replace("\"pid\":4242", "\"pid\":4243"), "a pid that is not running"),
+            (fresh.Replace("\"pid\":4242", "\"pid\":0"), "pid 0"),
+            (fresh.Replace("\"pid\":4242,", ""), "no pid"),
+            (fresh.Replace("2026-10-11T11:59:58.000Z", "ayer"), "an unreadable date"),
+            ("[" + fresh + "]", "an array"),
+            (fresh[..^5], "half a file"),
+            ("", "an empty file"),
+        })
+            Expect(OrbBridge.Parse(Utf8(file), now, Running) is null, what);
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T11:59:58Z", ""","tasks":{"running":2},"assistant":{"busy":"yes"}""")), now, Running)
+            is { Tasks: null, AssistantBusy: null }, "incomplete tasks and a non-boolean busy");
+        Expect(OrbBridge.Parse(Utf8(OrbFile("2026-10-11T11:59:58Z", ""","tasks":{"running":-1,"queued":0,"awaitingApproval":0}""")), now, Running)
+            is { Tasks: null }, "negative tasks");
+
+        // oce.json: the protocol's shape; unknown values (NaN RAM, no FPS, no GPU) and unknown providers never written.
+        var reading = new OceReading(new CpuSnapshot("CPU", 64.04, 78, 23.26, null), GpuSnapshot.NotDetected, double.NaN, null,
+        [
+            new OceUsage("claude", 32, new DateTimeOffset(2026, 10, 11, 14, 5, 0, TimeSpan.Zero), "max"),
+            new OceUsage("grok", 10, null, null),
+            new OceUsage("deepseek", null, null, null),
+        ]);
+        using (JsonDocument oce = JsonDocument.Parse(OrbBridge.Serialize(reading, 77, "2.3.0", now)))
+        {
+            JsonElement root = oce.RootElement;
+            Expect(root.GetProperty("schema").GetInt32() == 1 && root.GetProperty("app").GetString() == "OpenControlEdge"
+                   && root.GetProperty("version").GetString() == "2.3.0" && root.GetProperty("pid").GetInt32() == 77
+                   && root.GetProperty("at").GetString() == "2026-10-11T12:00:00.000Z", "oce.json header");
+            Expect(root.GetProperty("cpu").GetProperty("loadPct").GetDouble() == 23.3 && root.GetProperty("cpu").GetProperty("tempC").GetDouble() == 64,
+                "oce.json cpu");
+            Expect(root.GetProperty("gpu").ValueKind == JsonValueKind.Null && root.GetProperty("ramUsedPct").ValueKind == JsonValueKind.Null
+                   && root.GetProperty("fps").ValueKind == JsonValueKind.Null, "oce.json nulls");
+            JsonElement usage = root.GetProperty("usage");
+            Expect(usage.GetArrayLength() == 2 && usage[0].GetProperty("provider").GetString() == "claude"
+                   && usage[0].GetProperty("usedPct").GetDouble() == 32 && usage[0].GetProperty("resetAt").GetString() == "2026-10-11T14:05:00.000Z"
+                   && usage[0].GetProperty("plan").GetString() == "max" && usage[1].GetProperty("usedPct").ValueKind == JsonValueKind.Null,
+                "oce.json usage");
+        }
+        using (JsonDocument oce = JsonDocument.Parse(OrbBridge.Serialize(reading with
+               {
+                   Gpu = new GpuSnapshot(true, "NVIDIA GeForce GTX 1050", 41, null, 783, 4096, null), RamUsedPct = 63, Fps = 141.25,
+               }, 77, "2.3.0", now)))
+        {
+            JsonElement gpu = oce.RootElement.GetProperty("gpu");
+            Expect(gpu.GetProperty("name").GetString() == "NVIDIA GeForce GTX 1050" && gpu.GetProperty("tempC").GetDouble() == 41
+                   && gpu.GetProperty("loadPct").ValueKind == JsonValueKind.Null && gpu.GetProperty("vramUsedMb").GetDouble() == 783
+                   && gpu.GetProperty("vramTotalMb").GetDouble() == 4096 && oce.RootElement.GetProperty("ramUsedPct").GetDouble() == 63
+                   && oce.RootElement.GetProperty("fps").GetDouble() == 141.3, "oce.json gpu, RAM and FPS");
+        }
     }
 
     private static readonly (string Name, Drawing Icon)[] BrandLogos =

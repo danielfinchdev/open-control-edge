@@ -24,6 +24,32 @@ internal static class SecurityNative
     public const uint PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000;
     public const uint UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000;
 
+    // A plain-user copy of this process's token (OrbBridge): no privileges, Administrators deny-only, Medium label.
+    public const uint DISABLE_MAX_PRIVILEGE = 0x1;
+    public const int TokenOwner = 4;
+    public const uint SE_GROUP_INTEGRITY = 0x20;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SID_AND_ATTRIBUTES
+    {
+        public IntPtr Sid;
+        public uint Attributes;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern bool CreateRestrictedToken(IntPtr existing, uint flags, uint disableSidCount,
+        SID_AND_ATTRIBUTES[]? sidsToDisable, uint deletePrivilegeCount, IntPtr privilegesToDelete, uint restrictedSidCount,
+        IntPtr sidsToRestrict, out IntPtr newToken);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern bool SetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool ConvertStringSidToSidW(string sid, out IntPtr result);
+
+    [DllImport("advapi32.dll")]
+    public static extern int GetLengthSid(IntPtr sid);
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition,
         uint flags, IntPtr template);
