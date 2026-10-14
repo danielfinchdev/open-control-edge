@@ -583,7 +583,7 @@
                                     AutomationProperties.Name="{DynamicResource Tip.Settings}">
                                 <!-- The dot: a new version is available (Settings shows how to install it). -->
                                 <Grid>
-                                    <ui:IconView Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
+                                    <ui:IconView x:Name="SettingsIcon" Icon="{x:Static ui:Icons.Gear}" Foreground="{DynamicResource Theme.Text}" />
                                     <Ellipse x:Name="UpdateDot" Width="7" Height="7" Fill="#FF3B30" HorizontalAlignment="Right"
                                              VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed" />
                                 </Grid>
@@ -600,7 +600,17 @@
                                 <Button.RenderTransform>
                                     <ScaleTransform x:Name="CloseScale" />
                                 </Button.RenderTransform>
-                                <ui:IconView x:Name="CloseIcon" Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
+                                <!-- The ring fills while ✕ is held, stays full while it is the handle and drains over the
+                                     3 s before ✕ comes back (EdgeWindow.FillHoldRing / DrainHoldRing). -->
+                                <Grid>
+                                    <Ellipse x:Name="HoldRing" Margin="-7" StrokeThickness="2.5" Opacity="0" IsHitTestVisible="False"
+                                             Stroke="{DynamicResource Theme.Text}" RenderTransformOrigin="0.5,0.5">
+                                        <Ellipse.RenderTransform>
+                                            <RotateTransform Angle="-90" />
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+                                    <ui:IconView x:Name="CloseIcon" Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
+                                </Grid>
                             </Button>
                         </StackPanel>
                     </StackPanel>
@@ -611,13 +621,19 @@
 
         <!-- Editing the widget (Ajustes › Personalización › Editar widget): a grip just past the panel's end; dragged
              along the edge it makes the panel bigger or smaller (EdgeWindow.OnGripDown). -->
-        <Button x:Name="ResizeGrip" Style="{StaticResource PanelRoundButton}" Visibility="Collapsed" Opacity="0"
+        <Button x:Name="ResizeGrip" Style="{StaticResource PanelRoundButton}" Tag="on" Visibility="Collapsed" Opacity="0"
                 PreviewMouseLeftButtonDown="OnGripDown" PreviewMouseMove="OnGripMove"
                 PreviewMouseLeftButtonUp="OnGripUp" LostMouseCapture="OnGripLost"
                 ToolTip="{DynamicResource Tip.Resize}" AutomationProperties.AutomationId="ResizeGrip"
                 AutomationProperties.Name="{DynamicResource Tip.Resize}">
-            <ui:IconView x:Name="GripIcon" Icon="{x:Static ui:Icons.Resize}" Foreground="{DynamicResource Theme.Text}" />
+            <ui:IconView x:Name="GripIcon" Icon="{x:Static ui:Icons.Resize}" Foreground="{DynamicResource Theme.Background}" />
         </Button>
+
+        <!-- Editing the widget: the panel's size, next to the grip, live while it is dragged (EdgeWindow.SyncSizeBadge). -->
+        <Border x:Name="SizeBadge" Visibility="Collapsed" Opacity="0" IsHitTestVisible="False" CornerRadius="11" Padding="9,3,9,4"
+                Background="{DynamicResource Theme.Background}" BorderBrush="{DynamicResource Theme.Border}" BorderThickness="1">
+            <TextBlock x:Name="SizeText" FontSize="12" Foreground="{DynamicResource Theme.Text}" />
+        </Border>
 
     </Canvas>
     </Grid>

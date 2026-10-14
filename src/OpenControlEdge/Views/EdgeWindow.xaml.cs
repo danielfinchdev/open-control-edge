@@ -87,6 +87,7 @@ public partial class EdgeWindow : Window
     private const double ViewShift = 8;
 
     private double _scale = 1;
+    private double _scaleCap = MaxAutoScale;  // the largest scale the panel fits at on this work area (LayOut)
     private double _workWidthDip = 1920;
     private double _workHeightDip = ReferenceWorkHeight;
     private double _windowWidthDip;
@@ -201,8 +202,8 @@ public partial class EdgeWindow : Window
     /// The panel was dragged to a new place (manual placement): the owner saves it.
     internal event Action<PanelPlacement>? PlacementDragged;
 
-    /// The panel was resized with its grip (editing the widget): the owner saves the new fixed scale.
-    internal event Action<double>? ScaleDragged;
+    /// The panel was resized with its grip (editing the widget): the owner saves the new fixed scale (null: automatic).
+    internal event Action<double?>? ScaleDragged;
 
     /// Which rings are on screen changed (view, panel open or closed): the owner starts or stops the FPS sampling.
     internal event Action? VisibleRingsChanged;
@@ -244,6 +245,7 @@ public partial class EdgeWindow : Window
 
         SyncModeButton();
         SyncCloseButton();
+        SyncSettingsButton();
         SyncOpenButtons();
         SyncUsageTabs();
         // A click anywhere on the card (but on the (i) itself) closes the subscription bubble.
@@ -256,9 +258,7 @@ public partial class EdgeWindow : Window
         ApplyOrientation();
         LayOut(_workWidthDip, ReferenceWorkHeight);
 
-        _holdTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = HoldToMove };
         _holdTimer.Tick += OnHoldElapsed;
-        _handleRest = new DispatcherTimer(DispatcherPriority.Background) { Interval = HandleRest };
         _handleRest.Tick += OnHandleRested;
 
         _pointerWatch = new DispatcherTimer(DispatcherPriority.Input) { Interval = FarPoll };
@@ -274,8 +274,11 @@ public partial class EdgeWindow : Window
         RefreshTimeTexts();
     }
 
+    private bool _closed;
+
     private void OnClosed(object? sender, EventArgs e)
     {
+        _closed = true;
         ThemeManager.Changed -= Reapply;
         Loc.Changed -= Reapply;
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
@@ -491,6 +494,13 @@ public partial class EdgeWindow : Window
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
+        // While the widget is edited this button is the ✓ that finishes.
+        if (_editing)
+        {
+            Log.Trace("Edge", "edit done clicked");
+            EditDoneRequested?.Invoke();
+            return;
+        }
         Log.Trace("Edge", "settings button clicked");
         SettingsRequested?.Invoke();
     }
@@ -548,6 +558,7 @@ public partial class EdgeWindow : Window
         ApplyRingBrushes();
         SyncModeButton();
         SyncCloseButton();
+        SyncSettingsButton();
         SyncOpenButtons();
         if (_fps is FpsService.Sample fps) { _fps = null; SetFps(fps); }
         if (_gameMode is not null) SetGameMode(_gameMode);
@@ -929,7 +940,8 @@ public partial class EdgeWindow : Window
         double fit = (edgeLength - 2 * ScreenMargin) / FullPanelHeight();
         // Across the edge the window must fit the work area too (a top or bottom panel on a short screen).
         double across = (horizontal ? workHeightDip : workWidthDip) / Thickness;
-        _scale = Math.Round(Math.Max(MinFitScale, Math.Min(Math.Min(preferred, fit), Math.Max(MinFitScale, across))), 3);
+        _scaleCap = Math.Max(MinFitScale, Math.Min(fit, Math.Max(MinFitScale, across)));
+        _scale = Math.Round(Math.Max(MinFitScale, Math.Min(preferred, _scaleCap)), 3);
         _edgeLength = edgeLength / _scale;
         _windowWidthDip = horizontal ? workWidthDip : Thickness * _scale;
         _windowHeightDip = horizontal ? Thickness * _scale : workHeightDip;
@@ -1026,7 +1038,6 @@ public partial class EdgeWindow : Window
         // Against the screen edge: the same as the window's top left corner, except while resizing (see LayOut).
         Root.HorizontalAlignment = edge == PanelEdge.Right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         Root.VerticalAlignment = edge == PanelEdge.Bottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
-        ResizeGrip.Cursor = horizontal ? System.Windows.Input.Cursors.SizeWE : System.Windows.Input.Cursors.SizeNS;
         EdgePanel.Width = horizontal ? double.NaN : PanelWidth;
         EdgePanel.Height = horizontal ? PanelWidth : double.NaN;
         PanelRoot.Margin = horizontal ? new Thickness(38, 0, 38, 0) : new Thickness(0, 38, 0, 38);
@@ -1062,12 +1073,15 @@ public partial class EdgeWindow : Window
         _ => (PanelWidth, 0),
     };
 
-    // ✕ is the handle that drags the panel (a four-way arrow) for a while after a long press on it, and the whole time
-    // the widget is being edited from Ajustes; then it is ✕ again.
+    // ✕ is the handle that drags the panel (a four-way arrow, filled) for a while after a long press on it, and the
+    // whole time the widget is being edited from Ajustes; then it is ✕ again. A ring around it tells what is going on:
+    // it fills while ✕ is held, stays full while it is the handle and drains over the seconds before ✕ comes back.
     private static readonly TimeSpan HoldToMove = TimeSpan.FromMilliseconds(450);
     private static readonly TimeSpan HandleRest = TimeSpan.FromSeconds(3);
-    private readonly DispatcherTimer _holdTimer;
-    private readonly DispatcherTimer _handleRest;
+    private const double HoldMoveSlop = 6;  // DIPs the pointer moves while ✕ is held before the drag starts at once
+    private readonly DispatcherTimer _holdTimer = new(DispatcherPriority.Input) { Interval = HoldToMove };
+    private readonly DispatcherTimer _handleRest = new(DispatcherPriority.Background) { Interval = HandleRest };
+    private Point _holdFrom;
     private bool _moveArmed;
     private bool _editing;
 
@@ -1076,22 +1090,58 @@ public partial class EdgeWindow : Window
     private void SyncCloseButton()
     {
         bool handle = HandleShown;
+        CloseButton.Tag = handle ? "on" : null;
         CloseIcon.Icon = handle ? Icons.Move : Icons.Close;
+        CloseIcon.SetResourceReference(IconView.ForegroundProperty, handle ? ThemeManager.Background : ThemeManager.Text);
+        HoldRing.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, handle ? ThemeManager.Background : ThemeManager.Text);
+        if (!_moveArmed && !_holdTimer.IsEnabled) SetHoldRing(null);
         CloseButton.Cursor = handle ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Hand;
         string tip = handle ? "Tip.Drag" : "Tip.Close";
         CloseButton.SetResourceReference(ToolTipProperty, tip);
         CloseButton.SetResourceReference(AutomationProperties.NameProperty, tip);
     }
 
-    /// Held long enough: ✕ turns into the handle under the finger and the drag starts at once. A release before this is
-    /// an ordinary click (quit).
-    private void OnHoldElapsed(object? sender, EventArgs e)
+    /// The hold ring: null hides it; otherwise it runs from one fill to another (0 empty, 1 full) in this time, evenly.
+    private void SetHoldRing(double? to, double from = 0, TimeSpan duration = default)
+    {
+        const double thickness = 2.5;
+        double diameter = Math.Round(ButtonDiameter * 0.5) + 14;  // the icon's box plus the ring's margins (-7)
+        double length = Math.PI * (diameter - thickness) / thickness;  // the circle in dash units (stroke widths)
+        HoldRing.BeginAnimation(System.Windows.Shapes.Shape.StrokeDashOffsetProperty, null);
+        if (to is not double fill)
+        {
+            HoldRing.Opacity = 0;
+            return;
+        }
+        HoldRing.StrokeThickness = thickness;
+        HoldRing.StrokeDashArray = [length, 1000];
+        HoldRing.Opacity = 1;
+        // The dash starts that far into the pattern: length is empty, 0 is the whole circle.
+        if (duration <= TimeSpan.Zero || !AnimationsEnabled || PreviewMode)
+        {
+            HoldRing.StrokeDashOffset = (1 - fill) * length;
+            return;
+        }
+        HoldRing.BeginAnimation(System.Windows.Shapes.Shape.StrokeDashOffsetProperty,
+            new DoubleAnimation((1 - from) * length, (1 - fill) * length, duration));
+    }
+
+    /// Held long enough, or dragged while held: ✕ turns into the handle under the pointer and the drag starts at once.
+    /// A release before either is an ordinary click (quit).
+    private void OnHoldElapsed(object? sender, EventArgs e) => ArmHandle();
+
+    private void ArmHandle()
     {
         _holdTimer.Stop();
-        if (_dragging || !CloseButton.IsMouseCaptured || System.Windows.Input.Mouse.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+        if (_dragging || !CloseButton.IsMouseCaptured || System.Windows.Input.Mouse.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
+        {
+            SetHoldRing(null);
+            return;
+        }
         Log.Trace("Edge", "close button held: drag handle");
         _moveArmed = true;
         SyncCloseButton();
+        SetHoldRing(1);
         Animate(CloseScale, ScaleTransform.ScaleXProperty, 1, 220, from: 1.2);
         Animate(CloseScale, ScaleTransform.ScaleYProperty, 1, 220, from: 1.2);
         // The button lets go of the pointer (so its release is no click) and the drag takes it over.
@@ -1099,11 +1149,13 @@ public partial class EdgeWindow : Window
         StartDrag();
     }
 
-    /// Three seconds after the panel was left in its place, the handle is ✕ again (not while editing the widget).
+    /// The panel was left in its place: the ring drains and, when it is empty, the handle is ✕ again (not while editing).
     private void RestHandleSoon()
     {
         _handleRest.Stop();
-        if (_moveArmed && !_editing) _handleRest.Start();
+        if (!_moveArmed || _editing) return;
+        SetHoldRing(0, from: 1, HandleRest);
+        _handleRest.Start();
     }
 
     private void OnHandleRested(object? sender, EventArgs e)
@@ -1121,8 +1173,11 @@ public partial class EdgeWindow : Window
     /// The fixed scale applied now (Ajustes or the grip), or null for automatic.
     internal double? UiScale => _uiScale;
 
-    /// Ajustes › Personalización › Editar widget: the panel comes out and stays out, ✕ is the drag handle and a grip
-    /// next to the panel resizes it, until EndEdit.
+    /// The ✓ that stands in for the settings button while the widget is edited was pressed: the owner ends editing.
+    internal event Action? EditDoneRequested;
+
+    /// Ajustes › Personalización › Editar widget: the panel comes out and stays out, ✕ is the drag handle, a grip next to
+    /// the panel resizes it (with the size beside it) and the settings button is a ✓ that finishes, until EndEdit.
     internal void BeginEdit()
     {
         if (_editing) return;
@@ -1133,14 +1188,16 @@ public partial class EdgeWindow : Window
         HideCard();
         Expand();
         SyncCloseButton();
-        ResizeGrip.Visibility = Visibility.Visible;
+        SyncSettingsButton();
+        ResizeGrip.Visibility = SizeBadge.Visibility = Visibility.Visible;
         PlaceGrip();
         Animate(ResizeGrip, OpacityProperty, 1, 180);
+        Animate(SizeBadge, OpacityProperty, 1, 180);
         ResumePointerWatch();
     }
 
-    /// Editing is over (the button again, or Ajustes closed): ✕ is back, the grip goes. Place and size were already
-    /// saved by each drag; the owner saves them once more.
+    /// Editing is over (✓, the button in Ajustes, or Ajustes closed): ✕ is back, the grip goes. Place and size were
+    /// already saved by each drag; the owner saves them once more.
     internal void EndEdit()
     {
         if (!_editing) return;
@@ -1151,67 +1208,143 @@ public partial class EdgeWindow : Window
         _moveArmed = false;
         _handleRest.Stop();
         SyncCloseButton();
-        ResizeGrip.BeginAnimation(OpacityProperty, null);
-        ResizeGrip.Opacity = 0;
-        ResizeGrip.Visibility = Visibility.Collapsed;
+        SyncSettingsButton();
+        foreach (UIElement element in new UIElement[] { ResizeGrip, SizeBadge })
+        {
+            element.BeginAnimation(OpacityProperty, null);
+            element.Opacity = 0;
+            element.Visibility = Visibility.Collapsed;
+        }
         // Auto mode: the panel slides away on its own once the pointer is off it.
         _outside.Reset();
         ResumePointerWatch();
     }
 
-    // The grip sits just past the panel's end along the edge (before its start when the panel reaches the end of the
-    // edge), centred across the panel's thickness.
-    private const double GripGap = 6;
+    private void SyncSettingsButton()
+    {
+        SettingsIcon.Icon = _editing ? Icons.Check : Icons.Gear;
+        string tip = _editing ? "Tip.EditDone" : "Tip.Settings";
+        SettingsButton.SetResourceReference(ToolTipProperty, tip);
+        SettingsButton.SetResourceReference(AutomationProperties.NameProperty, tip);
+    }
+
+    // The grip sits over the thin end of the panel's flare, past its end along the edge (before its start when the
+    // panel reaches the end of the edge), centred across the panel's thickness. Its arrow points away from the panel.
+    private const double GripTuck = 18;
+    private const double BadgeGap = 6;
     private double _panelLength;
+    private bool _gripAfter = true;
 
     private void PlaceGrip()
     {
         if (ResizeGrip.Visibility != Visibility.Visible) return;
         double size = ButtonDiameter;
-        double after = _panelStart + _panelLength + GripGap;
-        double along = after + size <= _edgeLength ? after : Math.Max(0, _panelStart - GripGap - size);
-        double across = _placement.Edge is PanelEdge.Right or PanelEdge.Bottom ? Thickness - PanelWidth / 2 - size / 2 : PanelWidth / 2 - size / 2;
-        Canvas.SetLeft(ResizeGrip, _placement.Horizontal ? along : across);
-        Canvas.SetTop(ResizeGrip, _placement.Horizontal ? across : along);
+        bool horizontal = _placement.Horizontal;
+        double after = _panelStart + _panelLength - GripTuck;
+        bool beyond = after + size <= _edgeLength;
+        _gripAfter = beyond;
+        double along = beyond ? after : Math.Max(0, _panelStart + GripTuck - size);
+        bool far = _placement.Edge is PanelEdge.Right or PanelEdge.Bottom;  // the panel is at the window's far side
+        double across = far ? Thickness - PanelWidth / 2 - size / 2 : PanelWidth / 2 - size / 2;
+        Canvas.SetLeft(ResizeGrip, horizontal ? along : across);
+        Canvas.SetTop(ResizeGrip, horizontal ? across : along);
+        // Away from the panel: on along the edge, and into the screen.
+        int awayAlong = beyond ? 1 : -1, awayAcross = far ? -1 : 1;
+        bool backslash = (horizontal ? awayAlong : awayAcross) == (horizontal ? awayAcross : awayAlong);
+        GripIcon.Icon = backslash ? Icons.Resize : Icons.ResizeOther;
+        ResizeGrip.Cursor = backslash ? System.Windows.Input.Cursors.SizeNWSE : System.Windows.Input.Cursors.SizeNESW;
+        SyncSizeBadge();
     }
 
-    // Resizing: the grip's distance from the panel's centre along the edge sets the scale (twice as far, twice as big).
-    // The pointer only sets a target; every frame the scale glides a third of the way to it, so the size flows.
+    /// The size beside the grip: on the screen's side of it on the left and right edges, further along the edge on the top
+    /// and bottom ones (above or below it, it would cover the panel's buttons): "115 %", or "100 % · automático".
+    private void SyncSizeBadge()
+    {
+        if (SizeBadge.Visibility != Visibility.Visible) return;
+        SizeText.Text = Loc.Format(_uiScale is null ? "Edit.SizeAuto" : "Edit.Size", _scale);
+        // Both levels: a bare Measure on the border would return its size for the previous text.
+        SizeText.InvalidateMeasure();
+        SizeBadge.InvalidateMeasure();
+        SizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Size badge = SizeBadge.DesiredSize;
+        double size = ButtonDiameter, gripLeft = Canvas.GetLeft(ResizeGrip), gripTop = Canvas.GetTop(ResizeGrip);
+        (double left, double top) = _placement.Edge switch
+        {
+            PanelEdge.Left => (gripLeft + size + BadgeGap, gripTop + size / 2 - badge.Height / 2),
+            PanelEdge.Top or PanelEdge.Bottom => (_gripAfter ? gripLeft + size + BadgeGap : gripLeft - BadgeGap - badge.Width,
+                gripTop + size / 2 - badge.Height / 2),
+            _ => (gripLeft - BadgeGap - badge.Width, gripTop + size / 2 - badge.Height / 2),
+        };
+        double width = _placement.Horizontal ? _edgeLength : Thickness, height = _placement.Horizontal ? Thickness : _edgeLength;
+        Canvas.SetLeft(SizeBadge, Math.Clamp(left, 0, Math.Max(0, width - badge.Width)));
+        Canvas.SetTop(SizeBadge, Math.Clamp(top, 0, Math.Max(0, height - badge.Height)));
+    }
+
+    // Resizing: the pointer's distance from the panel's centre sets the scale (twice as far, twice as big), whichever way
+    // it goes. The pointer only sets a target; every frame the scale glides a third of the way to it, so the size flows.
+    // Near 100 % it settles on 100 %; a double click goes back to the automatic size.
     private bool _resizing;
     private bool _resizeRoom;
     private double _resizeFrom;     // the scale when the grip was grabbed
-    private double _resizeReach;    // pointer minus the panel's centre along the edge then (physical px)
-    private double _resizeCentre;   // the panel's centre along the edge (physical px, screen coordinates)
+    private double _resizeReach;    // the pointer's distance from the panel's centre then (physical px)
+    private Point _resizeCentre;    // the panel's centre (physical px, screen coordinates)
     private double _resizeTarget;
     private bool _resizeFrames;
+    private bool _resizeMoved;
+    private MonitorInfo? _resizeMonitor;
     private const double ResizeGlide = 0.3;
+    private const double ResizeSnap = 0.04;
 
     private void OnGripDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (!_editing || PreviewMode || _resizing || !GetCursorPos(out POINT cursor)) return;
-        if (Monitors.Find(_placement.Monitor) is not MonitorInfo monitor) return;
-        bool horizontal = _placement.Horizontal;
+        if (!_editing || PreviewMode || _resizing) return;
+        if (e.ClickCount >= 2)
+        {
+            ResetSize();
+            return;
+        }
+        if (!GetCursorPos(out POINT cursor) || Monitors.Find(_placement.Monitor) is not MonitorInfo monitor) return;
         double pixels = _scale * monitor.Dpi / 96.0;
-        _resizeCentre = (horizontal ? monitor.Work.Left : monitor.Work.Top) + (_panelStart + _panelLength / 2) * pixels;
-        _resizeReach = (horizontal ? cursor.X : cursor.Y) - _resizeCentre;
-        if (Math.Abs(_resizeReach) < 8) return;
-        _resizeFrom = _resizeTarget = _uiScale ?? _scale;
+        RECT work = monitor.Work;
+        double along = (_placement.Horizontal ? work.Left : work.Top) + (_panelStart + _panelLength / 2) * pixels;
+        double across = _placement.Edge switch
+        {
+            PanelEdge.Left => work.Left + PanelWidth / 2 * pixels,
+            PanelEdge.Top => work.Top + PanelWidth / 2 * pixels,
+            PanelEdge.Bottom => work.Bottom - PanelWidth / 2 * pixels,
+            _ => work.Right - PanelWidth / 2 * pixels,
+        };
+        _resizeCentre = _placement.Horizontal ? new Point(along, across) : new Point(across, along);
+        _resizeReach = (new Point(cursor.X, cursor.Y) - _resizeCentre).Length;
+        if (_resizeReach < 8) return;
+        // From the scale on screen: a fixed scale above what fits here would leave a stretch where the grip does nothing.
+        _resizeFrom = _resizeTarget = _scale;
+        _resizeMonitor = monitor;
+        _resizeMoved = false;
         _resizing = ResizeGrip.CaptureMouse();
-        if (!_resizing) return;
-        HideCard();
-        _uiScale = _resizeFrom;
-        GrowForResize(monitor);
-        if (!_resizeFrames) { _resizeFrames = true; CompositionTarget.Rendering += OnResizeFrame; }
-        Log.Trace("Edge", $"resize start at scale {_resizeFrom:0.###}");
     }
 
     private void OnGripMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (!_resizing || !GetCursorPos(out POINT cursor)) return;
-        double reach = (_placement.Horizontal ? cursor.X : cursor.Y) - _resizeCentre;
-        double ratio = Math.Max(0, reach / _resizeReach);
-        _resizeTarget = Math.Clamp(_resizeFrom * ratio, SettingsStore.MinUiScale, SettingsStore.MaxUiScale);
+        double reach = (new Point(cursor.X, cursor.Y) - _resizeCentre).Length;
+        if (!_resizeMoved)
+        {
+            // Nothing changes on a plain click (nor between the two of a double click): the window only takes its room
+            // for the largest size once the grip really moves.
+            if (_resizeMonitor is null
+                || Math.Abs(reach - _resizeReach) < SystemParameters.MinimumHorizontalDragDistance * _resizeMonitor.Dpi / 96.0) return;
+            _resizeMoved = true;
+            HideCard();
+            _uiScale = _resizeFrom;
+            GrowForResize(_resizeMonitor);
+            if (!_resizeFrames) { _resizeFrames = true; CompositionTarget.Rendering += OnResizeFrame; }
+            Log.Trace("Edge", $"resize start at scale {_resizeFrom:0.###}");
+        }
+        double largest = Math.Max(SettingsStore.MinUiScale, Math.Min(SettingsStore.MaxUiScale, _scaleCap));
+        double target = Math.Clamp(_resizeFrom * reach / _resizeReach, SettingsStore.MinUiScale, largest);
+        _resizeTarget = Math.Abs(target - 1) < ResizeSnap && largest >= 1 ? 1 : target;
     }
 
     private void OnGripUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1237,16 +1370,33 @@ public partial class EdgeWindow : Window
         if (!_resizing && next == _resizeTarget) FinishResize();
     }
 
-    private void FinishResize()
+    private void StopResizeFrames()
     {
+        if (!_resizeFrames) return;
         CompositionTarget.Rendering -= OnResizeFrame;
         _resizeFrames = false;
         _resizeRoom = false;
+    }
+
+    private void FinishResize()
+    {
+        StopResizeFrames();
         double scale = Math.Round(_uiScale ?? _scale, 2);
         _uiScale = scale;
         PositionOnScreen();
         Log.Trace("Edge", $"resize end at scale {scale:0.##}");
         ScaleDragged?.Invoke(scale);
+    }
+
+    /// Double click on the grip: back to the automatic size.
+    private void ResetSize()
+    {
+        StopResizeFrames();
+        _uiScale = null;
+        PositionOnScreen();
+        SyncSizeBadge();
+        Log.Trace("Edge", "resize: automatic size");
+        ScaleDragged?.Invoke(null);
     }
 
     /// Before the grip moves: the window takes the room of the largest scale across the edge (it already runs the whole
@@ -1282,9 +1432,11 @@ public partial class EdgeWindow : Window
         if (PreviewMode || _resizing) return;
         if (!HandleShown)
         {
-            // ✕ as usual: a click quits; held down, it becomes the handle (OnHoldElapsed).
+            // ✕ as usual: a click quits; held down or dragged, it becomes the handle (ArmHandle). The ring fills meanwhile.
+            _holdFrom = e.GetPosition(this);
             _holdTimer.Stop();
             _holdTimer.Start();
+            SetHoldRing(1, from: 0, HoldToMove);
             return;
         }
         e.Handled = true;  // no Click: while it is the handle this button never closes the app
@@ -1298,6 +1450,11 @@ public partial class EdgeWindow : Window
         _dragMonitors = Monitors.All();
         _dragStart = _placement;
         _dragging = CloseButton.CaptureMouse();
+        if (!_dragging)
+        {
+            RestHandleSoon();
+            return;
+        }
         Point local = System.Windows.Input.Mouse.GetPosition(Root);
         _dragGrab = (_placement.Horizontal ? local.X : local.Y) - (_panelStart + PanelLength() / 2);
         Log.Trace("Edge", "drag start");
@@ -1305,6 +1462,11 @@ public partial class EdgeWindow : Window
 
     private void OnHandleMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        if (_holdTimer.IsEnabled && (e.GetPosition(this) - _holdFrom).Length > HoldMoveSlop)
+        {
+            ArmHandle();
+            return;
+        }
         // Every move relays the whole layered window out: one per frame is enough.
         if (!_dragging || _dragQueued) return;
         _dragQueued = true;
@@ -1340,7 +1502,12 @@ public partial class EdgeWindow : Window
 
     private void OnHandleUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        _holdTimer.Stop();
+        if (_holdTimer.IsEnabled)
+        {
+            // Let go before it became the handle: an ordinary click.
+            _holdTimer.Stop();
+            SetHoldRing(null);
+        }
         if (!_dragging) return;
         e.Handled = true;
         CloseButton.ReleaseMouseCapture();
@@ -1348,6 +1515,12 @@ public partial class EdgeWindow : Window
 
     private void OnHandleLost(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        if (_holdTimer.IsEnabled)
+        {
+            // The pointer was taken away mid-press (another window, a menu): nothing happens.
+            _holdTimer.Stop();
+            SetHoldRing(null);
+        }
         if (!_dragging) return;
         _dragging = false;
         Log.Trace("Edge", $"drag end -> {_placement}");
@@ -2046,7 +2219,7 @@ public partial class EdgeWindow : Window
             _wakeOnInput = false;
             WatchRawPointerInput(IntPtr.Zero, false);
         }
-        if (PreviewMode || !_hasWindowRect || _pointerWatch.IsEnabled) return;
+        if (PreviewMode || _closed || !_hasWindowRect || _pointerWatch.IsEnabled) return;
         Log.Trace("Edge", "pointer watch resumed");
         _tickClock.Restart();
         _pointerStill.Restart();
@@ -2336,6 +2509,13 @@ public partial class EdgeWindow : Window
                 _ => work.Right != monitor.Bounds.Right,
             };
             LayOut(workWidth / dpi, workHeight / dpi);
+            if (_resizeRoom)
+            {
+                // Mid-resize (the grip still gliding): keep the room for the largest size, on the new edge or monitor.
+                GrowForResize(monitor);
+                _hasWindowRect = true;
+                return;
+            }
             int width = _placement.Horizontal ? workWidth : (int)Math.Round(_windowWidthDip * dpi);
             int height = _placement.Horizontal ? (int)Math.Round(_windowHeightDip * dpi) : workHeight;
             int x = _placement.Edge == PanelEdge.Right ? work.Right - width : work.Left;
@@ -2377,6 +2557,14 @@ public partial class EdgeWindow : Window
     }
 
     internal void CollapseNow() => Collapse();
+
+    /// ✕ as the handle after a long press, its ring this full (the 3 s before ✕ comes back running out), or ✕ again.
+    internal void ShowHandleNow(double? ring)
+    {
+        _moveArmed = ring is not null;
+        SyncCloseButton();
+        if (ring is double fill) SetHoldRing(fill);
+    }
 
     /// The panel's last button shows ✕ (quit), not the drag handle, and the size grip is gone.
     internal bool CloseIsClose => CloseIcon.Icon == Icons.Close && ResizeGrip.Visibility != Visibility.Visible;

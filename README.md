@@ -181,13 +181,14 @@ En Ajustes → Personalización → **Posición** eliges:
   sale debajo o encima.
 - **Colocación** — **Centrado** en ese borde o **Manual**: donde lo dejaste con el asa.
 
-**Moverlo desde el propio panel**: mantén pulsado el botón ✕ y se convierte en un asa (↔); arrástralo a cualquier
-borde de cualquier pantalla y se queda donde lo sueltes. A los 3 segundos de dejarlo quieto vuelve a ser la ✕ (un clic
-normal sigue cerrando la app).
+**Moverlo desde el propio panel**: mantén pulsado el botón ✕ (un anillo se llena alrededor) o arrástralo, y se
+convierte en un asa (↔); llévalo a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Al soltarlo, el
+anillo se vacía en 3 segundos y vuelve la ✕ (un clic normal sigue cerrando la app).
 
-**Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa y junto al panel aparece un tirador; arrástralo
-a lo largo del borde para hacer el panel más grande o más pequeño, con el tamaño cambiando de forma fluida. Al pulsar
-**Terminar** o cerrar Ajustes se guardan la posición y el tamaño (`placement`, `offset`, `uiScale`) y vuelve la ✕.
+**Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa, el engranaje un ✓ y junto al panel aparece un
+tirador con el tamaño en %; aléjalo o acércalo para hacer el panel más grande o más pequeño, de forma fluida (se pega
+al 100 %; doble clic: tamaño automático). Con el ✓, **Terminar** o al cerrar Ajustes se guardan la posición y el tamaño
+(`placement`, `offset`, `uiScale`) y vuelve la ✕.
 
 ### Pestañas «Sesión» / «Total»
 

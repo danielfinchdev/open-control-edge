@@ -137,7 +137,7 @@ internal sealed class SettingsWindow : Window
     /// The panel was moved or resized from the panel itself: Personalización shows the new place and size (same scroll).
     internal void WidgetEdited() => Dispatcher.InvokeAsync(() =>
     {
-        if (_category != "Personalización") return;
+        if (!IsVisible || _category != "Personalización") return;
         double offset = _scroll.VerticalOffset;
         RenderPage();
         _scroll.UpdateLayout();

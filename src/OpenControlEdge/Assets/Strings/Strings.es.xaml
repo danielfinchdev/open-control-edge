@@ -521,9 +521,12 @@
     <sys:String x:Key="Msg.OpenFailed">No se pudo abrir la aplicación</sys:String>
 
     <sys:String x:Key="Tip.Drag">Arrastra para mover el panel a cualquier borde</sys:String>
-    <sys:String x:Key="Tip.Resize">Arrastra para cambiar el tamaño del panel</sys:String>
+    <sys:String x:Key="Tip.Resize">Arrastra para cambiar el tamaño del panel · doble clic: tamaño automático</sys:String>
+    <sys:String x:Key="Tip.EditDone">Terminar de editar</sys:String>
+    <sys:String x:Key="Edit.Size">{0:P0}</sys:String>
+    <sys:String x:Key="Edit.SizeAuto">{0:P0} · automático</sys:String>
     <sys:String x:Key="Settings.EditWidget">Editar widget</sys:String>
-    <sys:String x:Key="Settings.EditWidgetHint">Mueve el panel y cambia su tamaño desde el propio panel: arrastra el asa (donde está la ✕) a cualquier borde de cualquier pantalla, y el tirador de al lado para hacerlo más grande o más pequeño. Se guarda al cerrar Ajustes y la ✕ vuelve a su sitio.</sys:String>
+    <sys:String x:Key="Settings.EditWidgetHint">Mueve el panel y cambia su tamaño desde el propio panel: arrastra el asa (donde está la ✕) a cualquier borde de cualquier pantalla, y aleja o acerca el tirador de al lado para hacerlo más grande o más pequeño (doble clic en él: tamaño automático). Termina con el ✓ del panel o cerrando Ajustes: se guarda y la ✕ vuelve a su sitio.</sys:String>
     <sys:String x:Key="Settings.EditWidgetButton">Editar widget</sys:String>
     <sys:String x:Key="Settings.EditWidgetDone">Terminar</sys:String>
     <sys:String x:Key="Settings.Position">Posición</sys:String>

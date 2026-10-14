@@ -303,6 +303,11 @@ public partial class App : Application
             SettingsStore.Update(x => x with { UiScale = scale });
             _settingsWindow?.WidgetEdited();
         };
+        _edge.EditDoneRequested += () =>
+        {
+            SaveWidgetPlace();
+            _settingsWindow?.WidgetEdited();
+        };
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.ContentRendered += (_, _) =>

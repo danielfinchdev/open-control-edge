@@ -521,9 +521,12 @@
     <sys:String x:Key="Msg.OpenFailed">Could not open the app</sys:String>
 
     <sys:String x:Key="Tip.Drag">Drag to move the panel to any edge</sys:String>
-    <sys:String x:Key="Tip.Resize">Drag to resize the panel</sys:String>
+    <sys:String x:Key="Tip.Resize">Drag to resize the panel · double click: automatic size</sys:String>
+    <sys:String x:Key="Tip.EditDone">Finish editing</sys:String>
+    <sys:String x:Key="Edit.Size">{0:P0}</sys:String>
+    <sys:String x:Key="Edit.SizeAuto">{0:P0} · automatic</sys:String>
     <sys:String x:Key="Settings.EditWidget">Edit widget</sys:String>
-    <sys:String x:Key="Settings.EditWidgetHint">Move and resize the panel from the panel itself: drag the handle (where the ✕ is) to any edge of any screen, and the grip next to it to make it bigger or smaller. It is saved when Settings closes and the ✕ comes back.</sys:String>
+    <sys:String x:Key="Settings.EditWidgetHint">Move and resize the panel from the panel itself: drag the handle (where the ✕ is) to any edge of any screen, and pull the grip next to it away or closer to make it bigger or smaller (double click it: automatic size). Finish with the panel's ✓ or by closing Settings: it is saved and the ✕ comes back.</sys:String>
     <sys:String x:Key="Settings.EditWidgetButton">Edit widget</sys:String>
     <sys:String x:Key="Settings.EditWidgetDone">Done</sys:String>
     <sys:String x:Key="Settings.Position">Position</sys:String>
