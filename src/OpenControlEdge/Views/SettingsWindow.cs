@@ -128,6 +128,22 @@ internal sealed class SettingsWindow : Window
     /// "Buscar en todo el equipo" (Ajustes › Agentes › Cuentas): the owner's search; returns the accounts added.
     internal Func<Task<int>>? ScanAccounts { get; init; }
 
+    /// "Editar widget" (Ajustes › Personalización): the owner starts (true) or ends (false) editing the panel on screen.
+    internal Action<bool>? EditWidget { get; init; }
+
+    /// Whether the panel on screen is being edited now.
+    internal Func<bool>? WidgetEditing { get; init; }
+
+    /// The panel was moved or resized from the panel itself: Personalización shows the new place and size (same scroll).
+    internal void WidgetEdited() => Dispatcher.InvokeAsync(() =>
+    {
+        if (_category != "Personalización") return;
+        double offset = _scroll.VerticalOffset;
+        RenderPage();
+        _scroll.UpdateLayout();
+        _scroll.ScrollToVerticalOffset(offset);
+    });
+
     // Size at zoom 1, in design units. DesignHeight fits the tallest page (General of the installed copy, Updates
     // with release notes); Snapshot fails if any page needs to scroll at the default size.
     private const double DesignWidth = 820;
@@ -511,6 +527,7 @@ internal sealed class SettingsWindow : Window
         Settings s = SettingsStore.Load(); var p = Inside(Card(Loc.Get("Settings.Look")));
         AddChoice(p, Loc.Get("Settings.Language"), ["Español", "English"], s.Language == UiLanguage.English ? 1 : 0, i => { var n = SettingsStore.Update(x => x with { Language = i == 0 ? UiLanguage.Spanish : UiLanguage.English }); if (n != null) Loc.Apply(n.Language); });
         AddChoice(p, Loc.Get("Settings.Theme"), [Loc.Get("Settings.Theme.Dark"), Loc.Get("Settings.Theme.Light"), Loc.Get("Settings.Theme.System")], (int)s.Theme, i => { var n = SettingsStore.Update(x => x with { Theme = (AppTheme)i }); if (n != null) ThemeManager.Apply(n.Theme, n.ColorTheme); });
+        AddEditWidget();
         AddViews(s);
         AddRingThemes(s);
         AddBackground(s);
@@ -799,7 +816,23 @@ internal sealed class SettingsWindow : Window
         }
         Inside(card).Children.Add(choices);
     }
-    /// Where the panel goes: the monitor, the edge, and centred or manual (then the panel's ✕ is a drag handle).
+    /// "Editar widget": on the panel itself, ✕ becomes the drag handle and a grip next to it resizes it, until "Terminar"
+    /// or until Ajustes closes (then place and size are saved and ✕ is back).
+    private void AddEditWidget()
+    {
+        var p = Inside(Card(Loc.Get("Settings.EditWidget"), Loc.Get("Settings.EditWidgetHint")));
+        bool editing = WidgetEditing?.Invoke() == true;
+        Button? edit = null;
+        edit = Button(Loc.Get(editing ? "Settings.EditWidgetDone" : "Settings.EditWidgetButton"), (_, _) =>
+        {
+            bool on = WidgetEditing?.Invoke() != true;
+            EditWidget?.Invoke(on);
+            edit!.Content = Loc.Get(on ? "Settings.EditWidgetDone" : "Settings.EditWidgetButton");
+        }, primary: true);
+        edit.IsEnabled = EditWidget is not null || Preview;
+        Actions(p, edit).Margin = new Thickness(0);
+    }
+    /// Where the panel goes: the monitor, the edge, and centred or manual (where it was dragged by its handle).
     private void AddPosition(Settings s)
     {
         var p = Inside(Card(Loc.Get("Settings.Position"), Loc.Get("Settings.PositionHint")));

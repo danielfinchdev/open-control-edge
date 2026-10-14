@@ -1,5 +1,16 @@
 # Registro de cambios
 
+## 3.1.0 — 2026-10-14
+
+- **Mueve el panel manteniendo pulsada la ✕.** Al rato de tenerla pulsada se convierte en un asa (↔) y el panel sigue
+  al ratón a cualquier borde de cualquier pantalla; a los 3 segundos de dejarlo quieto vuelve a ser la ✕. Un clic
+  normal sigue cerrando la app. En **Manual** la ✕ ya no se queda como asa para siempre.
+- **Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa y junto al panel aparece un tirador para
+  cambiar su tamaño arrastrando, de forma fluida (el tamaño se desliza hacia donde va el ratón, sin redimensionar la
+  ventana en cada fotograma). «Terminar» o cerrar Ajustes guarda la posición y el tamaño y devuelve la ✕.
+- Al cerrar Ajustes se guarda también el tamaño elegido con el control deslizante aunque no hubiera pasado su guardado
+  diferido.
+
 ## 3.0.0 — 2026-10-11
 
 La versión definitiva. Incluye lo preparado para la 2.3.1, que no llegó a publicarse.

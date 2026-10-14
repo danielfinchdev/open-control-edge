@@ -588,13 +588,18 @@
                                              VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed" />
                                 </Grid>
                             </Button>
-                            <!-- Quits the whole application, like "Salir" in the tray menu. In manual placement it is the
-                                 handle that drags the panel along the screen edges instead (EdgeWindow.OnHandleDown). -->
+                            <!-- Quits the whole application, like "Salir" in the tray menu. Held down (or while editing
+                                 the widget from Ajustes) it is the handle that drags the panel along the screen edges
+                                 instead (EdgeWindow.OnHandleDown). -->
                             <Button x:Name="CloseButton" Style="{StaticResource PanelRoundButton}" Click="OnCloseClick"
+                                    RenderTransformOrigin="0.5,0.5"
                                     PreviewMouseLeftButtonDown="OnHandleDown" PreviewMouseMove="OnHandleMove"
                                     PreviewMouseLeftButtonUp="OnHandleUp" LostMouseCapture="OnHandleLost"
                                     ToolTip="{DynamicResource Tip.Close}" AutomationProperties.AutomationId="CloseButton"
                                     AutomationProperties.Name="{DynamicResource Tip.Close}">
+                                <Button.RenderTransform>
+                                    <ScaleTransform x:Name="CloseScale" />
+                                </Button.RenderTransform>
                                 <ui:IconView x:Name="CloseIcon" Icon="{x:Static ui:Icons.Close}" Foreground="{DynamicResource Theme.Text}" />
                             </Button>
                         </StackPanel>
@@ -603,6 +608,16 @@
 
             </Grid>
         </Grid>
+
+        <!-- Editing the widget (Ajustes › Personalización › Editar widget): a grip just past the panel's end; dragged
+             along the edge it makes the panel bigger or smaller (EdgeWindow.OnGripDown). -->
+        <Button x:Name="ResizeGrip" Style="{StaticResource PanelRoundButton}" Visibility="Collapsed" Opacity="0"
+                PreviewMouseLeftButtonDown="OnGripDown" PreviewMouseMove="OnGripMove"
+                PreviewMouseLeftButtonUp="OnGripUp" LostMouseCapture="OnGripLost"
+                ToolTip="{DynamicResource Tip.Resize}" AutomationProperties.AutomationId="ResizeGrip"
+                AutomationProperties.Name="{DynamicResource Tip.Resize}">
+            <ui:IconView x:Name="GripIcon" Icon="{x:Static ui:Icons.Resize}" Foreground="{DynamicResource Theme.Text}" />
+        </Button>
 
     </Canvas>
     </Grid>

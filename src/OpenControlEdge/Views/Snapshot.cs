@@ -482,10 +482,21 @@ internal static class Snapshot
             window.SaveSnapshot(Path.Combine(directory, $"92_edge_{edge.ToString().ToLowerInvariant()}_pc.png"));
             window.ApplyViews(everything with { View = WidgetView.Ai }, animate: false);
         }
+        // Manual placement keeps ✕; editing the widget turns it into the drag handle and adds the size grip past the
+        // panel's end (before its start when the panel reaches the end of the edge), and ✕ is back afterwards.
         window.ApplyPlacement(PanelPlacement.Default with { Manual = true, Offset = 0.25 });
         window.ShowCardNow(EdgeWindow.RingClaude);
-        window.SaveSnapshot(Path.Combine(directory, "93_manual_handle.png"));
+        window.SaveSnapshot(Path.Combine(directory, "93_manual_placement.png"));
+        window.BeginEdit();
+        window.SaveSnapshot(Path.Combine(directory, "94_edit_widget.png"));
+        window.ApplyPlacement(PanelPlacement.Default with { Manual = true, Offset = 1 });
+        window.SaveSnapshot(Path.Combine(directory, "94b_edit_widget_end_of_edge.png"));
+        window.ApplyPlacement(PanelPlacement.Default with { Edge = PanelEdge.Bottom });
+        window.SaveSnapshot(Path.Combine(directory, "94c_edit_widget_bottom.png"));
         window.ApplyPlacement(PanelPlacement.Default);
+        window.EndEdit();
+        if (window.Editing || !window.CloseIsClose) throw new InvalidDataException("edit widget: ✕ did not come back");
+        window.SaveSnapshot(Path.Combine(directory, "94d_edit_widget_done.png"));
         window.SetCodex(codexMonthly);
         window.ShowCardNow(EdgeWindow.RingDeepSeek);
         window.SaveSnapshot(Path.Combine(directory, "88_card_deepseek_open_button.png"));

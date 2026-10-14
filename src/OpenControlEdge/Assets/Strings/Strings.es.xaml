@@ -89,7 +89,7 @@
     <sys:String x:Key="Tip.Hide">Desfijar el panel (se oculta en el borde)</sys:String>
     <sys:String x:Key="Tip.Pin">Fijar el panel</sys:String>
     <sys:String x:Key="Tip.Settings">Ajustes</sys:String>
-    <sys:String x:Key="Tip.Close">Salir de Open Control Edge</sys:String>
+    <sys:String x:Key="Tip.Close">Salir de Open Control Edge (mantén pulsado para mover el panel)</sys:String>
 
     <!-- Tray menu -->
     <sys:String x:Key="Menu.Refresh">Actualizar ahora</sys:String>
@@ -521,6 +521,11 @@
     <sys:String x:Key="Msg.OpenFailed">No se pudo abrir la aplicación</sys:String>
 
     <sys:String x:Key="Tip.Drag">Arrastra para mover el panel a cualquier borde</sys:String>
+    <sys:String x:Key="Tip.Resize">Arrastra para cambiar el tamaño del panel</sys:String>
+    <sys:String x:Key="Settings.EditWidget">Editar widget</sys:String>
+    <sys:String x:Key="Settings.EditWidgetHint">Mueve el panel y cambia su tamaño desde el propio panel: arrastra el asa (donde está la ✕) a cualquier borde de cualquier pantalla, y el tirador de al lado para hacerlo más grande o más pequeño. Se guarda al cerrar Ajustes y la ✕ vuelve a su sitio.</sys:String>
+    <sys:String x:Key="Settings.EditWidgetButton">Editar widget</sys:String>
+    <sys:String x:Key="Settings.EditWidgetDone">Terminar</sys:String>
     <sys:String x:Key="Settings.Position">Posición</sys:String>
     <sys:String x:Key="Settings.PositionHint">Dónde se pega el panel: el borde, centrado o donde tú lo dejes, y en qué pantalla.</sys:String>
     <sys:String x:Key="Settings.Monitor">Pantalla</sys:String>
@@ -534,7 +539,7 @@
     <sys:String x:Key="Settings.Placement">Colocación</sys:String>
     <sys:String x:Key="Settings.Placement.Center">Centrado</sys:String>
     <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
-    <sys:String x:Key="Settings.ManualHint">En Manual, el botón ✕ del panel pasa a ser un asa: arrástralo a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Para cerrar la app, usa el icono de la bandeja.</sys:String>
+    <sys:String x:Key="Settings.ManualHint">En Manual, el panel se queda donde lo sueltes. Para moverlo, mantén pulsado su botón ✕ hasta que se convierta en un asa y arrástralo a cualquier borde de cualquier pantalla; a los 3 segundos de dejarlo quieto vuelve a ser la ✕.</sys:String>
     <sys:String x:Key="Settings.ScanAccounts">Buscar en todo el equipo</sys:String>
     <sys:String x:Key="Settings.Scanning">Buscando en todos los discos… puede tardar.</sys:String>
     <sys:String x:Key="Settings.ScanAdded">Añadidas {0} cuentas nuevas.</sys:String>

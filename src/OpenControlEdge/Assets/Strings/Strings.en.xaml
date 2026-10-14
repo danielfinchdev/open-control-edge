@@ -89,7 +89,7 @@
     <sys:String x:Key="Tip.Hide">Unpin the panel (it hides at the edge)</sys:String>
     <sys:String x:Key="Tip.Pin">Pin the panel</sys:String>
     <sys:String x:Key="Tip.Settings">Settings</sys:String>
-    <sys:String x:Key="Tip.Close">Quit Open Control Edge</sys:String>
+    <sys:String x:Key="Tip.Close">Quit Open Control Edge (hold to move the panel)</sys:String>
 
     <!-- Tray menu -->
     <sys:String x:Key="Menu.Refresh">Refresh now</sys:String>
@@ -521,6 +521,11 @@
     <sys:String x:Key="Msg.OpenFailed">Could not open the app</sys:String>
 
     <sys:String x:Key="Tip.Drag">Drag to move the panel to any edge</sys:String>
+    <sys:String x:Key="Tip.Resize">Drag to resize the panel</sys:String>
+    <sys:String x:Key="Settings.EditWidget">Edit widget</sys:String>
+    <sys:String x:Key="Settings.EditWidgetHint">Move and resize the panel from the panel itself: drag the handle (where the ✕ is) to any edge of any screen, and the grip next to it to make it bigger or smaller. It is saved when Settings closes and the ✕ comes back.</sys:String>
+    <sys:String x:Key="Settings.EditWidgetButton">Edit widget</sys:String>
+    <sys:String x:Key="Settings.EditWidgetDone">Done</sys:String>
     <sys:String x:Key="Settings.Position">Position</sys:String>
     <sys:String x:Key="Settings.PositionHint">Where the panel sticks: the edge, centred or wherever you leave it, and on which screen.</sys:String>
     <sys:String x:Key="Settings.Monitor">Screen</sys:String>
@@ -534,7 +539,7 @@
     <sys:String x:Key="Settings.Placement">Placement</sys:String>
     <sys:String x:Key="Settings.Placement.Center">Centred</sys:String>
     <sys:String x:Key="Settings.Placement.Manual">Manual</sys:String>
-    <sys:String x:Key="Settings.ManualHint">In Manual, the panel's ✕ button becomes a handle: drag it to any edge of any screen and it stays where you drop it. To quit the app, use the tray icon.</sys:String>
+    <sys:String x:Key="Settings.ManualHint">In Manual, the panel stays where you drop it. To move it, hold its ✕ button until it turns into a handle and drag it to any edge of any screen; 3 seconds after you leave it still, it is the ✕ again.</sys:String>
     <sys:String x:Key="Settings.ScanAccounts">Search the whole PC</sys:String>
     <sys:String x:Key="Settings.Scanning">Searching every drive… this can take a while.</sys:String>
     <sys:String x:Key="Settings.ScanAdded">Added {0} new accounts.</sys:String>

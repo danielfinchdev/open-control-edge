@@ -179,8 +179,15 @@ En Ajustes → Personalización → **Posición** eliges:
   cambiar la resolución, el DPI o la barra de tareas.
 - **Borde** — derecha (por defecto), izquierda, arriba o abajo. Arriba y abajo los anillos van en fila y la tarjeta
   sale debajo o encima.
-- **Colocación** — **Centrado** en ese borde o **Manual**: entonces el botón ✕ del panel pasa a ser un asa; arrástralo
-  a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Para cerrar la app, usa el icono de la bandeja.
+- **Colocación** — **Centrado** en ese borde o **Manual**: donde lo dejaste con el asa.
+
+**Moverlo desde el propio panel**: mantén pulsado el botón ✕ y se convierte en un asa (↔); arrástralo a cualquier
+borde de cualquier pantalla y se queda donde lo sueltes. A los 3 segundos de dejarlo quieto vuelve a ser la ✕ (un clic
+normal sigue cerrando la app).
+
+**Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa y junto al panel aparece un tirador; arrástralo
+a lo largo del borde para hacer el panel más grande o más pequeño, con el tamaño cambiando de forma fluida. Al pulsar
+**Terminar** o cerrar Ajustes se guardan la posición y el tamaño (`placement`, `offset`, `uiScale`) y vuelve la ✕.
 
 ### Pestañas «Sesión» / «Total»
 

@@ -293,7 +293,16 @@ public partial class App : Application
         _edge.OpenRequested += OpenAgent;
         _edge.GameModeClicked += () => _ = ToggleGameModeAsync();
         _edge.VisibleRingsChanged += UpdateFpsSampling;
-        _edge.PlacementDragged += placement => SettingsStore.Update(x => x with { Placement = placement });
+        _edge.PlacementDragged += placement =>
+        {
+            SettingsStore.Update(x => x with { Placement = placement });
+            _settingsWindow?.WidgetEdited();
+        };
+        _edge.ScaleDragged += scale =>
+        {
+            SettingsStore.Update(x => x with { UiScale = scale });
+            _settingsWindow?.WidgetEdited();
+        };
         bool fromCache = cached.Claude is not null || cached.Codex is not null || cached.Cursor is not null;
         _edge.ContentRendered += (_, _) => LogStartup(fromCache ? "primer dibujo con datos de la caché" : "primer dibujo");
         _edge.ContentRendered += (_, _) =>
@@ -374,8 +383,14 @@ public partial class App : Application
             previousSettings = settings;
             if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
-            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null) { Anchor = _edge, ScanAccounts = ScanAccountsAsync };
+            () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null)
+        {
+            Anchor = _edge, ScanAccounts = ScanAccountsAsync,
+            EditWidget = on => { if (on) _edge?.BeginEdit(); else _edge?.EndEdit(); },
+            WidgetEditing = () => _edge?.Editing == true,
+        };
         _settingsWindow.ContentRendered += (_, _) => Log.Info("Settings", "settings window content rendered");
+        _settingsWindow.Closed += (_, _) => SaveWidgetPlace();
         if (category == "Agentes" && !_agentsProbed)
         {
             _agentsProbed = true;
@@ -383,6 +398,19 @@ public partial class App : Application
         }
         _settingsWindow.Show();
         _settingsWindow.BringToFront();
+    }
+
+    /// Ajustes closed: editing the widget ends (✕ is back) and the panel's place and size as they are on screen are saved,
+    /// also a size slider moved a moment ago whose own delayed save was cut short.
+    private void SaveWidgetPlace()
+    {
+        if (_edge is null) return;
+        _edge.EndEdit();
+        PanelPlacement placement = _edge.Placement;
+        double? scale = _edge.UiScale;
+        Settings saved = SettingsStore.Load();
+        if (saved.Placement != placement || saved.UiScale != scale)
+            SettingsStore.Update(x => x with { Placement = placement, UiScale = scale });
     }
 
     private async Task ProbeAgentsAsync(SettingsWindow window)
