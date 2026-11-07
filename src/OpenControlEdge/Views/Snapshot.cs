@@ -64,6 +64,9 @@ internal static class Snapshot
             throw new InvalidDataException("Cursor on-demand fixture parser check failed");
         if (CursorUsageParser.Parse(cursorFixture.Replace("\"totalPercentUsed\":2.886868686868687", "\"totalPercentUsed\":null")).Cycle is not null)
             throw new InvalidDataException("Cursor parser accepted a non-numeric percentage");
+        // Waits after HTTP 429s in a row: 5, 10, 20, then 30 minutes at most.
+        if (!new[] { 1, 2, 3, 4, 9 }.Select(ClaudeUsageService.RateLimitBackoff).Select(t => t.TotalMinutes).SequenceEqual([5d, 10, 20, 30, 30]))
+            throw new InvalidDataException("Claude rate-limit backoff check failed");
         CheckOrbBridge();
         CheckSubscriptionParsers();
         CheckAccountDiscovery(directory);

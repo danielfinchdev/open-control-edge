@@ -19,6 +19,12 @@ internal sealed class CodexUsageService
 
     private readonly string _authPath;
 
+    /// After an HTTP 429 (at least 5 minutes, longer when Retry-After asks) or 5xx (1 minute) nothing is sent before
+    /// this; the failure that set it is given back meanwhile.
+    internal DateTimeOffset? RetryAfterUntil { get; private set; }
+    private CodexSnapshot? _retryFailure;
+    private static readonly TimeSpan MinRateLimitBackoff = TimeSpan.FromMinutes(5);
+
     public CodexUsageService(string? authPath = null) => _authPath = authPath ?? CodexCredentialReader.DefaultPath;
 
     /// No network: hidden when there is no usable login, otherwise a placeholder until the first fetch.
@@ -34,6 +40,8 @@ internal sealed class CodexUsageService
 
     private async Task<CodexSnapshot> FetchCoreAsync()
     {
+        if (RetryAfterUntil is DateTimeOffset until && DateTimeOffset.UtcNow < until && _retryFailure is CodexSnapshot waiting)
+            return waiting;
         try
         {
             // Missing file, no token or expired token: hide the ring without sending the request.
@@ -58,8 +66,25 @@ internal sealed class CodexUsageService
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Codex", $"HTTP {(int)response.StatusCode}");
-                return WithAccount(CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"), credentials);
+                CodexSnapshot failure = WithAccount(CodexSnapshot.Failed($"Error HTTP {(int)response.StatusCode}"), credentials);
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    TimeSpan delay = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
+                        ?? TimeSpan.Zero;
+                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > MinRateLimitBackoff ? delay : MinRateLimitBackoff);
+                    _retryFailure = failure;
+                }
+                else if ((int)response.StatusCode >= 500)
+                {
+                    RetryAfterUntil = DateTimeOffset.UtcNow.AddMinutes(1);
+                    _retryFailure = failure;
+                }
+                return failure;
             }
+
+            RetryAfterUntil = null;
+            _retryFailure = null;
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             var (primary, secondary) = CodexUsageParser.Parse(body, DateTimeOffset.UtcNow);

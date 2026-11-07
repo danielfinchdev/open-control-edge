@@ -20,6 +20,11 @@ internal sealed class ClaudeUsageService
     private (DateTimeOffset At, ClaudeSubscription? Subscription, string? Error)? _subscription;
     private static readonly HttpClient Http = UsageHttp.Create();
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
+    /// The failure that set RetryAfterUntil (with its HttpStatus, so the app keeps showing the earlier reading): given
+    /// back without asking while the wait lasts.
+    private ClaudeSnapshot? _retryFailure;
+    /// HTTP 429s in a row: each one waits longer (RateLimitBackoff). Back to 0 on any 2xx.
+    private int _rateLimitStreak;
     private readonly string _credentialsPath;
 
     /// credentialsPath: another account's .credentials.json (its CLAUDE_CONFIG_DIR); the default one otherwise.
@@ -29,11 +34,24 @@ internal sealed class ClaudeUsageService
     /// hours when retried at the refresh interval).
     internal static readonly TimeSpan MinRateLimitBackoff = TimeSpan.FromMinutes(5);
 
+    /// The wait after the streak-th 429 in a row: 5, 10, 20, then 30 minutes at most.
+    internal static TimeSpan RateLimitBackoff(int streak) => streak switch
+    {
+        <= 1 => MinRateLimitBackoff,
+        2 => TimeSpan.FromMinutes(10),
+        3 => TimeSpan.FromMinutes(20),
+        _ => TimeSpan.FromMinutes(30),
+    };
+
+    private bool Waiting => RetryAfterUntil is DateTimeOffset until && DateTimeOffset.UtcNow < until;
+
     /// On a worker thread: the login file (maybe on a slow or sleeping drive) is never read on the UI thread.
     public Task<ClaudeSnapshot> FetchAsync() => Task.Run(FetchCoreAsync);
 
     private async Task<ClaudeSnapshot> FetchCoreAsync()
     {
+        // Asked to wait (HTTP 429 or 5xx): nothing is sent, for any account, whoever asks.
+        if (Waiting && _retryFailure is ClaudeSnapshot waiting) return waiting;
         try
         {
             var credentials = CredentialReader.Read(_credentialsPath);
@@ -64,25 +82,35 @@ internal sealed class ClaudeUsageService
             if (!response.IsSuccessStatusCode)
             {
                 Log.Warn("Claude", $"HTTP {(int)response.StatusCode}");
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                {
-                    // Retry-After when it asks for longer; never sooner than MinRateLimitBackoff.
-                    TimeSpan delay = response.Headers.RetryAfter?.Delta
-                        ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
-                        ?? TimeSpan.Zero;
-                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > MinRateLimitBackoff ? delay : MinRateLimitBackoff);
-                }
-                else if ((int)response.StatusCode >= 500)
-                {
-                    RetryAfterUntil = DateTimeOffset.UtcNow.AddMinutes(1);
-                }
-                return free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
+                ClaudeSnapshot failure = free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
                     ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry }
                     : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with
                     {
                         Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry, HttpStatus = (int)response.StatusCode,
                     };
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    // Longer after each 429 in a row; Retry-After instead when it asks for longer still.
+                    TimeSpan backoff = RateLimitBackoff(++_rateLimitStreak);
+                    TimeSpan delay = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
+                        ?? TimeSpan.Zero;
+                    RetryAfterUntil = DateTimeOffset.UtcNow + (delay > backoff ? delay : backoff);
+                    _retryFailure = failure;
+                    Log.Info("Claude", $"sin pedir de nuevo hasta dentro de {(RetryAfterUntil.Value - DateTimeOffset.UtcNow).TotalMinutes:0} min (429 n.º {_rateLimitStreak})");
+                }
+                else if ((int)response.StatusCode >= 500)
+                {
+                    RetryAfterUntil = DateTimeOffset.UtcNow.AddMinutes(1);
+                    _retryFailure = failure;
+                }
+                return failure;
             }
+
+            // Any 2xx ends a run of 429s, whatever the body says.
+            _rateLimitStreak = 0;
+            RetryAfterUntil = null;
+            _retryFailure = null;
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             var usage = ClaudeUsageParser.Parse(body);
@@ -92,7 +120,6 @@ internal sealed class ClaudeUsageService
                 Log.Warn("Claude", "200 response without session or weekly data");
                 return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de uso") with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
             }
-            RetryAfterUntil = null;
             return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
         }
         catch (HttpRequestException ex)
@@ -124,6 +151,9 @@ internal sealed class ClaudeUsageService
         // A failure is kept a couple of minutes too, so clicks on the (i) during an HTTP 429 do not ask again each time.
         if (_subscription is { } cached && DateTimeOffset.UtcNow - cached.At < (cached.Error is null ? SubscriptionCacheTime : TimeSpan.FromMinutes(2)))
             return (cached.Subscription, cached.Error);
+        // The usage endpoint asked to wait (429 or 5xx): the profile, on the same API and token, is not asked either.
+        // Not cached, so the bubble asks again once the wait is over.
+        if (Waiting) return (null, _retryFailure?.Message ?? "Error HTTP 429");
         (ClaudeSubscription?, string?) result;
         try
         {

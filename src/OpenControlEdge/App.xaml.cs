@@ -69,7 +69,6 @@ public partial class App : Application
     /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync).
     private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(15);
     private DateTimeOffset? _claudeReadAt;
-    private string? _claudeRetryError;
     private DispatcherTimer? _signInWatch;
     private DateTimeOffset? _autoRenewGaveUpOn;
     private HardwareSensorService? _sensors;
@@ -1164,26 +1163,18 @@ public partial class App : Application
     }
 
     /// After an HTTP 429 or 5xx the last good reading stays on screen, marked with its age, for up to
-    /// ClaudeStaleLimit; after that the error shows. While the service asks to wait (RetryAfterUntil) nothing is sent.
+    /// ClaudeStaleLimit; after that the error shows. While the service asks to wait (RetryAfterUntil) it sends nothing
+    /// and gives back that failure, so the same happens.
     private async Task<ClaudeSnapshot> FetchClaudePreservingAsync()
     {
-        DateTimeOffset now = DateTimeOffset.Now;
-        if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt && _claudeRetryError is not null)
-            return KeepClaudeReading(now) ?? ClaudeSnapshot.Failed(_claudeRetryError) with
-            {
-                Plan = _lastClaude?.Plan, RateLimitTier = _lastClaude?.RateLimitTier, TokenExpiresAt = _lastClaude?.TokenExpiresAt,
-            };
-
         ClaudeSnapshot current = await _claude.FetchAsync();
-        _claudeRetryError = null;
         if (current is { Hidden: false, HasUsage: true })
         {
             _claudeReadAt = DateTimeOffset.Now;
             return current;
         }
-        if (current is { HttpStatus: int status, Message: string error } && (status == 429 || status >= 500))
+        if (current is { HttpStatus: int status } && (status == 429 || status >= 500))
         {
-            _claudeRetryError = error;
             if (KeepClaudeReading(DateTimeOffset.Now) is ClaudeSnapshot kept)
                 return kept with
                 {
