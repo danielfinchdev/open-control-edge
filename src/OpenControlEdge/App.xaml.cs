@@ -66,8 +66,10 @@ public partial class App : Application
     /// Automatic checks: at start-up and then at most this often (the hourly timer asks).
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
 
-    /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync).
-    private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(15);
+    /// How long an earlier good Claude reading may stand in for HTTP 429 / 5xx errors (FetchClaudePreservingAsync):
+    /// past the 5 + 10 + 20 min waits after 429s in a row (ClaudeUsageService.RateLimitBackoff), so a wait the widget
+    /// chose itself does not swap the reading for the error.
+    private static readonly TimeSpan ClaudeStaleLimit = TimeSpan.FromMinutes(35);
     private DateTimeOffset? _claudeReadAt;
     private DispatcherTimer? _signInWatch;
     private DateTimeOffset? _autoRenewGaveUpOn;
@@ -1188,12 +1190,15 @@ public partial class App : Application
         return current;
     }
 
-    /// The last good Claude reading marked as stale, or null when there is none or it is older than ClaudeStaleLimit.
+    /// The last good Claude reading marked as stale, or null when there is none, it is older than ClaudeStaleLimit or one
+    /// of its windows has reset since (its percentage would be the one before the reset).
     private ClaudeSnapshot? KeepClaudeReading(DateTimeOffset now) =>
         _lastClaude is { Hidden: false, HasUsage: true } previous && _claudeReadAt is DateTimeOffset readAt
-        && now - readAt < ClaudeStaleLimit
+        && now - readAt < ClaudeStaleLimit && !HasReset(previous.Session, now) && !HasReset(previous.Weekly, now)
             ? previous with { StaleSince = readAt }
             : null;
+
+    private static bool HasReset(UsageWindow? window, DateTimeOffset now) => window?.ResetsAt is DateTimeOffset at && at <= now;
 
     private async Task<CodexSnapshot> RefreshCodexAsync(Settings settings)
     {
