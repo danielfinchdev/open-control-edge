@@ -1045,14 +1045,16 @@ public partial class App : Application
     }
 
     /// OCE's own last readings, for oce.json: the default account of each provider and the short window (Claude's
-    /// 5 h session, or its weekly limit when the account has no session window; Codex's shorter window, Cursor's
-    /// cycle), never anything that came from Orb. Providers without a percentage (OpenCode, DeepSeek; OpenRouter
-    /// without a limit) say only that they are read, with null values.
+    /// 5 h session, Codex's shorter window, Cursor's cycle), never anything that came from Orb. Providers without a
+    /// percentage (OpenCode, DeepSeek; OpenRouter without a limit; Claude read with its weekly limit alone) say only
+    /// that they are read, with null values: the weekly limit is no short window.
     private OceReading OwnReading()
     {
         var usage = ImmutableArray.CreateBuilder<OceUsage>();
-        if (_lastClaude is { Hidden: false, Shortest: UsageWindow shortest } claude)
-            usage.Add(new OceUsage("claude", shortest.Percent, shortest.ResetsAt, claude.Plan));
+        if (_lastClaude is { Hidden: false, Session: UsageWindow session } claude)
+            usage.Add(new OceUsage("claude", session.Percent, session.ResetsAt, claude.Plan));
+        else if (_lastClaude is { Hidden: false, HasNoSession: true } weeklyOnly)
+            usage.Add(new OceUsage("claude", null, null, weeklyOnly.Plan));
         if (_lastCodex is { Hidden: false, Primary: CodexWindow primary } codex)
         {
             CodexWindow shorter = codex.Secondary is CodexWindow secondary
