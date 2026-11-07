@@ -108,7 +108,6 @@ public partial class App : Application
     private readonly Dictionary<AiProviderId, (string Message, DateTimeOffset At)> _agentFailures = new();
     private DateTimeOffset? _lastUsageRefresh;
 
-    private FpsService.Sample? _lastFps;
 #if DEBUG
     private bool _startupException;
 #endif
@@ -935,14 +934,12 @@ public partial class App : Application
         {
             _fpsTimer.Stop();
             _fps.Stop();
-            _lastFps = null;
         }
     }
 
     private void OnFpsTick(object? sender, EventArgs e)
     {
-        _lastFps = _fps.Read();
-        _edge?.SetFps(_lastFps);
+        _edge?.SetFps(_fps.Read());
     }
 
     /// The ring switches game mode on and off; while it is not enabled in the settings it opens that page instead.
