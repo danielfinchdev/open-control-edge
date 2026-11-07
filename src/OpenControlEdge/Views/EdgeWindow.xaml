@@ -439,7 +439,7 @@
                         <StackPanel.RenderTransform>
                             <TranslateTransform x:Name="RingShift" />
                         </StackPanel.RenderTransform>
-                        <!-- Un clic renueva la sesión de Claude sin abrir ventanas (ver App.RenewClaudeSessionAsync). -->
+                        <!-- A click renews the Claude session without opening any window (see App.RenewClaudeSessionAsync). -->
                         <Grid x:Name="ClaudeItem" Background="Transparent" Cursor="Hand"
                               ToolTip="{DynamicResource Tip.ClaudeRing}"
                               MouseLeftButtonUp="OnClaudeClick">
@@ -498,7 +498,7 @@
                                 <TextBlock x:Name="OpenRouterLabel" Text="--" Style="{StaticResource RingLabel}" />
                             </StackPanel>
                         </Grid>
-                        <!-- Un clic abre Configuración > Sistema > Información, sin privilegios de administrador. -->
+                        <!-- A click opens Settings > System > About, without administrator privileges. -->
                         <Grid x:Name="CpuItem" Background="Transparent" Margin="0,10,0,0" Cursor="Hand"
                               ToolTip="{DynamicResource Tip.CpuRing}" MouseLeftButtonUp="OnCpuClick">
                             <StackPanel>
