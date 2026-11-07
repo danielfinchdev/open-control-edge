@@ -378,7 +378,8 @@ public partial class App : Application
             bool providersChanged = !previousSettings.Providers.OrderBy(x => x.Key).SequenceEqual(settings.Providers.OrderBy(x => x.Key));
             bool refreshChanged = previousSettings.UsageRefreshMinutes != settings.UsageRefreshMinutes;
             previousSettings = settings;
-            if (providersChanged || refreshChanged || accountsChanged) _ = RefreshUsageAsync();
+            if (accountsChanged) _ = RefreshAccountsAsync();
+            else if (providersChanged || refreshChanged) _ = RefreshUsageAsync();
         }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
             () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null)
         {
@@ -592,15 +593,9 @@ public partial class App : Application
         try
         {
             Log.Trace("Usage", "refresh started");
-            Settings settings = SettingsStore.Load();
             // Extra accounts whose folder or login file went away are dropped before reading (and come back with them).
-            if (AccountFolders.Describe(settings).Length > 0 || _checkedAccounts is not null)
-            {
-                FrozenSet<string> present = await Task.Run(() => AccountFolders.Check(settings));
-                _presentAccounts = present;
-                _checkedAccounts = AccountFolders.Describe(settings);
-                SyncAccounts(settings);
-            }
+            await CheckAccountsAsync();
+            Settings settings = SettingsStore.Load();
 
             await Task.WhenAll(
                 ApplyClaudeAsync(settings), ApplyCodexAsync(settings), ApplyCursorAsync(settings),
@@ -783,6 +778,38 @@ public partial class App : Application
     private FrozenSet<string> _presentAccounts = FrozenSet<string>.Empty;
     private string? _checkedAccounts;
 
+    /// Checks off the UI thread which extra accounts are present and applies it (SyncAccounts). If the accounts change in
+    /// Ajustes while it waits, it checks again with the new ones, so an older check never brings back a removed account
+    /// nor leaves out an added one. Ajustes › Agentes › Cuentas repaints when an account is found or lost.
+    private async Task CheckAccountsAsync()
+    {
+        Settings settings = SettingsStore.Load();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            string covered = AccountFolders.Describe(settings);
+            if (covered.Length == 0 && _checkedAccounts is null) return;
+            Settings checking = settings;
+            FrozenSet<string> present = await Task.Run(() => AccountFolders.Check(checking));
+            settings = SettingsStore.Load();
+            if (AccountFolders.Describe(settings) != covered) continue;
+            bool found = covered != _checkedAccounts || !present.SetEquals(_presentAccounts);
+            _presentAccounts = present;
+            _checkedAccounts = covered;
+            SyncAccounts(settings);
+            if (found && _settingsWindow is { IsVisible: true } window) window.RefreshAgents();
+            return;
+        }
+    }
+
+    /// The accounts changed (Ajustes, the search): read them. A refresh already under way may have checked the old ones;
+    /// then another one follows it (only then, so the APIs are not asked twice for nothing).
+    private async Task RefreshAccountsAsync()
+    {
+        if (_usageRefresh is { IsCompleted: false } running) await running;
+        else { await RefreshUsageAsync(); return; }
+        if (AccountFolders.Describe(SettingsStore.Load()) != (_checkedAccounts ?? "")) await RefreshUsageAsync();
+    }
+
     private bool IsPresent(string provider, string folder) => _presentAccounts.Contains(AccountFolders.Key(provider, folder));
 
     /// For Ajustes › Agentes › Cuentas: whether an extra account was found at the last check; null when not checked yet.
@@ -865,7 +892,7 @@ public partial class App : Application
                     with { LastAccountScan = report.Complete ? DateTimeOffset.Now : x.LastAccountScan };
             });
             Log.Info("Accounts", $"búsqueda de cuentas: {added} nuevas ({report.Folders} carpetas, {report.Elapsed.TotalSeconds:0.0} s{(report.Complete ? "" : ", incompleta")})");
-            if (added > 0 && updated is not null && SyncAccounts(updated)) _ = RefreshUsageAsync();
+            if (added > 0 && updated is not null && SyncAccounts(updated)) _ = RefreshAccountsAsync();
             return added;
         }
         catch (Exception ex)
