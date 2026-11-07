@@ -49,6 +49,7 @@
     <sys:String x:Key="Value.InUse">{0} en uso</sys:String>
     <sys:String x:Key="Value.Of">{0} de {1}</sys:String>
     <sys:String x:Key="Value.NoData">Sin datos</sys:String>
+    <sys:String x:Key="Value.NoSessionLimit">Sin límite de sesión</sys:String>
     <sys:String x:Key="Value.Renewing">Renovando sesión…</sys:String>
     <sys:String x:Key="Value.Credits">{0} créditos</sys:String>
     <sys:String x:Key="Value.Unlimited">Ilimitados</sys:String>

@@ -7,13 +7,23 @@ internal sealed record UsageWindow(double Percent, DateTimeOffset? ResetsAt);
 /// An amount in the currency's major unit (10.53 EUR), built from the API's minor units and exponent.
 internal sealed record Money(decimal Amount, string Currency);
 
-/// Session is null whenever the data could not be obtained; Message then explains why.
+/// Session and Weekly are both null whenever the data could not be obtained; Message then explains why. Weekly alone
+/// is a valid reading: since 2026-11-07 the endpoint may answer without any 5-hour window (HasNoSession).
 /// Spent (spend.used) is optional: null when the response does not carry it.
 /// Hidden: the provider is not installed (or forced off in settings), so the ring is omitted entirely.
 internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWindow? Weekly, Money? Spent, string? Message)
 {
     public static ClaudeSnapshot Absent() => new(true, null, null, null, null);
     public static ClaudeSnapshot Failed(string message) => new(false, null, null, null, message);
+
+    /// A usable reading: at least one of the two windows came back.
+    public bool HasUsage => Session is not null || Weekly is not null;
+
+    /// A reading with the weekly limit only: the account has no 5-hour session window right now.
+    public bool HasNoSession => Session is null && Weekly is not null;
+
+    /// The window that ends first: the 5-hour session when there is one, the weekly limit otherwise.
+    public UsageWindow? Shortest => Session ?? Weekly;
 
     /// Raw plan id from the credentials ("free", "pro", "max"…); null when unknown. Shown on the card header.
     public string? Plan { get; init; }

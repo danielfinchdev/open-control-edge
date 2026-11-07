@@ -12,6 +12,19 @@ namespace OpenControlEdge.Services;
 ///   "seven_day": { "utilization": 11.0, "resets_at": "..." }
 ///   "spend": { "used": { "amount_minor": 1053, "currency": "EUR", "exponent": 2 }, "balance": null, ... }
 /// The response carries no remaining credit balance: spend.balance was null in every capture.
+///
+/// Shape seen on 2026-11-07 (paid account): no 5-hour window at all, only the weekly one.
+///   "five_hour": null,
+///   "seven_day": { "utilization": 23.0, "resets_at": "2026-11-11T09:59:59.650564+00:00", ... }
+///   "limits": [ { "kind": "weekly_all", "group": "weekly", "percent": 23, "severity": "normal",
+///                 "resets_at": "2026-11-11T09:59:59.650564+00:00", "scope": null, "is_active": true },
+///               { "kind": "weekly_scoped", "group": "weekly", "percent": 0, "resets_at": "...",
+///                 "scope": { "model": { "id": null, "display_name": "..." }, "surface": null }, "is_active": false } ]
+///   "spend": { "used": { "amount_minor": 0, "currency": "EUR", "exponent": 2 }, "limit": null, "percent": 0,
+///              "enabled": false, "disabled_reason": "out_of_credits", ... }
+///   plus "extra_usage", "seven_day_breakdown" and many keys set to null.
+/// Session is then null and Weekly alone is the reading; weekly_scoped (one model's own limit) is not shown.
+/// Neither window at all is still an error for the caller: nothing is ever made up.
 internal static class ClaudeUsageParser
 {
     internal sealed record Result(UsageWindow? Session, UsageWindow? Weekly, Money? Spent);

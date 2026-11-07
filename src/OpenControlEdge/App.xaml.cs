@@ -566,7 +566,7 @@ public partial class App : Application
             AiProviderId.OpenRouter => (_lastOpenRouter?.Message, null),
             _ => (null, null),
         };
-        if (id == AiProviderId.Claude && _lastClaude?.Session is not null
+        if (id == AiProviderId.Claude && _lastClaude is { HasUsage: true }
             || id == AiProviderId.Codex && _lastCodex?.Primary is not null
             || id == AiProviderId.Cursor && _lastCursor?.Cycle is not null
             || id == AiProviderId.OpenCode && _lastOpenCode is { Message: null }
@@ -1039,13 +1039,14 @@ public partial class App : Application
     }
 
     /// OCE's own last readings, for oce.json: the default account of each provider and the short window (Claude's
-    /// 5 h session, Codex's shorter window, Cursor's cycle), never anything that came from Orb. Providers without a
-    /// percentage (OpenCode, DeepSeek; OpenRouter without a limit) say only that they are read, with null values.
+    /// 5 h session, or its weekly limit when the account has no session window; Codex's shorter window, Cursor's
+    /// cycle), never anything that came from Orb. Providers without a percentage (OpenCode, DeepSeek; OpenRouter
+    /// without a limit) say only that they are read, with null values.
     private OceReading OwnReading()
     {
         var usage = ImmutableArray.CreateBuilder<OceUsage>();
-        if (_lastClaude is { Hidden: false, Session: UsageWindow session } claude)
-            usage.Add(new OceUsage("claude", session.Percent, session.ResetsAt, claude.Plan));
+        if (_lastClaude is { Hidden: false, Shortest: UsageWindow shortest } claude)
+            usage.Add(new OceUsage("claude", shortest.Percent, shortest.ResetsAt, claude.Plan));
         if (_lastCodex is { Hidden: false, Primary: CodexWindow primary } codex)
         {
             CodexWindow shorter = codex.Secondary is CodexWindow secondary
@@ -1084,7 +1085,7 @@ public partial class App : Application
     /// connected and has a percentage. Never for a hidden ring; the plan badge stays empty (Orb's account may be
     /// another one). Only shown: never cached, never written to oce.json.
     private ClaudeSnapshot WithOrbUsage(ClaudeSnapshot own) =>
-        own is { Hidden: false, Session: null } && _orb?.UsageFor("claude") is { UsedPct: double used } orb
+        own is { Hidden: false, HasUsage: false } && _orb?.UsageFor("claude") is { UsedPct: double used } orb
             ? new ClaudeSnapshot(false, new UsageWindow(used, orb.ResetAt), null, null, null) { Source = OrbSource(orb) }
             : own;
 
@@ -1174,7 +1175,7 @@ public partial class App : Application
 
         ClaudeSnapshot current = await _claude.FetchAsync();
         _claudeRetryError = null;
-        if (current is { Hidden: false, Session: not null })
+        if (current is { Hidden: false, HasUsage: true })
         {
             _claudeReadAt = DateTimeOffset.Now;
             return current;
@@ -1190,7 +1191,7 @@ public partial class App : Application
 
     /// The last good Claude reading marked as stale, or null when there is none or it is older than ClaudeStaleLimit.
     private ClaudeSnapshot? KeepClaudeReading(DateTimeOffset now) =>
-        _lastClaude is { Hidden: false, Session: not null } previous && _claudeReadAt is DateTimeOffset readAt
+        _lastClaude is { Hidden: false, HasUsage: true } previous && _claudeReadAt is DateTimeOffset readAt
         && now - readAt < ClaudeStaleLimit
             ? previous with { StaleSince = readAt }
             : null;
@@ -1504,7 +1505,7 @@ public partial class App : Application
     private void UpdateTooltip()
     {
         string claude = _lastClaude is null || _lastClaude.Hidden ? string.Empty
-            : _lastClaude.Session is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
+            : _lastClaude.Shortest is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
         string cpu = _lastCpu?.Temperature is double t ? Fmt.Celsius(t) : "--";
         string codex = _lastCodex is null || _lastCodex.Hidden ? string.Empty
             : $" · Codex {(_lastCodex.Primary is CodexWindow w ? Fmt.Percent(w.Percent) : "--")}";
@@ -1530,7 +1531,7 @@ public partial class App : Application
     {
         string claude = _lastClaude is null ? "pendiente"
             : _lastClaude.Hidden ? "no instalado"
-            : _lastClaude.Session is not null ? "ok" : _lastClaude.Message ?? "sin datos";
+            : _lastClaude.HasUsage ? (_lastClaude.HasNoSession ? "ok (solo semanal)" : "ok") : _lastClaude.Message ?? "sin datos";
         string codex = _lastCodex is null ? "pendiente"
             : _lastCodex.Hidden ? "no instalado"
             : _lastCodex.Primary is not null ? "ok" : _lastCodex.Message ?? "sin datos";

@@ -85,10 +85,11 @@ internal sealed class ClaudeUsageService
 
             string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             var usage = ClaudeUsageParser.Parse(body);
-            if (usage.Session is null)
+            // The weekly limit alone is a valid reading (seen 2026-11-07: no 5-hour window at all); neither is an error.
+            if (usage.Session is null && usage.Weekly is null)
             {
-                Log.Warn("Claude", "200 response without session data");
-                return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de sesión") with { Plan = plan, TokenExpiresAt = expiry };
+                Log.Warn("Claude", "200 response without session or weekly data");
+                return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de uso") with { Plan = plan, TokenExpiresAt = expiry };
             }
             RetryAfterUntil = null;
             return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan, TokenExpiresAt = expiry };

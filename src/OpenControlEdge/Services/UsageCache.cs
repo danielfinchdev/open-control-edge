@@ -57,11 +57,11 @@ internal static class UsageCache
             {
                 writer.WriteStartObject();
                 writer.WriteString("savedAt", now.ToString("o", CultureInfo.InvariantCulture));
-                if (claude is { Hidden: false, Session: UsageWindow session })
+                if (claude is { Hidden: false, HasUsage: true })
                 {
                     writer.WriteStartObject("claude");
                     WritePlan(writer, claude.Plan);
-                    WriteWindow(writer, "session", session);
+                    if (claude.Session is UsageWindow session) WriteWindow(writer, "session", session);
                     if (claude.Weekly is UsageWindow weekly) WriteWindow(writer, "weekly", weekly);
                     if (claude.Spent is Money spent) WriteMoney(writer, "spent", spent);
                     writer.WriteEndObject();
@@ -111,9 +111,13 @@ internal static class UsageCache
 
     private static ClaudeSnapshot? ReadClaude(JsonElement root, DateTimeOffset now)
     {
-        if (!Object(root, "claude", out JsonElement o) || Window(o, "session", now) is not UsageWindow session) return null;
-        UsageWindow? weekly = null;
+        if (!Object(root, "claude", out JsonElement o)) return null;
+        // Either window may be missing (an account without a 5-hour window is cached with the weekly one alone), but
+        // one that is there and has already reset makes the whole entry stale.
+        UsageWindow? session = null, weekly = null;
+        if (o.TryGetProperty("session", out _) && (session = Window(o, "session", now)) is null) return null;
         if (o.TryGetProperty("weekly", out _) && (weekly = Window(o, "weekly", now)) is null) return null;
+        if (session is null && weekly is null) return null;
         return new ClaudeSnapshot(false, session, weekly, MoneyOf(o, "spent"), null) { Plan = Text(o, "plan") };
     }
 

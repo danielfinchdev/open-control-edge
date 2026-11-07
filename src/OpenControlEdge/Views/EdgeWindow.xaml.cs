@@ -1571,17 +1571,30 @@ public partial class EdgeWindow : Window
         SetPlan(ClaudePlan, ClaudePlanText, HasAccountTags(AiProviderId.Claude) ? null : snapshot.Plan);
         SetInfoButton(ClaudeInfo, snapshot.Plan);
 
-        if (snapshot.Session is UsageWindow session)
+        if (snapshot.HasUsage)
         {
-            // "Total" shows the weekly limit; "--" when the response carried none.
+            // "Total" shows the weekly limit; "--" when the response carried none. An account without a 5-hour window
+            // (HasNoSession) shows the weekly limit in both views.
             bool total = _usageView == UsageView.Total;
-            if ((total ? snapshot.Weekly : session) is UsageWindow ringWindow)
+            bool noSession = snapshot.Session is null;
+            if ((total || noSession ? snapshot.Weekly : snapshot.Session) is UsageWindow ringWindow)
                 SetUsageRing(ClaudeRing, ClaudeLabel, Palette.Claude, ringWindow.Percent);
             else
                 ClearRing(ClaudeRing, ClaudeLabel);
 
-            SetPercentBar(SessionBar, session.Percent);
-            SessionValue.Text = Fmt.Used(session.Percent);
+            if (snapshot.Session is UsageWindow session)
+            {
+                SetPercentBar(SessionBar, session.Percent);
+                SessionBar.Visibility = Visibility.Visible;
+                SessionValue.Text = Fmt.Used(session.Percent);
+            }
+            else
+            {
+                // No bar: an empty one would read as 0 % used.
+                ClearBar(SessionBar);
+                SessionBar.Visibility = Visibility.Collapsed;
+                SessionValue.Text = Loc.Get("Value.NoSessionLimit");
+            }
 
             if (snapshot.Weekly is UsageWindow weekly)
             {
@@ -1594,8 +1607,10 @@ public partial class EdgeWindow : Window
                 WeeklyValue.Text = "--";
             }
 
+            // Without a session window the "Session" view also lists the weekly limit under it: it is the only number.
             ClaudeSessionRow.Visibility = total ? Visibility.Collapsed : Visibility.Visible;
-            ClaudeWeeklyRow.Visibility = total ? Visibility.Visible : Visibility.Collapsed;
+            ClaudeWeeklyRow.Visibility = total || noSession ? Visibility.Visible : Visibility.Collapsed;
+            ClaudeWeeklyRow.Margin = new Thickness(0, !total && noSession ? 11 : 0, 0, 0);
 
             if (snapshot.Spent is Money spent && spent.Amount > 0)
             {
@@ -2013,7 +2028,7 @@ public partial class EdgeWindow : Window
     {
         var now = DateTimeOffset.Now;
         ClaudeHeaderReset.Text = _claude?.Session is UsageWindow session ? Fmt.Reset(session.ResetsAt, now) : string.Empty;
-        if (_claude is { Session: not null, StaleSince: DateTimeOffset readAt })
+        if (_claude is { HasUsage: true, StaleSince: DateTimeOffset readAt })
         {
             ClaudeStale.Text = Loc.Format("Claude.Stale", Math.Max(1, (int)Math.Round((now - readAt).TotalMinutes)));
             ClaudeStale.Visibility = Visibility.Visible;

@@ -266,6 +266,37 @@ internal static class Snapshot
         window.ShowCardNow(EdgeWindow.RingClaude);
         window.SaveSnapshot(Path.Combine(directory, "31_card_claude_free.png"));
 
+        // The real response of 2026-11-07 (paid account, no 5-hour window), through the real parser: the weekly limit
+        // is the reading, on the ring in both views; the session row says there is none.
+        ClaudeUsageParser.Result weeklyOnly = ClaudeUsageParser.Parse(ClaudeWeeklyOnlyResponse);
+        if (weeklyOnly is not { Session: null, Weekly: { Percent: 23, ResetsAt: DateTimeOffset weeklyReset }, Spent: { Amount: 0m, Currency: "EUR" } }
+            || weeklyReset != new DateTimeOffset(2026, 11, 11, 9, 59, 59, 650, TimeSpan.Zero).AddTicks(5640)
+            || ClaudeUsageParser.Parse("""{"five_hour":null,"seven_day":null,"limits":[]}""") is not { Session: null, Weekly: null })
+            throw new InvalidDataException("Claude weekly-only parser check failed");
+        // The fixture's reset is in the past by now: shown three days ahead so the card reads like the live one.
+        var claudeWeeklyOnly = new ClaudeSnapshot(false, weeklyOnly.Session, weeklyOnly.Weekly! with { ResetsAt = now.AddDays(3).AddHours(14) },
+            weeklyOnly.Spent, null) { Plan = "max" };
+        window.SetClaude(claudeWeeklyOnly);
+        window.ShowCardNow(EdgeWindow.RingClaude);
+        if (!claudeWeeklyOnly.HasNoSession || window.ClaudeLabel.Text != Fmt.Percent(23)
+            || window.SessionValue.Text != Loc.Get("Value.NoSessionLimit") || window.SessionBar.Visibility != Visibility.Collapsed
+            || window.ClaudeWeeklyRow.Visibility != Visibility.Visible || window.ClaudeMetrics.Visibility != Visibility.Visible
+            || window.WeeklyReset.Text.Length == 0 || window.ClaudeHeaderReset.Text.Length != 0)
+            throw new InvalidDataException("Claude weekly-only card check failed (session view)");
+        window.SaveSnapshot(Path.Combine(directory, "31b_card_claude_weekly_only_session_view.png"));
+        window.ApplyUsageView(UsageView.Total);
+        if (window.ClaudeLabel.Text != Fmt.Percent(23) || window.ClaudeSessionRow.Visibility != Visibility.Collapsed
+            || window.ClaudeWeeklyRow.Visibility != Visibility.Visible)
+            throw new InvalidDataException("Claude weekly-only card check failed (total view)");
+        window.SaveSnapshot(Path.Combine(directory, "31c_card_claude_weekly_only_total_view.png"));
+        window.ApplyUsageView(UsageView.Session);
+        // The session window back: everything as before.
+        window.SetClaude(claude);
+        if (window.ClaudeLabel.Text != Fmt.Percent(32) || window.SessionBar.Visibility != Visibility.Visible
+            || window.ClaudeWeeklyRow.Visibility != Visibility.Collapsed || window.ClaudeHeaderReset.Text.Length == 0)
+            throw new InvalidDataException("Claude card check failed after the session window came back");
+        window.SaveSnapshot(Path.Combine(directory, "31d_card_claude_session_back.png"));
+
         window.SetClaude(claude);
         window.SetCodex(codexMonthly);
         window.SetCursor(CursorSnapshot.Absent());
@@ -595,6 +626,9 @@ internal static class Snapshot
         window.SetClaude(claude);
         window.ApplyViews(everything, animate: false);
     }
+
+    /// GET /api/oauth/usage as it answered on 2026-11-07 (paid account): no 5-hour window, only the weekly one.
+    private const string ClaudeWeeklyOnlyResponse = """{"five_hour":null,"seven_day":{"utilization":23.0,"resets_at":"2026-11-11T09:59:59.650564+00:00"},"seven_day_oauth_apps":null,"seven_day_opus":null,"seven_day_sonnet":null,"limits":[{"kind":"weekly_all","group":"weekly","percent":23,"severity":"normal","resets_at":"2026-11-11T09:59:59.650564+00:00","scope":null,"is_active":true},{"kind":"weekly_scoped","group":"weekly","percent":0,"resets_at":"2026-11-11T10:00:00+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":false}],"spend":{"used":{"amount_minor":0,"currency":"EUR","exponent":2},"limit":null,"percent":0,"enabled":false,"disabled_reason":"out_of_credits"},"extra_usage":null,"seven_day_breakdown":null}""";
 
     /// The subscription data of the (i) bubble and the latest Orb release, against the shapes seen on 2026-10-11.
     private static void CheckSubscriptionParsers()
