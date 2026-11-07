@@ -105,6 +105,14 @@
                         <!-- Outcome of the last renewal (App.RenewClaudeSessionAsync); cleared after a while. -->
                         <TextBlock x:Name="ClaudeNote" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- The default account has no session and another account is shown in its place
+                             (App.ShowClaude): a line to connect it, the same as Ajustes › Agentes › Conectar. -->
+                        <TextBlock x:Name="ClaudeMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="ClaudeMainSignedOut">
+                            <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
+                                Tag="Claude" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                AutomationProperties.AutomationId="ClaudeConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
+                        </TextBlock>
                         <!-- "Abrir Claude": its app, or its web page (AppLauncher). -->
                         <Button x:Name="ClaudeOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
                                 Click="OnOpenClick" AutomationProperties.AutomationId="ClaudeOpen">
@@ -157,6 +165,14 @@
 
                         <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- The default account has no session and another account is shown in its place
+                             (App.ShowCodex): a line to connect it, the same as Ajustes › Agentes › Conectar. -->
+                        <TextBlock x:Name="CodexMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="CodexMainSignedOut">
+                            <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
+                                Tag="Codex" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                AutomationProperties.AutomationId="CodexConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
+                        </TextBlock>
                         <!-- "Abrir Codex": its app, or its web page (AppLauncher). -->
                         <Button x:Name="CodexOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
                                 Click="OnOpenClick" AutomationProperties.AutomationId="CodexOpen">
@@ -197,6 +213,14 @@
                             </StackPanel>
                         </StackPanel>
                         <TextBlock x:Name="CursorMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
+                        <!-- The default account has no session and another account is shown in its place
+                             (App.ShowCursor): a line to connect it, the same as Ajustes › Agentes › Conectar. -->
+                        <TextBlock x:Name="CursorMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
+                                   Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="CursorMainSignedOut">
+                            <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
+                                Tag="Cursor" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                AutomationProperties.AutomationId="CursorConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
+                        </TextBlock>
                         <!-- "Abrir Cursor": its app, or its web page (AppLauncher). -->
                         <Button x:Name="CursorOpen" Style="{StaticResource CardRoundButton}" HorizontalAlignment="Right" Margin="0,10,0,0"
                                 Click="OnOpenClick" AutomationProperties.AutomationId="CursorOpen">

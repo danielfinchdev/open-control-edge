@@ -961,43 +961,7 @@ internal sealed class SettingsWindow : Window
                 actions.Children.Add(SmallButton(Loc.Get("Settings.ApiKey"), (_, _) => { _keyEditor = _keyEditor == id ? null : id; RenderPage(); }));
             else if (id is AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor && status.Kind is "session" or "missing")
             {
-                actions.Children.Add(SmallButton(Loc.Get("Settings.Connect"), (_, _) =>
-                {
-                    if (id == AiProviderId.Claude)
-                    {
-                        // The same sign-in as clicking the ring while signed out (ClaudeSessionRenewer.StartLogin).
-                        string? loginError = ClaudeSessionRenewer.StartLogin();
-                        if (loginError is not null) MessageBox.Show(DisplayError(loginError));
-                        else (Application.Current as App)?.WatchClaudeSignIn();
-                        return;
-                    }
-                    string name = id == AiProviderId.Codex ? "codex" : "cursor-agent";
-                    string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                    string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    var candidates = new List<string>
-                    {
-                        IOPath.Combine(profile, ".local", "bin", name + ".exe"),
-                        IOPath.Combine(profile, ".cursor", "bin", name + ".exe"),
-                        IOPath.Combine(appData, "npm", name + ".cmd"),
-                        IOPath.Combine(appData, "npm", name + ".exe"),
-                    };
-                    string? path = Environment.GetEnvironmentVariable("PATH");
-                    if (!string.IsNullOrWhiteSpace(path))
-                        foreach (string folder in path.Split(IOPath.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                            if (IOPath.IsPathFullyQualified(folder))
-                            {
-                                candidates.Add(IOPath.Combine(folder, name + ".exe"));
-                                candidates.Add(IOPath.Combine(folder, name + ".cmd"));
-                            }
-                    string? cli = candidates.FirstOrDefault(File.Exists);
-                    if (cli is null) { MessageBox.Show(Loc.Get("Settings.CliMissing")); return; }
-                    const string login = "login";
-                    bool script = IOPath.GetExtension(cli).Equals(".cmd", StringComparison.OrdinalIgnoreCase);
-                    string application = script ? IOPath.Combine(Environment.SystemDirectory, "cmd.exe") : cli;
-                    string arguments = script ? $"/d /s /c \"{UnelevatedLauncher.Quote(cli)} {login}\"" : login;
-                    var result = UnelevatedLauncher.Run(application, arguments, profile, hidden: false, wait: null);
-                    if (!result.Started) MessageBox.Show(result.Error is string error ? DisplayError(error) : Loc.Get("Settings.LoginFailed"));
-                }));
+                actions.Children.Add(SmallButton(Loc.Get("Settings.Connect"), (_, _) => ConnectAgent(id)));
             }
             if (status.Kind == "error" || (status.Kind == "session" && id is not (AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor)))
             {
@@ -1611,6 +1575,46 @@ internal sealed class SettingsWindow : Window
 
     /// A service message in the interface language (Loc: Strings.*.xaml).
     private static string DisplayError(string message) => Loc.Message(message) ?? message;
+
+    /// "Conectar" of Claude, Codex or Cursor: signs the default account in (also from the card's line when that account
+    /// has no session and another one is shown in its place).
+    internal static void ConnectAgent(AiProviderId id)
+    {
+        if (id == AiProviderId.Claude)
+        {
+            // The same sign-in as clicking the ring while signed out (ClaudeSessionRenewer.StartLogin).
+            string? loginError = ClaudeSessionRenewer.StartLogin();
+            if (loginError is not null) MessageBox.Show(DisplayError(loginError));
+            else (Application.Current as App)?.WatchClaudeSignIn();
+            return;
+        }
+        string name = id == AiProviderId.Codex ? "codex" : "cursor-agent";
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var candidates = new List<string>
+        {
+            IOPath.Combine(profile, ".local", "bin", name + ".exe"),
+            IOPath.Combine(profile, ".cursor", "bin", name + ".exe"),
+            IOPath.Combine(appData, "npm", name + ".cmd"),
+            IOPath.Combine(appData, "npm", name + ".exe"),
+        };
+        string? path = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrWhiteSpace(path))
+            foreach (string folder in path.Split(IOPath.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (IOPath.IsPathFullyQualified(folder))
+                {
+                    candidates.Add(IOPath.Combine(folder, name + ".exe"));
+                    candidates.Add(IOPath.Combine(folder, name + ".cmd"));
+                }
+        string? cli = candidates.FirstOrDefault(File.Exists);
+        if (cli is null) { MessageBox.Show(Loc.Get("Settings.CliMissing")); return; }
+        const string login = "login";
+        bool script = IOPath.GetExtension(cli).Equals(".cmd", StringComparison.OrdinalIgnoreCase);
+        string application = script ? IOPath.Combine(Environment.SystemDirectory, "cmd.exe") : cli;
+        string arguments = script ? $"/d /s /c \"{UnelevatedLauncher.Quote(cli)} {login}\"" : login;
+        var result = UnelevatedLauncher.Run(application, arguments, profile, hidden: false, wait: null);
+        if (!result.Started) MessageBox.Show(result.Error is string error ? DisplayError(error) : Loc.Get("Settings.LoginFailed"));
+    }
 
     internal static void SaveSnapshots(string directory)
     {

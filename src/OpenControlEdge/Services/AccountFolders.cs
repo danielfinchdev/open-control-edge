@@ -55,6 +55,19 @@ internal static class AccountFolders
         return at < 0 ? 0 : at + 1;
     }
 
+    /// Whether the card leaves the default account out: it has no session (signed out, never signed in) while an extra
+    /// account is there. The card then shows the extra accounts alone — one is a single-account card — with a line to
+    /// connect the default one.
+    public static bool HidesMain(bool mainSignedOut, int visibleExtras) => mainSignedOut && visibleExtras > 0;
+
+    /// The account a card shows: 0 for the default one, n for the visible extra n. With the default account left out
+    /// (HidesMain) the chosen one, or else the first extra account.
+    public static int ShownAccount(Settings settings, string provider, IEnumerable<ExtraAccount> visible, bool hidesMain)
+    {
+        int shown = ShownIndex(settings, provider, visible);
+        return hidesMain && shown == 0 ? 1 : shown;
+    }
+
     /// The settings' index (SelectedAccounts) of the account behind a card tab: 0 for the default one.
     public static int SettingsIndex(Settings settings, string provider, ExtraAccount? shown)
     {

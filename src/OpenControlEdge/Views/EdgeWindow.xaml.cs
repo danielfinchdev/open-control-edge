@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -189,6 +190,8 @@ public partial class EdgeWindow : Window
 
     /// An account tag of a card was chosen (0 = the default account). The owner persists it and repaints the ring.
     internal event Action<AiProviderId, int>? AccountSelected;
+    /// "Conectar" on the line of a card whose default account has no session (SetMainSignedOut).
+    internal event Action<AiProviderId>? ConnectMainRequested;
 
     /// The (i) of a card was opened: the owner answers with ShowSubscription (at once, or after asking the provider).
     internal event Action<AiProviderId>? SubscriptionRequested;
@@ -662,6 +665,30 @@ public partial class EdgeWindow : Window
         }
         _syncingAccounts = false;
         if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    /// The line under a card whose default account has no session while another account is shown in its place:
+    /// "Cuenta principal sin sesión · Conectar".
+    internal void SetMainSignedOut(AiProviderId provider, bool on)
+    {
+        TextBlock? line = provider switch
+        {
+            AiProviderId.Claude => ClaudeMainSignedOut,
+            AiProviderId.Codex => CodexMainSignedOut,
+            AiProviderId.Cursor => CursorMainSignedOut,
+            _ => null,
+        };
+        Visibility visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (line is null || line.Visibility == visibility) return;
+        line.Visibility = visibility;
+        if (_cardVisible) PlaceCard(animate: true);
+    }
+
+    private void OnConnectMainClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Hyperlink { Tag: string tag } || !Enum.TryParse(tag, out AiProviderId provider)) return;
+        Log.Trace("Edge", $"{provider} connect the default account");
+        ConnectMainRequested?.Invoke(provider);
     }
 
     private bool HasAccountTags(AiProviderId provider) => _accounts.TryGetValue(provider, out var shown) && shown.Labels.Length > 1;

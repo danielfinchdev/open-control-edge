@@ -228,6 +228,12 @@ There's still one ring per AI. Next to the card's title there's a label per acco
 account and the choice is remembered; with more than three, the labels move to a second line and the card widens as
 much as needed.
 
+Only accounts that are really there count. An additional account whose folder or session file is gone is neither shown
+nor read (Settings → Agents → Accounts marks it as "Not found"). If the main account (the AI's default folder) isn't
+signed in but another account is, the card shows that one instead, as a single-account card when it's the only one, with
+a line underneath, "Main account not signed in · Connect", that starts the same sign-in as Settings → Agents. The tray
+tooltip and the saved readings follow the account on screen.
+
 **You don't need to add them.** After each start, in the background and at low priority, the widget looks for your
 other Claude Code, Codex and Cursor sessions in your user folder and on every fixed drive (C:, D:…), up to six levels
 deep, without following links and skipping Windows, Program Files, ProgramData, recycle bins, `node_modules` and the

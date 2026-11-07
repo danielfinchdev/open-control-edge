@@ -519,6 +519,29 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "87c_card_codex_missing_account.png"));
         window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
 
+        // The default Codex account has no session and one extra account is there: a single-account card with that
+        // account (ring, plan badge) and the line to connect the default one; with two extra accounts, their two tags.
+        CheckMainSignedOut(directory, out List<string> oneLabels, out int oneTab, out List<string> twoLabels, out int twoTab);
+        var standIn = new CodexSnapshot(false, new CodexWindow(37, TimeSpan.FromDays(7), DateTimeOffset.Now.AddDays(4)), null, null) { Plan = "pro" };
+        window.SetAccounts(AiProviderId.Codex, oneLabels, oneTab);
+        window.SetCodex(standIn);
+        window.SetMainSignedOut(AiProviderId.Codex, true);
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        if (window.CodexMainSignedOut.Visibility != Visibility.Visible || window.CodexPlan.Visibility != Visibility.Visible
+            || window.CodexAccountBadges.Visibility != Visibility.Collapsed || window.CodexLabel.Text != Fmt.Percent(37)
+            || window.CodexPlanText.Text != Fmt.Plan("pro"))
+            throw new InvalidDataException("Main signed out check failed: one extra account is not a single-account card with the line");
+        window.SaveSnapshot(Path.Combine(directory, "87d_card_codex_main_signed_out.png"));
+        window.SetAccounts(AiProviderId.Codex, twoLabels, twoTab);
+        window.SetCodex(standIn with { Primary = new CodexWindow(64, TimeSpan.FromDays(7), DateTimeOffset.Now.AddDays(2)), Plan = "plus" });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        if (window.CodexMainSignedOut.Visibility != Visibility.Visible || window.CodexAccountBadges.Children.Count != 2
+            || window.CodexAccountBadges.Children[twoTab] is not RadioButton { IsChecked: true } || window.CodexLabel.Text != Fmt.Percent(64))
+            throw new InvalidDataException("Main signed out check failed: two extra accounts are not two tags with the line");
+        window.SaveSnapshot(Path.Combine(directory, "87e_card_codex_main_signed_out_two.png"));
+        window.SetMainSignedOut(AiProviderId.Codex, false);
+        window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
+
         // Every edge, centred, with a card open; then manual placement (the ✕ becomes the drag handle) on the right.
         foreach (PanelEdge edge in new[] { PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom })
         {
@@ -717,6 +740,69 @@ internal static class Snapshot
                 || AccountFolders.IsPresent(AiProviderSettings.Claude, gone)
                 || AccountFolders.IsPresent(AiProviderSettings.Cursor, Path.Combine(root, "Cursor-2")))
                 throw new InvalidDataException("Missing account check failed: Claude or Cursor login files");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// A default account without a session is left out of the card while an extra account is there
+    /// (AccountFolders.HidesMain): one extra account is a single tag (a single-account card) and shown even when the
+    /// settings choose the default one; with two, both are tags, the chosen one stays shown and a tab still maps back to
+    /// its settings' index by folder, also with a missing account between them. Gives the labels and tab of both cases.
+    private static void CheckMainSignedOut(string directory, out List<string> oneLabels, out int oneTab, out List<string> twoLabels, out int twoTab)
+    {
+        string root = Path.Combine(directory, "accounts-main-signed-out-fixture");
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        try
+        {
+            string work = Path.Combine(root, ".codex-work"), home = Path.Combine(root, ".codex-home"), gone = Path.Combine(root, ".codex-gone");
+            foreach (string folder in new[] { work, home })
+            {
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder, "auth.json"), "{}");
+            }
+            Settings Accounts(int selected, params string[] folders) => Settings.Defaults with
+            {
+                Accounts = new Dictionary<string, System.Collections.Immutable.ImmutableArray<ExtraAccount>>
+                {
+                    [AiProviderSettings.Codex] = [.. folders.Select(f => new ExtraAccount("", f))],
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                SelectedAccounts = new Dictionary<string, int> { [AiProviderSettings.Codex] = selected }.ToFrozenDictionary(StringComparer.Ordinal),
+            };
+            bool Present(string folder) => AccountFolders.IsPresent(AiProviderSettings.Codex, folder);
+            const string codex = AiProviderSettings.Codex;
+
+            // Only a sign-in message of the default account, and only with an extra account there, leaves it out.
+            bool signedOut = AiDetector.NeedsSignIn(CodexSnapshot.NotAvailable(AiDetector.CodexLoginMessage).Message);
+            if (!signedOut || !AiDetector.NeedsSignIn(AiDetector.ClaudeLoginMessage) || !AiDetector.NeedsSignIn(AiDetector.CursorLoginMessage)
+                || !AccountFolders.HidesMain(true, 1) || AccountFolders.HidesMain(true, 0) || AccountFolders.HidesMain(false, 2)
+                || AiDetector.NeedsSignIn("Cargando…"))
+                throw new InvalidDataException("Main signed out check failed: when the default account is left out");
+
+            Settings one = Accounts(0, work);
+            List<ExtraAccount> visible = AccountFolders.Visible(one, codex, Present);
+            bool hides = AccountFolders.HidesMain(signedOut, visible.Count);
+            int account = AccountFolders.ShownAccount(one, codex, visible, hides);
+            oneTab = account - 1;
+            oneLabels = App.AccountLabels(one, codex, null, visible.Select(a => (a, (string?)Fmt.Plan("pro"))), withMain: !hides);
+            if (!hides || account != 1 || oneLabels.Count != 1 || oneLabels[0] != Fmt.Plan("pro")
+                || AccountFolders.ShownAccount(one, codex, visible, false) != 0)
+                throw new InvalidDataException($"Main signed out check failed: one extra account (account {account}, {oneLabels.Count} tags)");
+
+            Settings two = Accounts(3, work, gone, home);
+            visible = AccountFolders.Visible(two, codex, Present);
+            hides = AccountFolders.HidesMain(signedOut, visible.Count);
+            account = AccountFolders.ShownAccount(two, codex, visible, hides);
+            twoTab = account - 1;
+            twoLabels = App.AccountLabels(two, codex, null,
+                visible.Select((a, i) => (a, (string?)Fmt.Plan(i == 0 ? "pro" : "plus"))), withMain: !hides);
+            if (visible.Count != 2 || account != 2 || twoLabels.Count != 2
+                || AccountFolders.SettingsIndex(two, codex, visible[twoTab]) != 3 || AccountFolders.SettingsIndex(two, codex, visible[0]) != 1
+                || AccountFolders.ShownAccount(Accounts(0, work, gone, home), codex, visible, hides) != 1
+                || AccountFolders.ShownAccount(Accounts(2, work, gone, home), codex, visible, hides) != 1)
+                throw new InvalidDataException($"Main signed out check failed: two extra accounts (account {account}, {twoLabels.Count} tags)");
         }
         finally
         {

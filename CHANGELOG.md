@@ -7,6 +7,10 @@
   one again, and if the missing account was the chosen one the main account is shown. The entry stays in the settings (it
   comes back with its folder, e.g. an external drive) and Settings › Agents › Accounts marks it as "Not found" so it can
   be deleted.
+- **Main account not signed in.** When the default Claude Code, Codex or Cursor account has no session but an extra
+  account does, the card shows the extra account (ring, plan badge, (i), tray tooltip and cache all follow it) instead of
+  a "sign in" tab; with one extra account it's a single-account card. A line under it, "Main account not signed in ·
+  Connect", starts the same sign-in as Settings › Agents.
 
 ## 3.1.1 — 2026-11-07
 

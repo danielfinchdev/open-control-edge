@@ -283,6 +283,7 @@ public partial class App : Application
             _edge.ApplyViews(updated ?? SettingsStore.Load() with { View = view }, animate: true);
         };
         _edge.AccountSelected += SelectAccount;
+        _edge.ConnectMainRequested += SettingsWindow.ConnectAgent;
         _edge.SubscriptionRequested += provider => _ = ShowSubscriptionAsync(provider);
         _edge.OpenRequested += OpenAgent;
         _edge.GameModeClicked += () => _ = ToggleGameModeAsync();
@@ -608,8 +609,10 @@ public partial class App : Application
                 _firstDataLogged = true;
                 LogStartup("primera lectura de red pintada");
             }
-            // A stale Claude reading is not saved again: savedAt would make it look newer than it is.
-            UsageCache.Save(_lastClaude is { StaleSince: null } ? _lastClaude : null, _lastCodex, _lastCursor, DateTimeOffset.Now);
+            // A stale Claude reading is not saved again: savedAt would make it look newer than it is. Each agent is saved
+            // with the account that stands for it (the one shown while the default account has no session).
+            ClaudeSnapshot? claude = ClaudeReading();
+            UsageCache.Save(claude is { StaleSince: null } ? claude : null, CodexReading(), CursorReading(), DateTimeOffset.Now);
             _lastUsageRefresh = DateTimeOffset.Now;
             ArmAutoRenew();
             Log.Trace("Usage", "refresh finished");
@@ -672,46 +675,85 @@ public partial class App : Application
     }
 
     /// The ring and card show the chosen account: the default one, or an extra one (still loading until first read).
+    /// A default account without a session is left out while an extra one is there (AccountFolders.HidesMain): the tags
+    /// are the extra accounts alone and a line under the card offers to connect it.
     private void ShowClaude(Settings s)
     {
         if (_edge is null || _lastClaude is null) return;
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
+        bool hidesMain = ClaudeHidesMain;
+        int account = ClaudeAccount(s);
         _edge.SetAccounts(AiProviderId.Claude, AccountLabels(s, AiProviderSettings.Claude, Fmt.Plan(_lastClaude.Plan, _lastClaude.RateLimitTier),
-            _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i) is { } r ? Fmt.Plan(r.Plan, r.RateLimitTier) : null))), index);
-        _edge.SetClaude(_lastClaude.Hidden || index == 0 ? _lastClaude
-            : _claudeExtraReadings.ElementAtOrDefault(index - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
+            _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i) is { } r ? Fmt.Plan(r.Plan, r.RateLimitTier) : null)), !hidesMain),
+            hidesMain ? account - 1 : account);
+        _edge.SetClaude(_lastClaude.Hidden || account == 0 ? _lastClaude
+            : _claudeExtraReadings.ElementAtOrDefault(account - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
+        _edge.SetMainSignedOut(AiProviderId.Claude, hidesMain);
     }
 
     private void ShowCodex(Settings s)
     {
         if (_edge is null || _lastCodex is null) return;
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account));
+        bool hidesMain = CodexHidesMain;
+        int account = CodexAccount(s);
         _edge.SetAccounts(AiProviderId.Codex, AccountLabels(s, AiProviderSettings.Codex, Fmt.Plan(_lastCodex.Plan),
-            _codexExtras.Select((e, i) => (e.Account, Fmt.Plan(_codexExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
-        _edge.SetCodex(_lastCodex.Hidden || index == 0 ? _lastCodex
-            : _codexExtraReadings.ElementAtOrDefault(index - 1) ?? CodexSnapshot.Failed("Cargando…"));
+            _codexExtras.Select((e, i) => (e.Account, Fmt.Plan(_codexExtraReadings.ElementAtOrDefault(i)?.Plan))), !hidesMain),
+            hidesMain ? account - 1 : account);
+        _edge.SetCodex(_lastCodex.Hidden || account == 0 ? _lastCodex
+            : _codexExtraReadings.ElementAtOrDefault(account - 1) ?? CodexSnapshot.Failed("Cargando…"));
+        _edge.SetMainSignedOut(AiProviderId.Codex, hidesMain);
     }
 
     private void ShowCursor(Settings s)
     {
         if (_edge is null || _lastCursor is null) return;
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account));
+        bool hidesMain = CursorHidesMain;
+        int account = CursorAccount(s);
         _edge.SetAccounts(AiProviderId.Cursor, AccountLabels(s, AiProviderSettings.Cursor, Fmt.Plan(_lastCursor.Plan),
-            _cursorExtras.Select((e, i) => (e.Account, Fmt.Plan(_cursorExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
-        _edge.SetCursor(_lastCursor.Hidden || index == 0 ? _lastCursor
-            : _cursorExtraReadings.ElementAtOrDefault(index - 1) ?? CursorSnapshot.Failed("Cargando…"));
+            _cursorExtras.Select((e, i) => (e.Account, Fmt.Plan(_cursorExtraReadings.ElementAtOrDefault(i)?.Plan))), !hidesMain),
+            hidesMain ? account - 1 : account);
+        _edge.SetCursor(_lastCursor.Hidden || account == 0 ? _lastCursor
+            : _cursorExtraReadings.ElementAtOrDefault(account - 1) ?? CursorSnapshot.Failed("Cargando…"));
+        _edge.SetMainSignedOut(AiProviderId.Cursor, hidesMain);
     }
+
+    /// Whether the card leaves the default account out: no session, and an extra account there (AccountFolders.HidesMain).
+    private bool ClaudeHidesMain => _lastClaude is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _claudeExtras.Length);
+    private bool CodexHidesMain => _lastCodex is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _codexExtras.Length);
+    private bool CursorHidesMain => _lastCursor is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _cursorExtras.Length);
+
+    /// The account the card shows: 0 for the default one, n for the extra account n (_claudeExtras[n - 1]…).
+    private int ClaudeAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account), ClaudeHidesMain);
+    private int CodexAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account), CodexHidesMain);
+    private int CursorAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account), CursorHidesMain);
+
+    /// The reading that stands for an agent outside its card (tray tooltip, status log line, cache): the default
+    /// account's, or that of the account shown in its place while the default one has no session.
+    private ClaudeSnapshot? ClaudeReading() =>
+        ClaudeHidesMain ? _claudeExtraReadings.ElementAtOrDefault(ClaudeAccount(SettingsStore.Load()) - 1) ?? _lastClaude : _lastClaude;
+    private CodexSnapshot? CodexReading() =>
+        CodexHidesMain ? _codexExtraReadings.ElementAtOrDefault(CodexAccount(SettingsStore.Load()) - 1) ?? _lastCodex : _lastCodex;
+    private CursorSnapshot? CursorReading() =>
+        CursorHidesMain ? _cursorExtraReadings.ElementAtOrDefault(CursorAccount(SettingsStore.Load()) - 1) ?? _lastCursor : _lastCursor;
 
     /// A card's account tab was chosen: saved, then the ring repaints from the readings already in memory.
     private void SelectAccount(AiProviderId provider, int index)
     {
         string key = AiProviderSettings.Key(provider);
-        // The tabs are the accounts present (AccountFolders); the settings count every account, present or not.
-        ExtraAccount? shown = index <= 0 ? null : provider switch
+        // The tabs are the accounts present (AccountFolders), without the default one while it is left out; the settings
+        // count every account, present or not.
+        bool hidesMain = provider switch
         {
-            AiProviderId.Claude => _claudeExtras.ElementAtOrDefault(index - 1).Account,
-            AiProviderId.Codex => _codexExtras.ElementAtOrDefault(index - 1).Account,
-            AiProviderId.Cursor => _cursorExtras.ElementAtOrDefault(index - 1).Account,
+            AiProviderId.Claude => ClaudeHidesMain,
+            AiProviderId.Codex => CodexHidesMain,
+            AiProviderId.Cursor => CursorHidesMain,
+            _ => false,
+        };
+        int account = hidesMain ? index + 1 : index;
+        ExtraAccount? shown = account <= 0 ? null : provider switch
+        {
+            AiProviderId.Claude => _claudeExtras.ElementAtOrDefault(account - 1).Account,
+            AiProviderId.Codex => _codexExtras.ElementAtOrDefault(account - 1).Account,
+            AiProviderId.Cursor => _cursorExtras.ElementAtOrDefault(account - 1).Account,
             _ => null,
         };
         Settings? updated = SettingsStore.Update(x =>
@@ -822,11 +864,12 @@ public partial class App : Application
 
     /// The tag of each account: the name given in Ajustes, else its plan ("Go", "Pro"), else "Cuenta 2". Equal tags get
     /// a number ("Pro", "Pro 2") so the two can be told apart. The plans come as Fmt.Plan made them (with Claude's
-    /// rate-limit tier: "Ultra"), the same text as the card's plan badge.
+    /// rate-limit tier: "Ultra"), the same text as the card's plan badge. Without the default account (no session, left
+    /// out of the card), the extra accounts alone.
     internal static List<string> AccountLabels(Settings settings, string provider, string? mainPlan,
-        IEnumerable<(ExtraAccount Account, string? Plan)> extras)
+        IEnumerable<(ExtraAccount Account, string? Plan)> extras, bool withMain = true)
     {
-        var labels = new List<string> { settings.MainAccountName(provider) ?? mainPlan ?? Loc.Format("Account.Fallback", 1) };
+        List<string> labels = withMain ? [settings.MainAccountName(provider) ?? mainPlan ?? Loc.Format("Account.Fallback", 1)] : [];
         int number = 2;
         foreach ((ExtraAccount account, string? plan) in extras)
             labels.Add(account.Name.Length > 0 ? account.Name : plan ?? Loc.Format("Account.Fallback", number++ ));
@@ -934,7 +977,7 @@ public partial class App : Application
 
     private async Task<string> ClaudeSubscriptionText(Settings s)
     {
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
+        int index = ClaudeAccount(s);
         ClaudeUsageService? service = index == 0 ? _claude : _claudeExtras.ElementAtOrDefault(index - 1).Service;
         if (service is null) return Loc.Format("Sub.Unknown", "Claude");
         (ClaudeSubscription? subscription, string? error) = await service.FetchSubscriptionAsync();
@@ -949,7 +992,7 @@ public partial class App : Application
 
     private string CodexSubscriptionText(Settings s)
     {
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account));
+        int index = CodexAccount(s);
         CodexSnapshot? shown = index == 0 ? _lastCodex : _codexExtraReadings.ElementAtOrDefault(index - 1);
         if (shown?.SubscriptionUntil is not DateTimeOffset until) return Loc.Format("Sub.Unknown", "Codex");
         // The id_token is only renewed with the login: a date already past means it renewed since, monthly.
@@ -958,7 +1001,7 @@ public partial class App : Application
 
     private string CursorSubscriptionText(Settings s)
     {
-        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account));
+        int index = CursorAccount(s);
         CursorSnapshot? shown = index == 0 ? _lastCursor : _cursorExtraReadings.ElementAtOrDefault(index - 1);
         return shown?.Cycle?.ResetsAt is DateTimeOffset renews ? Loc.Format("Sub.Renews", Day(renews)) : Loc.Format("Sub.Unknown", "Cursor");
     }
@@ -1223,7 +1266,7 @@ public partial class App : Application
             Log.Info("Claude", automatic ? "renovación automática de la sesión" : "renovación de sesión pedida desde el anillo");
 
             // A click renews the account the ring shows (its CLAUDE_CONFIG_DIR); the background renewal, the default one.
-            int shown = automatic ? 0 : AccountFolders.ShownIndex(SettingsStore.Load(), AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
+            int shown = automatic ? 0 : ClaudeAccount(SettingsStore.Load());
             string? folder = shown > 0 ? _claudeExtras.ElementAtOrDefault(shown - 1).Account?.Folder : null;
             RenewResult result = await ClaudeSessionRenewer.RenewAsync(folder);
             Log.Info("Claude", $"renovación: {result.Outcome}");
@@ -1434,13 +1477,16 @@ public partial class App : Application
 
     private void UpdateTooltip()
     {
-        string claude = _lastClaude is null || _lastClaude.Hidden ? string.Empty
-            : _lastClaude.Shortest is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
+        ClaudeSnapshot? lastClaude = ClaudeReading();
+        CodexSnapshot? lastCodex = CodexReading();
+        CursorSnapshot? lastCursor = CursorReading();
+        string claude = lastClaude is null || lastClaude.Hidden ? string.Empty
+            : lastClaude.Shortest is UsageWindow s ? Fmt.Percent(s.Percent) : "--";
         string cpu = _lastCpu?.Temperature is double t ? Fmt.Celsius(t) : "--";
-        string codex = _lastCodex is null || _lastCodex.Hidden ? string.Empty
-            : $" · Codex {(_lastCodex.Primary is CodexWindow w ? Fmt.Percent(w.Percent) : "--")}";
-        string cursor = _lastCursor is null || _lastCursor.Hidden ? string.Empty
-            : $" · Cursor {(_lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
+        string codex = lastCodex is null || lastCodex.Hidden ? string.Empty
+            : $" · Codex {(lastCodex.Primary is CodexWindow w ? Fmt.Percent(w.Percent) : "--")}";
+        string cursor = lastCursor is null || lastCursor.Hidden ? string.Empty
+            : $" · Cursor {(lastCursor.Cycle is UsageWindow c ? Fmt.Percent(c.Percent) : "--")}";
         string gpu = _lastGpu is null || !_lastGpu.Detected ? string.Empty
             : $" · GPU {(_lastGpu.Temperature is double g ? Fmt.Celsius(g) : "--")}";
         gpu += _lastRam is { Message: null } ram ? $" · RAM {Fmt.Percent(ram.Percent)}" : string.Empty;
@@ -1459,15 +1505,23 @@ public partial class App : Application
     /// One log line whenever a source changes between available and failing (not on every refresh).
     private void LogStatusChange()
     {
-        string claude = _lastClaude is null ? "pendiente"
-            : _lastClaude.Hidden ? "no instalado"
-            : _lastClaude.HasUsage ? (_lastClaude.HasNoSession ? "ok (solo semanal)" : "ok") : _lastClaude.Message ?? "sin datos";
-        string codex = _lastCodex is null ? "pendiente"
-            : _lastCodex.Hidden ? "no instalado"
-            : _lastCodex.Primary is not null ? "ok" : _lastCodex.Message ?? "sin datos";
-        string cursor = _lastCursor is null ? "pendiente"
-            : _lastCursor.Hidden ? "no instalado"
-            : _lastCursor.Cycle is not null ? "ok" : _lastCursor.Message ?? "sin datos";
+        // The account each card shows, marked when it stands in for a default account without a session.
+        ClaudeSnapshot? lastClaude = ClaudeReading();
+        CodexSnapshot? lastCodex = CodexReading();
+        CursorSnapshot? lastCursor = CursorReading();
+        const string standIn = " (otra cuenta; la principal sin sesión)";
+        string claude = (lastClaude is null ? "pendiente"
+            : lastClaude.Hidden ? "no instalado"
+            : lastClaude.HasUsage ? (lastClaude.HasNoSession ? "ok (solo semanal)" : "ok") : lastClaude.Message ?? "sin datos")
+            + (ClaudeHidesMain ? standIn : "");
+        string codex = (lastCodex is null ? "pendiente"
+            : lastCodex.Hidden ? "no instalado"
+            : lastCodex.Primary is not null ? "ok" : lastCodex.Message ?? "sin datos")
+            + (CodexHidesMain ? standIn : "");
+        string cursor = (lastCursor is null ? "pendiente"
+            : lastCursor.Hidden ? "no instalado"
+            : lastCursor.Cycle is not null ? "ok" : lastCursor.Message ?? "sin datos")
+            + (CursorHidesMain ? standIn : "");
         string openCode = _lastOpenCode is null ? "pendiente" : _lastOpenCode.Hidden ? "no instalado" : _lastOpenCode.Message is null ? "ok" : _lastOpenCode.Message;
         string deepSeek = _lastDeepSeek is null ? "pendiente" : _lastDeepSeek.Hidden ? "sin clave" : _lastDeepSeek.Balance is not null ? "ok" : _lastDeepSeek.Message ?? "sin datos";
         string openRouter = _lastOpenRouter is null ? "pendiente" : _lastOpenRouter.Hidden ? "sin clave" : _lastOpenRouter.Message is null ? "ok" : _lastOpenRouter.Message;

@@ -506,6 +506,7 @@
     <sys:String x:Key="Account.Fallback">Account {0}</sys:String>
     <sys:String x:Key="Account.Switch">Show the {0} account</sys:String>
     <sys:String x:Key="Account.Shown">{0}: the account shown</sys:String>
+    <sys:String x:Key="Account.MainSignedOut">Main account not signed in</sys:String>
     <sys:String x:Key="Card.Open">Open {0}</sys:String>
     <sys:String x:Key="Tip.Info">Subscription</sys:String>
     <sys:String x:Key="Sub.Title">Subscription</sys:String>
