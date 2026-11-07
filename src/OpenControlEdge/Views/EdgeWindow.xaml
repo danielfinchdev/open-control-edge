@@ -110,7 +110,7 @@
                         <TextBlock x:Name="ClaudeMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="ClaudeMainSignedOut">
                             <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
-                                Tag="Claude" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                Tag="Claude" Click="OnConnectMainClick" Focusable="False" Foreground="{DynamicResource Theme.Text}"
                                 AutomationProperties.AutomationId="ClaudeConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
                         </TextBlock>
                         <!-- "Abrir Claude": its app, or its web page (AppLauncher). -->
@@ -170,7 +170,7 @@
                         <TextBlock x:Name="CodexMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="CodexMainSignedOut">
                             <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
-                                Tag="Codex" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                Tag="Codex" Click="OnConnectMainClick" Focusable="False" Foreground="{DynamicResource Theme.Text}"
                                 AutomationProperties.AutomationId="CodexConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
                         </TextBlock>
                         <!-- "Abrir Codex": its app, or its web page (AppLauncher). -->
@@ -218,7 +218,7 @@
                         <TextBlock x:Name="CursorMainSignedOut" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                                    Margin="0,11,0,0" Visibility="Collapsed" AutomationProperties.AutomationId="CursorMainSignedOut">
                             <Run Text="{DynamicResource Account.MainSignedOut}" /><Run Text=" · " /><Hyperlink
-                                Tag="Cursor" Click="OnConnectMainClick" Foreground="{DynamicResource Theme.Text}"
+                                Tag="Cursor" Click="OnConnectMainClick" Focusable="False" Foreground="{DynamicResource Theme.Text}"
                                 AutomationProperties.AutomationId="CursorConnectMain"><Run Text="{DynamicResource Settings.Connect}" /></Hyperlink>
                         </TextBlock>
                         <!-- "Abrir Cursor": its app, or its web page (AppLauncher). -->

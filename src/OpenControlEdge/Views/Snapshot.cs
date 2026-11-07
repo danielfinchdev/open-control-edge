@@ -780,6 +780,10 @@ internal static class Snapshot
                 || !AccountFolders.HidesMain(true, 1) || AccountFolders.HidesMain(true, 0) || AccountFolders.HidesMain(false, 2)
                 || AiDetector.NeedsSignIn("Cargando…"))
                 throw new InvalidDataException("Main signed out check failed: when the default account is left out");
+            // The decision holds through a loading or failed reading, and only a reading with data brings the default back.
+            if (!AccountFolders.StaysSignedOut(true, false, false) || AccountFolders.StaysSignedOut(true, false, true)
+                || !AccountFolders.StaysSignedOut(false, true, false) || AccountFolders.StaysSignedOut(false, false, false))
+                throw new InvalidDataException("Main signed out check failed: the layout would switch on a loading or failed reading");
 
             Settings one = Accounts(0, work);
             List<ExtraAccount> visible = AccountFolders.Visible(one, codex, Present);

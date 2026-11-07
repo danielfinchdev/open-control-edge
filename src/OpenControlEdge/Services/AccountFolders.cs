@@ -60,6 +60,11 @@ internal static class AccountFolders
     /// connect the default one.
     public static bool HidesMain(bool mainSignedOut, int visibleExtras) => mainSignedOut && visibleExtras > 0;
 
+    /// Whether the default account still counts as signed out after a new reading of it: a sign-in message says yes, a
+    /// reading with data says no, and anything else ("Cargando…", a network or server error) keeps the last decision, so
+    /// the card does not jump between layouts on every refresh while the default account is signed out and offline.
+    public static bool StaysSignedOut(bool before, bool needsSignIn, bool hasData) => needsSignIn || (before && !hasData);
+
     /// The account a card shows: 0 for the default one, n for the visible extra n. With the default account left out
     /// (HidesMain) the chosen one, or else the first extra account.
     public static int ShownAccount(Settings settings, string provider, IEnumerable<ExtraAccount> visible, bool hidesMain)

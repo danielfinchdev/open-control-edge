@@ -609,10 +609,9 @@ public partial class App : Application
                 _firstDataLogged = true;
                 LogStartup("primera lectura de red pintada");
             }
-            // A stale Claude reading is not saved again: savedAt would make it look newer than it is. Each agent is saved
-            // with the account that stands for it (the one shown while the default account has no session).
-            ClaudeSnapshot? claude = ClaudeReading();
-            UsageCache.Save(claude is { StaleSince: null } ? claude : null, CodexReading(), CursorReading(), DateTimeOffset.Now);
+            // A stale Claude reading is not saved again: savedAt would make it look newer than it is. The cache holds the
+            // default accounts only (it is painted as theirs at start); one without a session is simply left out.
+            UsageCache.Save(_lastClaude is { StaleSince: null } ? _lastClaude : null, _lastCodex, _lastCursor, DateTimeOffset.Now);
             _lastUsageRefresh = DateTimeOffset.Now;
             ArmAutoRenew();
             Log.Trace("Usage", "refresh finished");
@@ -717,16 +716,22 @@ public partial class App : Application
     }
 
     /// Whether the card leaves the default account out: no session, and an extra account there (AccountFolders.HidesMain).
-    private bool ClaudeHidesMain => _lastClaude is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _claudeExtras.Length);
-    private bool CodexHidesMain => _lastCodex is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _codexExtras.Length);
-    private bool CursorHidesMain => _lastCursor is { Hidden: false } c && AccountFolders.HidesMain(AiDetector.NeedsSignIn(c.Message), _cursorExtras.Length);
+    /// "No session" is sticky (AccountFolders.StaysSignedOut): a loading or failed reading of the default account keeps
+    /// the last decision. Every reading of it goes through here (Show*, the tooltip), so the decision follows each one.
+    private bool ClaudeHidesMain => _lastClaude is { Hidden: false } c && AccountFolders.HidesMain(
+        _claudeMainOut = AccountFolders.StaysSignedOut(_claudeMainOut, AiDetector.NeedsSignIn(c.Message), c.Message is null || c.HasUsage), _claudeExtras.Length);
+    private bool CodexHidesMain => _lastCodex is { Hidden: false } c && AccountFolders.HidesMain(
+        _codexMainOut = AccountFolders.StaysSignedOut(_codexMainOut, AiDetector.NeedsSignIn(c.Message), c.Message is null || c.Primary is not null), _codexExtras.Length);
+    private bool CursorHidesMain => _lastCursor is { Hidden: false } c && AccountFolders.HidesMain(
+        _cursorMainOut = AccountFolders.StaysSignedOut(_cursorMainOut, AiDetector.NeedsSignIn(c.Message), c.Message is null || c.Cycle is not null), _cursorExtras.Length);
+    private bool _claudeMainOut, _codexMainOut, _cursorMainOut;
 
     /// The account the card shows: 0 for the default one, n for the extra account n (_claudeExtras[n - 1]…).
     private int ClaudeAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account), ClaudeHidesMain);
     private int CodexAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account), CodexHidesMain);
     private int CursorAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account), CursorHidesMain);
 
-    /// The reading that stands for an agent outside its card (tray tooltip, status log line, cache): the default
+    /// The reading that stands for an agent outside its card (tray tooltip, status log line): the default
     /// account's, or that of the account shown in its place while the default one has no session.
     private ClaudeSnapshot? ClaudeReading() =>
         ClaudeHidesMain ? _claudeExtraReadings.ElementAtOrDefault(ClaudeAccount(SettingsStore.Load()) - 1) ?? _lastClaude : _lastClaude;
@@ -1272,16 +1277,24 @@ public partial class App : Application
             Log.Info("Claude", $"renovación: {result.Outcome}");
 
             // Not renewed: the background renewal gives up on this token until expiresAt changes (a click still tries).
-            _autoRenewGaveUpOn = result.Outcome is RenewOutcome.NotRenewed or RenewOutcome.SignedOut
-                ? result.ExpiresAt ?? ClaudeSessionRenewer.ReadExpiry() ?? DateTimeOffset.MinValue
-                : null;
+            // Only for the default account, the one the background renewal looks after (an extra one's outcome would
+            // otherwise make it give up on the default token).
+            if (folder is null)
+                _autoRenewGaveUpOn = result.Outcome is RenewOutcome.NotRenewed or RenewOutcome.SignedOut
+                    ? result.ExpiresAt ?? ClaudeSessionRenewer.ReadExpiry() ?? DateTimeOffset.MinValue
+                    : null;
 
-            // Signed out: nothing to renew. A click opens the sign-in (the one way to sign in again).
+            // Signed out: nothing to renew. A click opens the sign-in (the one way to sign in again) of the default
+            // account; an extra account is signed in from its own Claude Code, so the note says so instead.
             string? loginError = null;
-            if (result.Outcome == RenewOutcome.SignedOut && !automatic && folder is null)
+            if (result.Outcome == RenewOutcome.SignedOut && !automatic)
             {
-                loginError = ClaudeSessionRenewer.StartLogin();
-                if (loginError is null) WatchClaudeSignIn();
+                if (folder is not null) loginError = ClaudeSessionRenewer.NotRenewedMessage;
+                else
+                {
+                    loginError = ClaudeSessionRenewer.StartLogin();
+                    if (loginError is null) WatchClaudeSignIn();
+                }
             }
 
             _renewing = false;

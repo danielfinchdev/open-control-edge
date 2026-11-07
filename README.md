@@ -232,7 +232,7 @@ Only accounts that are really there count. An additional account whose folder or
 nor read (Settings → Agents → Accounts marks it as "Not found"). If the main account (the AI's default folder) isn't
 signed in but another account is, the card shows that one instead, as a single-account card when it's the only one, with
 a line underneath, "Main account not signed in · Connect", that starts the same sign-in as Settings → Agents. The tray
-tooltip and the saved readings follow the account on screen.
+tooltip follows the account on screen; the readings saved for the next start are only the main account's.
 
 **You don't need to add them.** After each start, in the background and at low priority, the widget looks for your
 other Claude Code, Codex and Cursor sessions in your user folder and on every fixed drive (C:, D:…), up to six levels
@@ -249,7 +249,9 @@ The Claude, Codex and Cursor cards (on a paid plan) have an (i) in the top-right
 subscription will renew on …" for the account on screen (Codex: from its `id_token`; Cursor: the end of the billing
 cycle; Claude: computed from the sign-up day and monthly renewal, because `GET /api/oauth/profile` doesn't give the
 date). In the bottom-right corner, a round button opens that AI's app (or its website if it isn't installed), always
-without administrator rights. Renewing the session with a click on the Claude ring only works for the main account.
+without administrator rights. A click on the Claude ring renews the session of the account on screen (an extra account
+through its `CLAUDE_CONFIG_DIR`); the automatic renewal before the token expires, and the sign-in a click opens when
+there's no session, are only for the main account.
 
 ### FPS ring
 
