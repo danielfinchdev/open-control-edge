@@ -297,6 +297,17 @@ internal static class Snapshot
             throw new InvalidDataException("Claude card check failed after the session window came back");
         window.SaveSnapshot(Path.Combine(directory, "31d_card_claude_session_back.png"));
 
+        // Max 20x is now called Ultra: the tier read from a made-up credentials file (never the real one) names the plan.
+        CredentialReader.Credentials? ultraLogin = CredentialReader.Parse("""{"claudeAiOauth":{"accessToken":"fixture","refreshToken":"fixture","expiresAt":1893456000000,"scopes":["user:inference"],"subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}}"""u8);
+        if (ultraLogin is not { SubscriptionType: "max", RateLimitTier: "default_claude_max_20x" }
+            || Fmt.Plan(ultraLogin.SubscriptionType, ultraLogin.RateLimitTier) != "Ultra" || Fmt.Plan("ultra") != "Ultra"
+            || Fmt.Plan("max", "default_claude_max_5x") != "Max" || Fmt.Plan("max") != "Max" || Fmt.Plan("pro", "default_claude_max_20x") != "Pro")
+            throw new InvalidDataException("Claude plan tier check failed");
+        window.SetClaude(claudeWeeklyOnly with { Plan = ultraLogin.SubscriptionType, RateLimitTier = ultraLogin.RateLimitTier });
+        if (window.ClaudePlanText.Text != "Ultra") throw new InvalidDataException("Claude Ultra badge check failed");
+        window.SaveSnapshot(Path.Combine(directory, "31e_card_claude_ultra_weekly_only.png"));
+        window.SetClaude(claude);
+
         window.SetClaude(claude);
         window.SetCodex(codexMonthly);
         window.SetCursor(CursorSnapshot.Absent());

@@ -6,12 +6,13 @@ namespace OpenControlEdge.Services;
 /// Reads Claude Code's credentials file (%USERPROFILE%\.claude\.credentials.json).
 ///
 /// Only claudeAiOauth.accessToken, claudeAiOauth.expiresAt (unix milliseconds, verified) and
-/// claudeAiOauth.subscriptionType (the plan: "free", "pro", "max"…; "pro" verified 2026-09-29) are decoded.
+/// claudeAiOauth.subscriptionType (the plan: "free", "pro", "max"…; "pro" verified 2026-09-29) and
+/// claudeAiOauth.rateLimitTier (which Max: "default_claude_max_20x" seen 2026-11-07 with "max") are decoded.
 /// Every other value — refreshToken included — is skipped by the reader without ever being turned
 /// into a string. The file is opened read-only with full sharing and is never written.
 internal static class CredentialReader
 {
-    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? SubscriptionType);
+    internal sealed record Credentials(string AccessToken, DateTimeOffset? ExpiresAt, string? SubscriptionType, string? RateLimitTier);
 
     /// In CLAUDE_CONFIG_DIR when it names a usable folder (LoginFolder.FromEnvironment), as Claude Code does;
     /// %USERPROFILE%\.claude otherwise.
@@ -51,6 +52,7 @@ internal static class CredentialReader
         string? accessToken = null;
         DateTimeOffset? expiresAt = null;
         string? subscriptionType = null;
+        string? rateLimitTier = null;
 
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
         {
@@ -89,6 +91,11 @@ internal static class CredentialReader
                     reader.Read();
                     if (reader.TokenType == JsonTokenType.String) subscriptionType = reader.GetString();
                 }
+                else if (reader.ValueTextEquals("rateLimitTier"))
+                {
+                    reader.Read();
+                    if (reader.TokenType == JsonTokenType.String) rateLimitTier = reader.GetString();
+                }
                 else
                 {
                     reader.Read();
@@ -97,7 +104,7 @@ internal static class CredentialReader
             }
         }
 
-        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, expiresAt, subscriptionType);
+        return string.IsNullOrEmpty(accessToken) ? null : new Credentials(accessToken, expiresAt, subscriptionType, rateLimitTier);
     }
 
     /// Whether Claude Code still holds a sign-in it can use or refresh: claudeAiOauth.accessToken or

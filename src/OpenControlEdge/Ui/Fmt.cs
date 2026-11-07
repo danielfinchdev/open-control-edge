@@ -34,7 +34,9 @@ internal static class Fmt
 
     /// Plan badge text from a provider's raw plan id: "free" → "Free", "pro_plus" → "Pro+", "free_trial" → "Prueba".
     /// Unknown ids are shown capitalised rather than hidden; null or blank means no badge.
-    public static string? Plan(string? id)
+    /// rateLimitTier (Claude's claudeAiOauth.rateLimitTier) tells the two Max plans apart: Max 20x is now called Ultra
+    /// ("max" + "default_claude_max_20x" → "Ultra"); Max 5x, or "max" without a tier, stays "Max".
+    public static string? Plan(string? id, string? rateLimitTier = null)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
         string key = id.Trim().ToLowerInvariant();
@@ -47,7 +49,7 @@ internal static class Fmt
             "pro" => "Pro",
             "prolite" or "pro_lite" => "Pro Lite",
             "pro_plus" or "pro+" => "Pro+",
-            "max" => "Max",
+            "max" => rateLimitTier?.Contains("20x", StringComparison.OrdinalIgnoreCase) == true ? "Ultra" : "Max",
             "ultra" => "Ultra",
             "team" => "Team",
             "business" => "Business",

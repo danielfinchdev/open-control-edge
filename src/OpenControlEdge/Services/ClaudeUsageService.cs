@@ -42,12 +42,13 @@ internal sealed class ClaudeUsageService
                 return ClaudeSnapshot.Failed(ClaudeSessionRenewer.SignedOutMessage);
 
             string? plan = credentials.SubscriptionType;
+            string? tier = credentials.RateLimitTier;
             DateTimeOffset? expiry = credentials.ExpiresAt;
             bool free = string.Equals(plan, "free", StringComparison.OrdinalIgnoreCase);
 
             // Token already expired (or no expiry to check): do not even send the request.
             if (credentials.ExpiresAt is not DateTimeOffset expiresAt || DateTimeOffset.UtcNow >= expiresAt)
-                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan, TokenExpiresAt = expiry };
+                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
 
             using var request = new HttpRequestMessage(HttpMethod.Get, UsageUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
@@ -56,7 +57,7 @@ internal sealed class ClaudeUsageService
             using var response = await Http.SendAsync(request).ConfigureAwait(false);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
-                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan, TokenExpiresAt = expiry };
+                return ClaudeSnapshot.Failed(RenewMessage) with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
 
             // A free account has no session or weekly limits to measure. Whether the endpoint answers it with an
             // error or with empty limits has not been observed, so both lead to the same explanation.
@@ -76,10 +77,10 @@ internal sealed class ClaudeUsageService
                     RetryAfterUntil = DateTimeOffset.UtcNow.AddMinutes(1);
                 }
                 return free && response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
-                    ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan, TokenExpiresAt = expiry }
+                    ? ClaudeSnapshot.Failed(FreeAccountMessage) with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry }
                     : ClaudeSnapshot.Failed($"Error HTTP {(int)response.StatusCode}") with
                     {
-                        Plan = plan, TokenExpiresAt = expiry, HttpStatus = (int)response.StatusCode,
+                        Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry, HttpStatus = (int)response.StatusCode,
                     };
             }
 
@@ -89,10 +90,10 @@ internal sealed class ClaudeUsageService
             if (usage.Session is null && usage.Weekly is null)
             {
                 Log.Warn("Claude", "200 response without session or weekly data");
-                return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de uso") with { Plan = plan, TokenExpiresAt = expiry };
+                return ClaudeSnapshot.Failed(free ? FreeAccountMessage : "Respuesta sin datos de uso") with { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
             }
             RetryAfterUntil = null;
-            return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan, TokenExpiresAt = expiry };
+            return new ClaudeSnapshot(false, usage.Session, usage.Weekly, usage.Spent, null) { Plan = plan, RateLimitTier = tier, TokenExpiresAt = expiry };
         }
         catch (HttpRequestException ex)
         {

@@ -677,8 +677,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastClaude is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Claude);
-        _edge.SetAccounts(AiProviderId.Claude, AccountLabels(s, AiProviderSettings.Claude, _lastClaude.Plan,
-            _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
+        _edge.SetAccounts(AiProviderId.Claude, AccountLabels(s, AiProviderSettings.Claude, Fmt.Plan(_lastClaude.Plan, _lastClaude.RateLimitTier),
+            _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i) is { } r ? Fmt.Plan(r.Plan, r.RateLimitTier) : null))), index);
         _edge.SetClaude(_lastClaude.Hidden || index == 0 ? WithOrbUsage(_lastClaude)
             : _claudeExtraReadings.ElementAtOrDefault(index - 1) ?? ClaudeSnapshot.Failed("Cargando…"));
     }
@@ -687,8 +687,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastCodex is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Codex);
-        _edge.SetAccounts(AiProviderId.Codex, AccountLabels(s, AiProviderSettings.Codex, _lastCodex.Plan,
-            _codexExtras.Select((e, i) => (e.Account, _codexExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
+        _edge.SetAccounts(AiProviderId.Codex, AccountLabels(s, AiProviderSettings.Codex, Fmt.Plan(_lastCodex.Plan),
+            _codexExtras.Select((e, i) => (e.Account, Fmt.Plan(_codexExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
         _edge.SetCodex(_lastCodex.Hidden || index == 0 ? WithOrbUsage(_lastCodex)
             : _codexExtraReadings.ElementAtOrDefault(index - 1) ?? CodexSnapshot.Failed("Cargando…"));
     }
@@ -697,8 +697,8 @@ public partial class App : Application
     {
         if (_edge is null || _lastCursor is null) return;
         int index = s.SelectedAccount(AiProviderSettings.Cursor);
-        _edge.SetAccounts(AiProviderId.Cursor, AccountLabels(s, AiProviderSettings.Cursor, _lastCursor.Plan,
-            _cursorExtras.Select((e, i) => (e.Account, _cursorExtraReadings.ElementAtOrDefault(i)?.Plan))), index);
+        _edge.SetAccounts(AiProviderId.Cursor, AccountLabels(s, AiProviderSettings.Cursor, Fmt.Plan(_lastCursor.Plan),
+            _cursorExtras.Select((e, i) => (e.Account, Fmt.Plan(_cursorExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
         _edge.SetCursor(_lastCursor.Hidden || index == 0 ? WithOrbUsage(_lastCursor)
             : _cursorExtraReadings.ElementAtOrDefault(index - 1) ?? CursorSnapshot.Failed("Cargando…"));
     }
@@ -770,14 +770,15 @@ public partial class App : Application
         accounts.Select(a => a.Folder).SequenceEqual(current.Select(a => a.Folder), StringComparer.OrdinalIgnoreCase);
 
     /// The tag of each account: the name given in Ajustes, else its plan ("Go", "Pro"), else "Cuenta 2". Equal tags get
-    /// a number ("Pro", "Pro 2") so the two can be told apart.
+    /// a number ("Pro", "Pro 2") so the two can be told apart. The plans come as Fmt.Plan made them (with Claude's
+    /// rate-limit tier: "Ultra"), the same text as the card's plan badge.
     private static List<string> AccountLabels(Settings settings, string provider, string? mainPlan,
         IEnumerable<(ExtraAccount Account, string? Plan)> extras)
     {
-        var labels = new List<string> { settings.MainAccountName(provider) ?? Fmt.Plan(mainPlan) ?? Loc.Format("Account.Fallback", 1) };
+        var labels = new List<string> { settings.MainAccountName(provider) ?? mainPlan ?? Loc.Format("Account.Fallback", 1) };
         int number = 2;
         foreach ((ExtraAccount account, string? plan) in extras)
-            labels.Add(account.Name.Length > 0 ? account.Name : Fmt.Plan(plan) ?? Loc.Format("Account.Fallback", number++ ));
+            labels.Add(account.Name.Length > 0 ? account.Name : plan ?? Loc.Format("Account.Fallback", number++ ));
         var seen = new Dictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
         for (int i = 0; i < labels.Count; i++)
         {
@@ -1170,7 +1171,7 @@ public partial class App : Application
         if (_claude.RetryAfterUntil is DateTimeOffset retryAt && DateTimeOffset.UtcNow < retryAt && _claudeRetryError is not null)
             return KeepClaudeReading(now) ?? ClaudeSnapshot.Failed(_claudeRetryError) with
             {
-                Plan = _lastClaude?.Plan, TokenExpiresAt = _lastClaude?.TokenExpiresAt,
+                Plan = _lastClaude?.Plan, RateLimitTier = _lastClaude?.RateLimitTier, TokenExpiresAt = _lastClaude?.TokenExpiresAt,
             };
 
         ClaudeSnapshot current = await _claude.FetchAsync();
@@ -1184,7 +1185,11 @@ public partial class App : Application
         {
             _claudeRetryError = error;
             if (KeepClaudeReading(DateTimeOffset.Now) is ClaudeSnapshot kept)
-                return kept with { Plan = current.Plan ?? kept.Plan, TokenExpiresAt = current.TokenExpiresAt };
+                return kept with
+                {
+                    Plan = current.Plan ?? kept.Plan, RateLimitTier = current.RateLimitTier ?? kept.RateLimitTier,
+                    TokenExpiresAt = current.TokenExpiresAt,
+                };
         }
         return current;
     }

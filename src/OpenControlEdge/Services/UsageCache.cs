@@ -61,6 +61,7 @@ internal static class UsageCache
                 {
                     writer.WriteStartObject("claude");
                     WritePlan(writer, claude.Plan);
+                    if (!string.IsNullOrWhiteSpace(claude.RateLimitTier)) writer.WriteString("tier", claude.RateLimitTier);
                     if (claude.Session is UsageWindow session) WriteWindow(writer, "session", session);
                     if (claude.Weekly is UsageWindow weekly) WriteWindow(writer, "weekly", weekly);
                     if (claude.Spent is Money spent) WriteMoney(writer, "spent", spent);
@@ -118,7 +119,10 @@ internal static class UsageCache
         if (o.TryGetProperty("session", out _) && (session = Window(o, "session", now)) is null) return null;
         if (o.TryGetProperty("weekly", out _) && (weekly = Window(o, "weekly", now)) is null) return null;
         if (session is null && weekly is null) return null;
-        return new ClaudeSnapshot(false, session, weekly, MoneyOf(o, "spent"), null) { Plan = Text(o, "plan") };
+        return new ClaudeSnapshot(false, session, weekly, MoneyOf(o, "spent"), null)
+        {
+            Plan = Text(o, "plan"), RateLimitTier = Text(o, "tier"),
+        };
     }
 
     private static CodexSnapshot? ReadCodex(JsonElement root, DateTimeOffset now)

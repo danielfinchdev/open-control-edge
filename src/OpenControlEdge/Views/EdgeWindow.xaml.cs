@@ -660,13 +660,13 @@ public partial class EdgeWindow : Window
         else
         {
             // Back to one account: its plan badge again, from the reading on screen.
-            (TextBlock planText, string? planId) = provider switch
+            (TextBlock planText, string? planId, string? tier) = provider switch
             {
-                AiProviderId.Claude => (ClaudePlanText, _claude?.Plan),
-                AiProviderId.Codex => (CodexPlanText, _codex?.Plan),
-                _ => (CursorPlanText, _cursor?.Plan),
+                AiProviderId.Claude => (ClaudePlanText, _claude?.Plan, _claude?.RateLimitTier),
+                AiProviderId.Codex => (CodexPlanText, _codex?.Plan, null),
+                _ => (CursorPlanText, _cursor?.Plan, null),
             };
-            SetPlan(plan, planText, planId);
+            SetPlan(plan, planText, planId, tier);
         }
         _syncingAccounts = false;
         if (_cardVisible) PlaceCard(animate: true);
@@ -1568,7 +1568,7 @@ public partial class EdgeWindow : Window
         _claude = snapshot;
         SetRingVisible(RingClaude, !snapshot.Hidden);
         if (snapshot.Hidden) return;
-        SetPlan(ClaudePlan, ClaudePlanText, HasAccountTags(AiProviderId.Claude) ? null : snapshot.Plan);
+        SetPlan(ClaudePlan, ClaudePlanText, HasAccountTags(AiProviderId.Claude) ? null : snapshot.Plan, snapshot.RateLimitTier);
         SetInfoButton(ClaudeInfo, snapshot.Plan);
 
         if (snapshot.HasUsage)
@@ -1754,9 +1754,9 @@ public partial class EdgeWindow : Window
         if (free && CardButtons.FirstOrDefault(b => ReferenceEquals(b.Info, info)).Provider is var provider && _infoFor == provider) CloseInfo();
     }
 
-    private static void SetPlan(Border badge, TextBlock text, string? plan)
+    private static void SetPlan(Border badge, TextBlock text, string? plan, string? rateLimitTier = null)
     {
-        string? label = Fmt.Plan(plan);
+        string? label = Fmt.Plan(plan, rateLimitTier);
         text.Text = label ?? string.Empty;
         badge.Visibility = label is null ? Visibility.Collapsed : Visibility.Visible;
     }

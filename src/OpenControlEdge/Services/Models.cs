@@ -28,6 +28,10 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
     /// Raw plan id from the credentials ("free", "pro", "max"…); null when unknown. Shown on the card header.
     public string? Plan { get; init; }
 
+    /// Raw claudeAiOauth.rateLimitTier ("default_claude_max_20x"…); null when unknown. Tells Max 5x from Max 20x,
+    /// which Anthropic now calls Ultra (Fmt.Plan).
+    public string? RateLimitTier { get; init; }
+
     /// Expiry of the OAuth access token (claudeAiOauth.expiresAt); null when unknown. Drives the background renewal.
     public DateTimeOffset? TokenExpiresAt { get; init; }
 
