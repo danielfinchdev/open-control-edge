@@ -726,6 +726,29 @@ public partial class App : Application
         _cursorMainOut = AccountFolders.StaysSignedOut(_cursorMainOut, AiDetector.NeedsSignIn(c.Message), c.Message is null || c.Cycle is not null), _cursorExtras.Length);
     private bool _claudeMainOut, _codexMainOut, _cursorMainOut;
 
+    /// At start (the first account check, before the extra accounts get tabs): a default account without a login file
+    /// starts signed out (AccountFolders.StartsSignedOut), so the first paint with the extra accounts already leaves it
+    /// out instead of showing a "Cargando…" tab until its first reading; its readings then decide as usual
+    /// (StaysSignedOut). A cached reading of it is from before it signed out: dropped, or it would bring it back.
+    private void SeedMainSignedOut(bool claude, bool codex, bool cursor)
+    {
+        if (claude)
+        {
+            _claudeMainOut = true;
+            if (_lastClaude is { Hidden: false, HasUsage: true }) { _lastClaude = ClaudeSnapshot.Failed("Cargando…"); _claudeReadAt = null; }
+        }
+        if (codex)
+        {
+            _codexMainOut = true;
+            if (_lastCodex is { Hidden: false, Primary: not null }) _lastCodex = CodexSnapshot.Failed("Cargando…");
+        }
+        if (cursor)
+        {
+            _cursorMainOut = true;
+            if (_lastCursor is { Hidden: false, Cycle: not null }) _lastCursor = CursorSnapshot.Failed("Cargando…");
+        }
+    }
+
     /// The account the card shows: 0 for the default one, n for the extra account n (_claudeExtras[n - 1]…).
     private int ClaudeAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account), ClaudeHidesMain);
     private int CodexAccount(Settings s) => AccountFolders.ShownAccount(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account), CodexHidesMain);
@@ -836,12 +859,17 @@ public partial class App : Application
             string covered = AccountFolders.Describe(settings);
             if (covered.Length == 0 && _checkedAccounts is null) return;
             Settings checking = settings;
-            FrozenSet<string> present = await Task.Run(() => AccountFolders.Check(checking));
+            // The first check (at start, before the extra accounts get tabs) also looks whether the default accounts
+            // have a login file at all (SeedMainSignedOut).
+            bool first = _checkedAccounts is null;
+            (FrozenSet<string> present, bool[]? mainsOut) = await Task.Run(() => (AccountFolders.Check(checking),
+                first ? AccountFolders.Providers.Select(p => AccountFolders.StartsSignedOut(p, AccountFolders.MainFolder(p))).ToArray() : null));
             settings = SettingsStore.Load();
             if (AccountFolders.Describe(settings) != covered) continue;
             bool found = covered != _checkedAccounts || !present.SetEquals(_presentAccounts);
             _presentAccounts = present;
             _checkedAccounts = covered;
+            if (mainsOut is not null) SeedMainSignedOut(mainsOut[0], mainsOut[1], mainsOut[2]);
             SyncAccounts(settings);
             if (found && _settingsWindow is { IsVisible: true } window) window.RefreshAgents();
             return;

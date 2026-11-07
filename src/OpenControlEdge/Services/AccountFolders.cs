@@ -27,7 +27,22 @@ internal static class AccountFolders
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { return false; }
     }
 
-    public static readonly string[] Providers = [AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor];
+    /// The default account's folder, as its client finds it (CLAUDE_CONFIG_DIR / CODEX_HOME when set): the one its
+    /// reader takes the login file from (LoginFile of this folder). Resolving it may touch the disk.
+    public static string MainFolder(string provider) => provider switch
+    {
+        AiProviderSettings.Claude => CredentialReader.DefaultFolder,
+        AiProviderSettings.Codex => CodexCredentialReader.DefaultFolder,
+        _ => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Cursor"),
+    };
+
+    /// At start, before the default account's first reading: whether it already counts as signed out — its login file
+    /// is missing, so its reading can only ask to sign in. The card then starts without it (HidesMain) instead of with
+    /// a "Cargando…" tab next to the extra accounts. A login file there proves nothing yet (it may be expired or
+    /// revoked): the account loads as usual. Only the file's presence is checked (IsPresent), never its contents.
+    public static bool StartsSignedOut(string provider, string mainFolder) => !IsPresent(provider, mainFolder);
+
+    public static readonly string[] Providers =[AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor];
 
     /// The extra accounts of every provider that are present now, as Key(provider, folder).
     public static FrozenSet<string> Check(Settings settings) =>

@@ -11,7 +11,8 @@
   account does, the card shows the extra account (ring, plan badge, (i), ring-click renewal and tray tooltip all follow
   it) instead of a "sign in" tab; with one extra account it's a single-account card. A line under it, "Main account not
   signed in · Connect", starts the same sign-in as Settings › Agents. A loading or network error reading of the main
-  account keeps the card as it was, so it doesn't switch layouts on every refresh.
+  account keeps the card as it was, so it doesn't switch layouts on every refresh. At start, a main account with no
+  login file at all is left out from the first paint (no brief "Loading…" tab next to the extra account).
 
 ## 3.1.1 — 2026-11-07
 

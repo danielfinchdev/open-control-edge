@@ -784,6 +784,25 @@ internal static class Snapshot
             if (!AccountFolders.StaysSignedOut(true, false, false) || AccountFolders.StaysSignedOut(true, false, true)
                 || !AccountFolders.StaysSignedOut(false, true, false) || AccountFolders.StaysSignedOut(false, false, false))
                 throw new InvalidDataException("Main signed out check failed: the layout would switch on a loading or failed reading");
+            // At start, a default account without a login file starts left out ("Cargando…" keeps the seeded decision:
+            // one tag from the first paint); one with a login file starts in (it loads as usual, still two tags). The
+            // default folders are the readers' own (CLAUDE_CONFIG_DIR / CODEX_HOME honored); only their paths are compared.
+            string mainOut = Path.Combine(root, ".main-out"), mainIn = Path.Combine(root, ".main-in");
+            Directory.CreateDirectory(mainOut);
+            foreach (string provider in AccountFolders.Providers)
+            {
+                string file = AccountFolders.LoginFile(provider, mainIn);
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                File.WriteAllText(file, "{}");
+            }
+            bool loading = AiDetector.NeedsSignIn(CodexSnapshot.Failed("Cargando…").Message);
+            if (AccountFolders.Providers.Any(p => !AccountFolders.StartsSignedOut(p, mainOut) || AccountFolders.StartsSignedOut(p, mainIn))
+                || !AccountFolders.HidesMain(AccountFolders.StaysSignedOut(AccountFolders.StartsSignedOut(codex, mainOut), loading, false), 1)
+                || AccountFolders.HidesMain(AccountFolders.StaysSignedOut(AccountFolders.StartsSignedOut(codex, mainIn), loading, false), 1)
+                || !string.Equals(AccountFolders.LoginFile(AiProviderSettings.Claude, AccountFolders.MainFolder(AiProviderSettings.Claude)), CredentialReader.DefaultPath, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(AccountFolders.LoginFile(codex, AccountFolders.MainFolder(codex)), CodexCredentialReader.DefaultPath, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(AccountFolders.LoginFile(AiProviderSettings.Cursor, AccountFolders.MainFolder(AiProviderSettings.Cursor)), CursorCredentialReader.DefaultPath, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Main signed out check failed: the start-up decision from the default account's login file");
 
             Settings one = Accounts(0, work);
             List<ExtraAccount> visible = AccountFolders.Visible(one, codex, Present);
