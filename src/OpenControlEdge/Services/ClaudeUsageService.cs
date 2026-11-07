@@ -34,6 +34,9 @@ internal sealed class ClaudeUsageService
     /// hours when retried at the refresh interval).
     internal static readonly TimeSpan MinRateLimitBackoff = TimeSpan.FromMinutes(5);
 
+    /// Retry-After is obeyed up to this: a far-off date (or a clock that is off) must not stop the readings for a day.
+    internal static readonly TimeSpan MaxRetryAfter = TimeSpan.FromHours(1);
+
     /// The wait after the streak-th 429 in a row: 5, 10, 20, then 30 minutes at most.
     internal static TimeSpan RateLimitBackoff(int streak) => streak switch
     {
@@ -95,6 +98,7 @@ internal sealed class ClaudeUsageService
                     TimeSpan delay = response.Headers.RetryAfter?.Delta
                         ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
                         ?? TimeSpan.Zero;
+                    if (delay > MaxRetryAfter) delay = MaxRetryAfter;
                     RetryAfterUntil = DateTimeOffset.UtcNow + (delay > backoff ? delay : backoff);
                     _retryFailure = failure;
                     Log.Info("Claude", $"sin pedir de nuevo hasta dentro de {(RetryAfterUntil.Value - DateTimeOffset.UtcNow).TotalMinutes:0} min (429 n.º {_rateLimitStreak})");

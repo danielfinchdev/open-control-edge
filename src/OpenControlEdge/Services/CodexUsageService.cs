@@ -19,7 +19,7 @@ internal sealed class CodexUsageService
 
     private readonly string _authPath;
 
-    /// After an HTTP 429 (at least 5 minutes, longer when Retry-After asks) or 5xx (1 minute) nothing is sent before
+    /// After an HTTP 429 (at least 5 minutes, longer when Retry-After asks, up to an hour) or 5xx (1 minute) nothing is sent before
     /// this; the failure that set it is given back meanwhile.
     internal DateTimeOffset? RetryAfterUntil { get; private set; }
     private CodexSnapshot? _retryFailure;
@@ -72,6 +72,7 @@ internal sealed class CodexUsageService
                     TimeSpan delay = response.Headers.RetryAfter?.Delta
                         ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)
                         ?? TimeSpan.Zero;
+                    if (delay > ClaudeUsageService.MaxRetryAfter) delay = ClaudeUsageService.MaxRetryAfter;
                     RetryAfterUntil = DateTimeOffset.UtcNow + (delay > MinRateLimitBackoff ? delay : MinRateLimitBackoff);
                     _retryFailure = failure;
                 }
