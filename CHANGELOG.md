@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.3 (unreleased)
+## 3.1.3 — 2026-11-08
 
 - **In-app updates install again.** "Download and install" always rolled back to the previous version: the update
   helper runs from the downloaded folder, and while it runs its executable stays open, so Windows refused to move that
