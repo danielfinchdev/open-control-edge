@@ -243,6 +243,12 @@ internal static class UpdateInstaller
                     || string.Equals(dir, _activeStage, StringComparison.OrdinalIgnoreCase)) continue;
                 try
                 {
+                    // The updater never creates links here: one is left alone rather than deleted elevated.
+                    if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        Log.Warn("Updates", $"leftover {leaf} kept: it is a link");
+                        continue;
+                    }
                     Directory.Delete(dir, recursive: true);
                     Log.Info("Updates", "removed leftover " + leaf);
                 }

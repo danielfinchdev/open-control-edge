@@ -460,7 +460,16 @@ public partial class App : Application
     private static async Task CleanUpdateLeftoversAsync()
     {
         await Task.Delay(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-        try { UpdateInstaller.CleanLeftovers(Installer.InstallDir); }
+        try
+        {
+            // Elevated recursive deletes only where non-admins cannot plant or swap folders.
+            if (DataFolder.NonAdminsCanWrite(Path.GetDirectoryName(Installer.InstallDir)!, directory: true))
+            {
+                Log.Warn("Updates", "leftover cleanup skipped: the installation's parent folder is not protected");
+                return;
+            }
+            UpdateInstaller.CleanLeftovers(Installer.InstallDir);
+        }
         catch (Exception ex) { Log.Warn("Updates", "leftover cleanup skipped: " + ex.GetType().Name); }
     }
 
