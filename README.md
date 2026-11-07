@@ -2,384 +2,381 @@
 
 ![Open Control Edge](docs/showcase/hero.png)
 
-Lo hice porque me pasaba el día mirando cuánto me quedaba de Claude y de Codex, y a qué temperatura iba el portátil
-cuando jugaba. Ahora lo tengo todo en una columna de anillos pegada al borde de la pantalla: le pasas el ratón por
-encima y te lo cuenta. Es gratis, es de código abierto y no te espía.
+I built this because I spent all day checking how much Claude and Codex I had left, and how hot my laptop was running
+while I played. Now it all lives in a column of rings stuck to the edge of the screen: hover over it and it tells you.
+It's free, it's open source and it doesn't spy on you.
 
 > *A Windows edge widget that shows your remaining Claude / Codex / Cursor quota, your CPU & GPU temperature and your
-> game's FPS at a glance. The app speaks Spanish and English.*
+> game's FPS at a glance. The app speaks English and Spanish.*
 
-![versión](https://img.shields.io/badge/versión-3.0.0-informational) ![licencia](https://img.shields.io/badge/licencia-MIT-green) ![plataforma](https://img.shields.io/badge/Windows-10%20y%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+![version](https://img.shields.io/badge/version-3.1.1-informational) ![license](https://img.shields.io/badge/license-MIT-green) ![platform](https://img.shields.io/badge/Windows-10%20and%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-## Descárgalo
+## Download
 
-### **[⬇ Descargar Open Control Edge](https://github.com/danielfinchdev/open-control-edge/releases/latest)**
+### **[⬇ Download Open Control Edge](https://github.com/danielfinchdev/open-control-edge/releases/latest)**
 
-Dentro está `OpenControlEdge-win-x64.zip`. Para instalarlo:
+Inside you'll find `OpenControlEdge-win-x64.zip`. To install it:
 
-1. **Descomprime el ZIP** donde quieras (la carpeta Descargas vale).
-2. **Abre `OpenControlEdge.exe`** y dile que sí a Windows cuando te pida permiso. Si te sale «Windows protegió tu PC»,
-   pulsa «Más información» y luego «Ejecutar de todas formas»: sale porque el programa todavía no tiene un certificado de
-   pago, no porque haga nada raro.
-3. Verás **«Comprobando tu sistema…»**: revisa tu PC y prepara lo que falte (por ejemplo, el controlador para leer la
-   temperatura). Pulsa **«Aceptar e instalar»** y ya está: aparece en el borde derecho (luego lo pones donde quieras)
-   y arranca solo con Windows.
+1. **Unzip it** wherever you like (your Downloads folder is fine).
+2. **Open `OpenControlEdge.exe`** and say yes when Windows asks for permission. If you see "Windows protected your PC",
+   click "More info" and then "Run anyway": it shows up because the program doesn't have a paid certificate yet, not
+   because it does anything shady.
+3. You'll see **"Checking your system…"**: it looks over your PC and sets up whatever is missing (for example, the
+   driver that reads the temperature). Click **"Accept and install"** and you're done: it appears on the right edge
+   (you can move it later) and starts with Windows.
 
-A partir de ahí no tienes que volver por aquí: cuando saque una versión nueva verás **un punto rojo en el botón de
-ajustes** y la instalas con un clic. (Si vienes de la 2.1.0, esta vez instálala a mano una sola vez.)
+From then on you don't need to come back here: when I release a new version you'll see **a red dot on the settings
+button** and install it with one click. (If you're coming from 2.1.0, install it by hand this one time.)
 
-## Qué te enseña
+## What it shows
 
-- **Lo que te queda de cada IA**: Claude, Codex, Cursor, OpenCode, DeepSeek y OpenRouter. Cuánto llevas gastado de la
-  sesión y de la semana, cuándo se reinicia y, si pagas aparte, lo que llevas gastado.
-- **Cómo va tu PC**: temperatura de la CPU y de la gráfica, la RAM y los **FPS** del juego que tengas delante.
-- **Modo juego**: un clic cierra lo que sobra en segundo plano, ajusta la energía para que no se caliente y, al
-  quitarlo, lo deja todo como estaba.
-- **Todas tus cuentas, sin buscarlas**: encuentra solo tus otras sesiones de Claude, Codex y Cursor, estén en el disco
-  que estén. Cada una lleva su etiqueta («Go», «Pro Lite» o el nombre que quieras) y un clic cambia de cuenta. La (i)
-  te dice cuándo se renueva tu suscripción y otro botón abre la app de esa IA.
-- **Donde tú quieras**: a la derecha, a la izquierda, arriba o abajo, centrado o justo donde lo sueltes, y en la
-  pantalla que elijas si tienes varias.
-- **Dos vistas y un botón**: una para tus IA, otra para el PC, y una a tu gusto. Así no se te llena la pantalla de anillos.
-- Lo pones a tu gusto: tema claro u oscuro, colores, **color de fondo**, tamaño, orden de los anillos.
+- **What you have left on each AI**: Claude, Codex, Cursor, OpenCode, DeepSeek and OpenRouter. How much of the session
+  and the week you've used, when it resets and, if you pay extra, how much you've spent.
+- **How your PC is doing**: CPU and graphics card temperature, RAM and the **FPS** of the game in front of you.
+- **Game mode**: one click closes what's running in the background for no reason, tunes the power plan so things don't
+  heat up and, when you turn it off, puts everything back the way it was.
+- **All your accounts, without hunting for them**: it finds your other Claude, Codex and Cursor sessions on its own,
+  whatever drive they're on. Each one gets a label ("Go", "Pro Lite" or any name you like) and one click switches
+  account. The (i) tells you when your subscription renews and another button opens that AI's app.
+- **Wherever you want it**: right, left, top or bottom, centred or exactly where you drop it, and on the screen you
+  choose if you have several.
+- **Two views and a button**: one for your AIs, another for your PC, and one of your own. That way your screen doesn't
+  fill up with rings.
+- Make it yours: light or dark theme, colours, **background colour**, size, ring order.
 
-![Varias cuentas](docs/showcase/cuentas.png)
+![Several accounts](docs/showcase/cuentas.png)
 
-![Donde tú quieras](docs/showcase/bordes.png)
+![Wherever you want it](docs/showcase/bordes.png)
 
-![FPS y modo juego](docs/showcase/juego.png)
+![FPS and game mode](docs/showcase/juego.png)
 
-![Ajustes](docs/showcase/ajustes.png)
+![Settings](docs/showcase/ajustes.png)
 
-## ¿Es de fiar?
+## Can I trust it?
 
-- **Tu sesión solo va a su propio servicio.** Lee la sesión de Claude Code, Codex o Cursor únicamente para preguntarle
-  a Anthropic, OpenAI o Cursor cuánto has usado; no la manda a nadie más y nunca la modifica.
-- **Nada de telemetría.** No hay estadísticas, ni anuncios, ni cuentas. Solo habla con los servicios de tus IA, con
-  GitHub para saber si hay versión nueva y, si tú pulsas «Enviar» en Contribuye, con el servicio que me lo hace llegar.
-- **El código está aquí**, a la vista de cualquiera. Las actualizaciones van firmadas y la app no instala nada que no
-  lleve esa firma.
+- **Your session only goes to its own service.** It reads your Claude Code, Codex or Cursor session solely to ask
+  Anthropic, OpenAI or Cursor how much you've used; it doesn't send it anywhere else and never modifies it.
+- **No telemetry.** No stats, no ads, no accounts. It only talks to your AI services, to GitHub to find out whether
+  there's a new version and, if you press "Send" in Contribute, to the service that forwards your message to me.
+- **The code is right here**, for anyone to see. Updates are signed and the app won't install anything that doesn't
+  carry that signature.
 
-Todos los detalles, para quien los quiera, están más abajo, en [Privacidad y seguridad](#privacidad-y-seguridad).
+All the details, for anyone who wants them, are further down in [Privacy and security](#privacy-and-security).
 
-## ¿Dudas, errores o ideas?
+## Questions, bugs or ideas?
 
-Desde la propia app: **Ajustes › Contribuye**. Me escribes, añades una captura si quieres y pulsas «Enviar»; no hace
-falta cuenta de nada. Si tienes cuenta de GitHub, también puedes abrir un
+From the app itself: **Settings › Contribute**. Write to me, add a screenshot if you like and press "Send"; you don't
+need an account for anything. If you have a GitHub account, you can also open an
 [issue](https://github.com/danielfinchdev/open-control-edge/issues).
 
 ---
 
-# Para curiosos y desarrolladores
+# For the curious and for developers
 
-Todo lo de aquí abajo es el detalle técnico: requisitos, cómo funciona por dentro, de dónde salen los datos, seguridad y
-cómo compilarlo.
+Everything below is the technical detail: requirements, how it works inside, where the data comes from, security and
+how to build it.
 
-## Requisitos
+## Requirements
 
 > [!IMPORTANT]
-> **PawnIO es VITAL para leer la temperatura.** LibreHardwareMonitor, la librería que usa el
-> widget para los sensores, necesita el controlador firmado **PawnIO** para acceder a los registros de bajo nivel
-> de la CPU (MSR). Sin él, los anillos de CPU/GPU muestran «Instala PawnIO para ver la temperatura». La ventana de
-> instalación lo comprueba y lo instala por ti; si prefieres hacerlo a mano, es la fila de abajo.
+> **PawnIO is ESSENTIAL for reading the temperature.** LibreHardwareMonitor, the library the widget uses for its
+> sensors, needs the signed **PawnIO** driver to access the CPU's low-level registers (MSR). Without it, the CPU/GPU
+> rings show "Install PawnIO to see the temperature". The installation window checks for it and installs it for you;
+> if you'd rather do it by hand, see the row below.
 
-| Requisito | Para qué | Cómo |
+| Requirement | What for | How |
 |---|---|---|
-| **PawnIO** (vital) | Leer la temperatura y la carga de la CPU | Lo instala la ventana de instalación, o `winget install --id namazso.PawnIO -e`, o el instalador oficial de [pawnio.eu](https://pawnio.eu) |
-| Windows 11 (o Windows 10 22H2) | Sistema | — |
-| Permisos de administrador | Leer los sensores y los FPS (el widget arranca elevado mediante una tarea programada) | Lo configura la ventana de bienvenida con un solo UAC |
-| .NET 10 SDK | Solo para compilar | La versión Release ya incluye el runtime |
+| **PawnIO** (essential) | Reading CPU temperature and load | The installation window installs it, or `winget install --id namazso.PawnIO -e`, or the official installer from [pawnio.eu](https://pawnio.eu) |
+| Windows 11 (or Windows 10 22H2) | Operating system | — |
+| Administrator rights | Reading sensors and FPS (the widget starts elevated through a scheduled task) | The welcome window sets it up with a single UAC prompt |
+| .NET 10 SDK | Building only | The Release build already includes the runtime |
 
-**Comprobar que PawnIO está instalado:** `winget list --id namazso.PawnIO` debe listarlo. Después, reinicia el widget:
-el anillo de CPU debe mostrar grados en vez del aviso.
+**Checking that PawnIO is installed:** `winget list --id namazso.PawnIO` should list it. Then restart the widget: the
+CPU ring should show degrees instead of the warning.
 
-## Más capturas
+## More screenshots
 
-| Vista IA | Vista PC | Dos cuentas de Codex | Su suscripción |
+| AI view | PC view | Two Codex accounts | Its subscription |
 |---|---|---|---|
 | <img src="docs/screenshots/vista-ia.png" height="300"> | <img src="docs/screenshots/vista-pc.png" height="300"> | <img src="docs/screenshots/tarjeta-codex-cuentas.png" height="300"> | <img src="docs/screenshots/tarjeta-suscripcion.png" height="300"> |
 
-| Arriba | Abajo |
+| Top | Bottom |
 |---|---|
 | <img src="docs/screenshots/borde-arriba.png" width="420"> | <img src="docs/screenshots/borde-abajo.png" width="420"> |
 
-| Izquierda | Manual | FPS | Modo juego |
+| Left | Manual | FPS | Game mode |
 |---|---|---|---|
 | <img src="docs/screenshots/borde-izquierda.png" height="300"> | <img src="docs/screenshots/colocacion-manual.png" height="300"> | <img src="docs/screenshots/tarjeta-fps.png" height="300"> | <img src="docs/screenshots/tarjeta-modo-juego.png" height="300"> |
 
-| Cursor | DeepSeek | Dos cuentas de Claude | Sin PawnIO |
+| Cursor | DeepSeek | Two Claude accounts | Without PawnIO |
 |---|---|---|---|
 | <img src="docs/screenshots/tarjeta-cursor.png" height="300"> | <img src="docs/screenshots/tarjeta-deepseek.png" height="300"> | <img src="docs/screenshots/tarjeta-claude-dos-cuentas.png" height="300"> | <img src="docs/screenshots/cpu-sin-pawnio.png" height="300"> |
 
-| Ajustes › Posición | Ajustes › Cuentas | Más aplicaciones | Instalación |
+| Settings › Position | Settings › Accounts | More apps | Installation |
 |---|---|---|---|
 | <img src="docs/screenshots/ajustes-posicion.png" height="260"> | <img src="docs/screenshots/ajustes-cuentas.png" height="260"> | <img src="docs/screenshots/ajustes-mas-aplicaciones.png" height="260"> | <img src="docs/screenshots/instalacion-comprobacion.png" height="260"> |
 
-Todas las genera `--snapshot` con datos de ejemplo.
+All of them are generated by `--snapshot` with sample data (the screenshots show the Spanish interface).
 
 ---
 
-## Qué hace
+## What it does
 
-Un panel negro anclado al borde de la pantalla (el derecho por defecto; ver [Posición](#posición)), siempre encima del
-resto de ventanas y sin botón en la barra de tareas. Cada anillo es una fuente; al pasar el ratón por encima se despliega una tarjeta con el
-detalle, que se desliza de un anillo a otro sin desaparecer.
+A black panel docked to the edge of the screen (the right one by default; see [Position](#position)), always on top of
+other windows and with no taskbar button. Each ring is a source; hovering over it unfolds a card with the details, which
+slides from one ring to the next without disappearing.
 
-| Anillo | Qué muestra |
+| Ring | What it shows |
 |---|---|
-| **Claude** | % de la sesión de 5 h (si tu cuenta la tiene), límite semanal y, si has gastado créditos de uso, el gasto en su moneda (p. ej. €) |
-| **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) y, si la cuenta tiene créditos, el saldo de créditos |
-| **Cursor** | % del ciclo mensual Pro y, si usas el pago bajo demanda, lo gastado en USD (y su límite) |
-| **OpenCode** | Tokens de entrada / salida / razonamiento / caché y coste acumulado local |
-| **DeepSeek** | Saldo API restante en la moneda devuelta por el proveedor |
-| **OpenRouter** | % usado si la clave tiene límite; si no, gasto acumulado en USD |
-| **FPS** | FPS del programa en primer plano (ver [Anillo de FPS](#anillo-de-fps)); la tarjeta enseña el proceso, los FPS, el tiempo de fotograma y los Hz del monitor |
-| **CPU** | Temperatura actual, máxima de la sesión y carga |
-| **GPU** | Temperatura, uso y memoria (NVIDIA o AMD; Intel si tiene sensor de temperatura) |
-| **Modo juego** | Interruptor con un mando: vacío = apagado, lleno = encendido (ver [Modo juego](#modo-juego)) |
-| **RAM** | % de memoria física usada; en la tarjeta, GB usados / totales, en caché y confirmada |
+| **Claude** | % of the 5-hour session (if your account has one), weekly limit and, if you've spent usage credits, the amount in its currency (e.g. €) |
+| **Codex** | % of the limit window, labelled by its length (session / daily / weekly / monthly) and, if the account has credits, the credit balance |
+| **Cursor** | % of the monthly Pro cycle and, if you use on-demand billing, the amount spent in USD (and its limit) |
+| **OpenCode** | Input / output / reasoning / cache tokens and accumulated local cost |
+| **DeepSeek** | Remaining API balance in the currency the provider returns |
+| **OpenRouter** | % used if the key has a limit; otherwise, accumulated spend in USD |
+| **FPS** | FPS of the foreground program (see [FPS ring](#fps-ring)); the card shows the process, the FPS, the frame time and the monitor's Hz |
+| **CPU** | Current temperature, session maximum and load |
+| **GPU** | Temperature, usage and memory (NVIDIA or AMD; Intel if it has a temperature sensor) |
+| **Game mode** | Switch with a gamepad icon: empty = off, filled = on (see [Game mode](#game-mode)) |
+| **RAM** | % of physical memory in use; on the card, GB used / total, cached and committed |
 
-El gasto solo aparece cuando la respuesta del proveedor trae una cifra real mayor que cero; nunca se estima.
+Spend only appears when the provider's response carries a real figure greater than zero; it is never estimated.
 
-Los anillos de OpenCode aparecen si se detecta su CLI o sus datos locales; DeepSeek y OpenRouter aparecen al guardar una clave.
-Claude, Codex y Cursor se detectan por sus clientes o credenciales. Puedes forzar u ocultar cada anillo en ajustes.
-El anillo de GPU se oculta cuando no se detecta ninguna gráfica compatible. El panel se recentra con una animación
-al mostrar u ocultar anillos.
+The OpenCode ring appears if its CLI or its local data is detected; DeepSeek and OpenRouter appear once you save a key.
+Claude, Codex and Cursor are detected through their clients or credentials. You can force or hide each ring in
+Settings. The GPU ring is hidden when no supported graphics card is detected. The panel re-centres with an animation
+when rings are shown or hidden.
 
-### Vistas
+### Views
 
-El panel enseña una sola vista a la vez:
+The panel shows one view at a time:
 
-- **IA** — los anillos de las IA (Claude, Codex, Cursor, OpenCode, DeepSeek y OpenRouter).
-- **PC** — FPS, CPU, GPU, RAM y Modo juego (el último: es un interruptor).
-- **Personalizada** — la mezcla que quieras de anillos de las dos anteriores. Se puede apagar en Ajustes →
-  Personalización; entonces el botón de vista pasa solo de IA a PC.
+- **AI** — the AI rings (Claude, Codex, Cursor, OpenCode, DeepSeek and OpenRouter).
+- **PC** — FPS, CPU, GPU, RAM and Game mode (the last one, since it's a switch).
+- **Custom** — any mix you like of rings from the two above. It can be turned off in Settings → Appearance; the view
+  button then just toggles between AI and PC.
 
-Un botón redondo del panel (↓↑, «Cambiar de vista») cambia de vista (IA → PC → Personalizada) con un fundido. En Ajustes → Personalización
-eliges la vista activa y, por cada vista, qué anillos se ven y en qué orden (↑↓). Por defecto van por orden alfabético
-y, en PC, el de FPS va primero. La escala del panel se calcula para la vista más grande (con los anillos disponibles),
-así que no cambia de tamaño al pasar de una a otra. El fondo del panel también se elige ahí (**Fondo del widget**):
-colores predefinidos, `#RRGGBB` o deslizadores R/G/B; negro por defecto, y sobre fondos claros el texto y los anillos
-pasan solos a la variante oscura.
+A round button on the panel (↓↑, "Switch view") cycles through the views (AI → PC → Custom) with a fade. In Settings →
+Appearance (Personalización) you choose the active view and, for each view, which rings are shown and in what order
+(↑↓). By default they're in alphabetical order and, in PC, the FPS ring comes first. The panel's scale is computed for
+the largest view (with the rings available), so it doesn't change size when you switch. The panel background is also
+chosen there (**Widget background**): preset colours, `#RRGGBB` or R/G/B sliders; black by default, and on light
+backgrounds the text and rings switch to the dark variant automatically.
 
-### Dos modos
+### Two modes
 
-- **Fijado** — el panel se queda siempre abierto.
-- **Automático** — se recoge a una franja de 5 px en el borde y se despliega al acercar el ratón.
+- **Pinned** — the panel always stays open.
+- **Automatic** — it tucks away into a 5 px strip at the edge and unfolds when the mouse gets close.
 
-Se cambia con el botón de la chincheta del propio panel, que se rellena mientras está fijado, y la elección se
-recuerda. Los cuatro botones redondos
-van de dos en dos: fijar y vista arriba, ajustes y cerrar abajo.
+You switch with the pin button on the panel itself, which is filled while pinned, and the choice is remembered. The four
+round buttons come in pairs: pin and view at the top, settings and close at the bottom.
 
-### Posición
+### Position
 
-En Ajustes → Personalización → **Posición** eliges:
+In Settings → Appearance → **Position** you choose:
 
-- **Pantalla** — si tienes varias. Si esa pantalla se desconecta, el panel vuelve a la principal; se recoloca solo al
-  cambiar la resolución, el DPI o la barra de tareas.
-- **Borde** — derecha (por defecto), izquierda, arriba o abajo. Arriba y abajo los anillos van en fila y la tarjeta
-  sale debajo o encima.
-- **Colocación** — **Centrado** en ese borde o **Manual**: donde lo dejaste con el asa.
+- **Screen** — if you have several. If that screen is disconnected, the panel goes back to the primary one; it
+  repositions itself when the resolution, DPI or taskbar changes.
+- **Edge** — right (default), left, top or bottom. At the top and bottom the rings are laid out in a row and the card
+  opens below or above.
+- **Placement** — **Centred** on that edge or **Manual**: wherever you left it with the handle.
 
-**Moverlo y cambiar su tamaño desde el propio panel**: mantén pulsado el botón ✕ un segundo (un anillo se llena
-alrededor) o arrástralo, y se convierte en un asa (↔); llévalo a cualquier borde de cualquier pantalla y se queda donde
-lo sueltes. Mientras es un asa, junto al panel aparece también el tirador de tamaño (⤢) con el % al lado: aléjalo o
-acércalo para hacerlo más grande o más pequeño (se pega al 100 %, no pasa de lo que cabe; doble clic: tamaño
-automático). Al soltar, el anillo se vacía en 6 segundos y vuelven la ✕ y el panel sin tirador; mientras arrastras no
-cuenta. Un clic normal sigue cerrando la app.
+**Move and resize it from the panel itself**: hold down the ✕ button for a second (a ring fills up around it) or drag
+it, and it turns into a handle (↔); take it to any edge of any screen and it stays where you drop it. While it's a
+handle, the size grip (⤢) also appears next to the panel with the % beside it: drag it away or closer to make the panel
+bigger or smaller (it snaps to 100 % and won't go beyond what fits; double click: automatic size). When you let go, the
+ring empties over 6 seconds and the ✕ and the grip-free panel come back; it doesn't count down while you're dragging.
+A normal click still quits the app.
 
-**Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa, el engranaje un ✓ y junto al panel aparece un
-tirador con el tamaño en %; aléjalo o acércalo para hacer el panel más grande o más pequeño, de forma fluida (se pega
-al 100 %; doble clic: tamaño automático). Con el ✓, **Terminar** o al cerrar Ajustes se guardan la posición y el tamaño
-(`placement`, `offset`, `uiScale`) y vuelve la ✕.
+**Edit widget** (Settings → Appearance): the ✕ becomes the handle, the gear becomes a ✓, and a grip with the size in %
+appears next to the panel; drag it away or closer to make the panel bigger or smaller, smoothly (it snaps to 100 %;
+double click: automatic size). The ✓, **Done** or closing Settings saves the position and size (`placement`, `offset`,
+`uiScale`) and brings the ✕ back.
 
-### Pestañas «Sesión» / «Total»
+### "Session" / "Total" tabs
 
-Arriba del panel, dos pestañas eligen qué mide cada anillo de IA (la elección se recuerda):
+At the top of the panel, two tabs choose what each AI ring measures (the choice is remembered):
 
-- **Sesión** — la ventana corta: Claude 5 h, Codex su ventana más corta. Si tu cuenta de Claude no tiene ventana de
-  5 h (desde noviembre de 2026 la API puede no mandarla), el anillo enseña el semanal en las dos pestañas y la tarjeta
-  dice «Sin límite de sesión» con el semanal debajo.
-- **Total** — la ventana larga: Claude y Codex semanal (o la más larga), Cursor el ciclo mensual de facturación.
+- **Session** — the short window: Claude 5 h, Codex its shortest window. If your Claude account has no 5-hour window
+  (since November 2026 the API may not send it), the ring shows the weekly limit on both tabs and the card says
+  "No session limit" with the weekly limit below.
+- **Total** — the long window: Claude and Codex weekly (or the longest one), Cursor the monthly billing cycle.
 
-Cursor solo tiene el ciclo mensual, así que muestra lo mismo en las dos; Codex con una sola ventana (plan Go:
-mensual), también. La tarjeta sigue enseñando todas las ventanas.
+Cursor only has the monthly cycle, so it shows the same on both; so does Codex with a single window (Go plan: monthly).
+The card still shows every window.
 
-### Plan de cada cuenta
+### Plan of each account
 
-La cabecera de las tarjetas de Claude, Codex y Cursor lleva una etiqueta con el plan (Free, Go, Plus, Pro, Max, Ultra,
-Team…). En Claude, el plan Max 20x sale como **Ultra** (su nombre nuevo; se distingue por `rateLimitTier` de las
-credenciales) y Max 5x como Max. Una cuenta gratuita de Claude no tiene límites de sesión ni semanales que medir: la tarjeta lo dice
-(«Cuenta gratuita: sin límites de uso medibles») en vez de un error.
+The header of the Claude, Codex and Cursor cards carries a label with the plan (Free, Go, Plus, Pro, Max, Ultra,
+Team…). On Claude, the Max 20x plan shows up as **Ultra** (its new name; it's told apart by `rateLimitTier` in the
+credentials) and Max 5x as Max. A free Claude account has no session or weekly limits to measure: the card says so
+("Free account: no measurable usage limits") instead of showing an error.
 
-### Varias cuentas por IA
+### Several accounts per AI
 
-Claude, Codex y Cursor admiten más de una cuenta. En Ajustes → Agentes → Cuentas se añade otra por la carpeta de su
-configuración y un nombre:
+Claude, Codex and Cursor support more than one account. In Settings → Agents → Accounts you add another one by its
+configuration folder and a name:
 
-| IA | Carpeta de configuración | Debe contener |
+| AI | Configuration folder | Must contain |
 |---|---|---|
-| Claude | la de `CLAUDE_CONFIG_DIR` | `.credentials.json` |
-| Codex | la de `CODEX_HOME` | `auth.json` |
-| Cursor | la del `--user-data-dir` | `User\globalStorage\state.vscdb` |
+| Claude | the `CLAUDE_CONFIG_DIR` one | `.credentials.json` |
+| Codex | the `CODEX_HOME` one | `auth.json` |
+| Cursor | the `--user-data-dir` one | `User\globalStorage\state.vscdb` |
 
-Sigue habiendo un anillo por IA. Junto al título de la tarjeta hay una etiqueta por cuenta: el nombre que le pongas
-(«Personal», «Trabajo») o, sin nombre, su plan («Go», «Pro»). La rellena es la que enseña el anillo; un clic en otra
-cambia de cuenta y la elección se recuerda; con más de tres, las etiquetas pasan a una segunda línea y la tarjeta se
-ensancha lo que haga falta.
+There's still one ring per AI. Next to the card's title there's a label per account: the name you give it ("Personal",
+"Work") or, without a name, its plan ("Go", "Pro"). The filled one is the one the ring shows; clicking another switches
+account and the choice is remembered; with more than three, the labels move to a second line and the card widens as
+much as needed.
 
-**No hace falta añadirlas.** Tras cada arranque, en segundo plano y con prioridad baja, el widget busca las demás
-sesiones de Claude Code, Codex y Cursor en tu carpeta de usuario y en todos los discos fijos (C:, D:…), hasta seis
-niveles de profundidad, sin entrar en enlaces y saltándose Windows, Program Files, ProgramData, papeleras,
-`node_modules` y similares. Solo cuenta una carpeta si su archivo de sesión es válido y es tuyo, y reconoce la misma
-cuenta en varias carpetas (Codex por su `account_id`, Claude por su `accountUuid`, Cursor por su id de usuario; siempre
-como huella SHA-256, nunca el valor). La primera búsqueda puede tardar unos segundos; las siguientes, casi nada. Las
-cuentas que quitas a mano no vuelven a añadirse, y **Buscar en todo el equipo** (Ajustes → Agentes → Cuentas) lo hace
-al momento. Las carpetas por defecto respetan `CODEX_HOME` y `CLAUDE_CONFIG_DIR`.
+**You don't need to add them.** After each start, in the background and at low priority, the widget looks for your
+other Claude Code, Codex and Cursor sessions in your user folder and on every fixed drive (C:, D:…), up to six levels
+deep, without following links and skipping Windows, Program Files, ProgramData, recycle bins, `node_modules` and the
+like. A folder only counts if its session file is valid and belongs to you, and it recognises the same account across
+several folders (Codex by its `account_id`, Claude by its `accountUuid`, Cursor by its user id; always as a SHA-256
+fingerprint, never the value). The first search can take a few seconds; later ones, almost nothing. Accounts you remove
+by hand are not added again, and **Search the whole PC** (Settings → Agents → Accounts) runs it on demand. The default
+folders respect `CODEX_HOME` and `CLAUDE_CONFIG_DIR`.
 
-### Suscripción y «Abrir»
+### Subscription and "Open"
 
-Las tarjetas de Claude, Codex y Cursor (con plan de pago) tienen arriba a la derecha una (i): abre un globo con «Su suscripción se renovará el …» de la cuenta
-que se ve (Codex: su `id_token`; Cursor: el fin del ciclo de facturación; Claude: calculada con el día de alta y
-renovación mensual, porque `GET /api/oauth/profile` no da la fecha). Abajo a la derecha, un botón redondo abre la app de esa IA (o su web
-si no está instalada), siempre sin permisos de administrador. Renovar la sesión con un clic en el anillo de Claude solo vale para la cuenta
-principal.
+The Claude, Codex and Cursor cards (on a paid plan) have an (i) in the top-right corner: it opens a bubble with "Your
+subscription will renew on …" for the account on screen (Codex: from its `id_token`; Cursor: the end of the billing
+cycle; Claude: computed from the sign-up day and monthly renewal, because `GET /api/oauth/profile` doesn't give the
+date). In the bottom-right corner, a round button opens that AI's app (or its website if it isn't installed), always
+without administrator rights. Renewing the session with a click on the Claude ring only works for the main account.
 
-### Anillo de FPS
+### FPS ring
 
-Es el primero de la vista PC. Enseña los FPS del programa que tienes en primer plano, contados como lo hace PresentMon:
-a partir de los eventos de presentación de ETW (Microsoft-Windows-DXGI 42 y 55, D3D9 1 y DxgKrnl con el filtro de
-eventos 166/168/171/184/252). Por proceso gana el tipo de evento más frecuente, y las apps Electron/Chromium se cuentan
-por su proceso hijo de GPU. La sesión de ETW solo existe mientras el anillo está a la vista y se muestrea una vez por
-segundo.
+It's the first one in the PC view. It shows the FPS of the program in the foreground, counted the way PresentMon does
+it: from ETW present events (Microsoft-Windows-DXGI 42 and 55, D3D9 1 and DxgKrnl with the event filter
+166/168/171/184/252). Per process, the most frequent event type wins, and Electron/Chromium apps are counted through
+their GPU child process. The ETW session only exists while the ring is visible, and it is sampled once per second.
 
-Necesita la copia elevada (la instalada). Sin elevar, o si el programa no presenta nada, enseña los FPS de composición
-del escritorio (`DwmGetCompositionTimingInfo`). El arco es FPS / frecuencia del monitor.
+It needs the elevated (installed) copy. Without elevation, or if the program presents nothing, it shows the desktop
+composition FPS (`DwmGetCompositionTimingInfo`). The arc is FPS / monitor refresh rate.
 
-### Modo juego
+### Game mode
 
-Anillo con un mando: vacío = apagado, lleno = encendido. **Está desactivado por defecto**; se activa en Ajustes → Modo
-juego, que también deja editar qué hace al encenderse:
+A ring with a gamepad icon: empty = off, filled = on. **It's disabled by default**; you enable it in Settings → Game
+mode, which also lets you edit what it does when turned on:
 
-- **Programas que se cierran** (sin guardar): por defecto, sincronización en la nube, Phone Link, Teams y los
-  auxiliares de la Xbox Game Bar.
-- **Servicios que se detienen**: por defecto `WSearch`, `SysMain` y `DiagTrack`.
-- **Plan de energía**: Equilibrado (por defecto), Alto rendimiento o No cambiarlo.
-- **Desactivar las capturas de la Xbox Game Bar** (valores de `HKCU`).
-- **Volver a abrir los programas al apagarlo**, como usuario normal.
+- **Programs it closes** (without saving): by default, cloud sync, Phone Link, Teams and the Xbox Game Bar helpers.
+- **Services it stops**: by default `WSearch`, `SysMain` and `DiagTrack`.
+- **Power plan**: Balanced (default), High performance or Leave it.
+- **Turn off Xbox Game Bar captures** (`HKCU` values).
+- **Open the programs again when turning it off**, as a normal user.
 
-Nunca cierra procesos protegidos ni del sistema, el proceso de la ventana en primer plano, el propio widget ni
-`claude.exe`, y hay una lista de servicios que nunca detiene (`seclogon`, PawnIO…). El estado anterior se guarda en
-`gamemode.json`, en la carpeta de datos, antes de cada cambio; se restaura al salir del widget y, si el equipo se apagó
-con el modo encendido, al volver a abrirlo.
+It never closes protected or system processes, the process of the foreground window, the widget itself or
+`claude.exe`, and there's a list of services it never stops (`seclogon`, PawnIO…). The previous state is saved to
+`gamemode.json`, in the data folder, before every change; it's restored when the widget quits and, if the PC was shut
+down with the mode on, when it's opened again.
 
-### Detalles
+### Details
 
-- **Un clic en el anillo de Claude renueva la sesión sin abrir ninguna ventana** (ver
-  [Mantener viva la sesión de Claude](#mantener-viva-la-sesión-de-claude)).
-- **Un clic en el anillo de CPU** abre Configuración › Sistema › Información, sin privilegios de administrador.
-- **Un clic en el anillo de RAM libera memoria** («Liberar RAM»): recorta la memoria de procesos accesibles de la sesión
-  interactiva (`EmptyWorkingSet`), sin purgar la lista *standby*. Está desactivado por defecto; se activa con
+- **A click on the Claude ring renews the session without opening any window** (see
+  [Keeping the Claude session alive](#keeping-the-claude-session-alive)).
+- **A click on the CPU ring** opens Settings › System › About in Windows, without administrator privileges.
+- **A click on the RAM ring frees memory** ("Free RAM"): it trims the memory of accessible processes in the interactive
+  session (`EmptyWorkingSet`), without purging the *standby* list. It's disabled by default; enable it with
   `"ramCleanup": true`.
-- **Arranca con datos en 1–2 s**: la última lectura (solo porcentajes, fechas, planes e importes; ningún secreto) se
-  guarda en `cache.json`, junto a los ajustes (ver [Configuración](#configuración)), y se pinta nada más abrir;
-  después se refresca.
-- **Avisos de actualización**: una versión nueva pone un punto rojo en el botón de ajustes (ver
-  [Instalación](#instalación)).
-- **Icono en la bandeja** con menú propio (Actualizar / Agentes y claves de API… / Iniciar con Windows / Desinstalar… / Salir)
-  e información al pasar el ratón.
-- **Aviso de temperatura**: cada pico por encima de 90 °C queda anotado en el registro, incluso cuando
-  el panel está recogido. Útil si tu portátil se calienta y no sabes cuándo.
-- **Instancia única**, se recoloca solo al cambiar de monitor o de escala, y sobrevive a un reinicio
-  del Explorador de Windows.
+- **Shows data within 1–2 s of starting**: the last reading (percentages, dates, plans and amounts only; no secrets) is
+  saved in `cache.json`, next to the settings (see [Configuration](#configuration)), and drawn as soon as it opens;
+  then it refreshes.
+- **Update notices**: a new version puts a red dot on the settings button (see [Installation](#installation)).
+- **Tray icon** with its own menu (Refresh now / Agents & API keys… / Start with Windows / Uninstall… / Quit) and a
+  tooltip on hover.
+- **Temperature warning**: every spike above 90 °C is written to the log, even while the panel is tucked away. Handy if
+  your laptop runs hot and you don't know when.
+- **Single instance**, repositions itself when the monitor or scaling changes, and survives a restart of Windows
+  Explorer.
 
 ---
 
-## Instalación
+## Installation
 
-Requisitos: **Windows 11** (o 10 22H2) y una cuenta administradora coincidente con el usuario de la sesión interactiva.
+Requirements: **Windows 11** (or 10 22H2) and an administrator account matching the user of the interactive session.
 
-Firma: [Code signing policy](#code-signing-policy) (free code signing provided by SignPath.io, certificate by
-SignPath Foundation) y, para las actualizaciones desde la app, la firma propia del proyecto (ver [Firma](#firma)).
+Signing: [Code signing policy](#code-signing-policy) (free code signing provided by SignPath.io, certificate by
+SignPath Foundation) and, for in-app updates, the project's own signature (see [Signing](#signing)).
 
-1. Descarga el ZIP de la aplicación de la [última versión](../../releases/latest), o compílala (ver abajo).
-   Los archivos de Releases los publica [GitHub Actions](../../actions) a partir de este código.
-   El flujo publica una attestation verificable con
+1. Download the application ZIP from the [latest release](../../releases/latest), or build it (see below).
+   The files in Releases are published by [GitHub Actions](../../actions) from this code.
+   The workflow publishes a verifiable attestation, checked with
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
-   La comprobación de actualizaciones está **activada por defecto** (al arrancar y cada 6 h, se apaga en Ajustes →
-   Actualizaciones). Si hay una versión nueva, el botón de ajustes lleva un punto rojo y Ajustes enseña «Nueva versión
-   disponible · Descargar e instalar»: un clic descarga, verifica e instala, y el widget se reinicia. La aplicación solo
-   acepta un ZIP que cumpla todo esto (si no, no instala nada):
-   - su SHA-256 coincide con el `digest` que GitHub publica para ese archivo;
-   - contiene exactamente `OpenControlEdge.exe` y sus 8 librerías nativas: ni un archivo más ni uno menos;
-   - **si la Release trae `OpenControlEdge-win-x64.zip.sig`**: la firma ECDSA P-256 del ZIP coincide con la clave
-     pública que lleva compilada la aplicación. Entonces no hacen falta las dos comprobaciones siguientes, pero el
-     recurso de versión del ejecutable debe decir «Open Control Edge» y la versión anunciada;
-   - **si no trae `.sig`**: el ejecutable tiene una firma Authenticode válida de SignPath Foundation (nombre exacto)
-     y su recurso de versión dice «Open Control Edge» y la versión anunciada. SignPath Foundation firma muchos
-     proyectos con esa misma identidad, así que esta comprobación se apoya también en que la descarga solo puede venir
-     de las Releases de este repositorio; y cada librería es byte a byte la que trae la versión instalada o está
-     firmada por su editor (Microsoft para las de WPF, Xamarin para las de Mono.Posix, SignPath Foundation para las
-     que firme la Release).
+   Update checking is **on by default** (at start-up and every 6 h; turn it off in Settings → Updates). If there's a
+   new version, the settings button gets a red dot and Settings shows "New version available · Download and install":
+   one click downloads, verifies and installs it, and the widget restarts. The app only accepts a ZIP that meets all of
+   the following (otherwise it installs nothing):
+   - its SHA-256 matches the `digest` GitHub publishes for that file;
+   - it contains exactly `OpenControlEdge.exe` and its 8 native libraries: not one file more or less;
+   - **if the Release carries `OpenControlEdge-win-x64.zip.sig`**: the ZIP's ECDSA P-256 signature matches the public
+     key compiled into the app. The next two checks are then not needed, but the executable's version resource must
+     say "Open Control Edge" and the announced version;
+   - **if there's no `.sig`**: the executable has a valid Authenticode signature from SignPath Foundation (exact name)
+     and its version resource says "Open Control Edge" and the announced version. SignPath Foundation signs many
+     projects with that same identity, so this check also relies on the download only being able to come from this
+     repository's Releases; and each library is byte for byte the one shipped with the installed version or is signed
+     by its publisher (Microsoft for the WPF ones, Xamarin for the Mono.Posix ones, SignPath Foundation for those the
+     Release signs).
 
-   La attestation se puede verificar manualmente con GitHub CLI; la aplicación no ejecuta `gh` en segundo plano.
+   The attestation can be verified manually with GitHub CLI; the app does not run `gh` in the background.
 
    > [!NOTE]
-   > **Si vienes de la 2.1.0, instala la 2.2.0 a mano una vez** (pasos de abajo): la 2.1.0 solo acepta actualizaciones
-   > firmadas por SignPath, y la 2.2.0 se firma con la clave propia del proyecto. Desde la 2.2.0 se actualiza sola.
-2. Extrae el ZIP y abre `OpenControlEdge.exe`. Acepta el UAC (el único) y aparece la ventana
-   **«Instalar Open Control Edge»**. Empieza con **«Comprobando tu sistema…»**: Windows 10/11 de 64 bits, permisos de
-   administrador, el servicio Inicio de sesión secundario (se vuelve a activar si estaba desactivado), PawnIO (se
-   instala solo, con `-install`) y qué IA se detectan. Si PawnIO falla, la instalación continúa y el anillo de CPU lo
-   avisará. Al pulsar **Aceptar e instalar**:
-   - cierra la versión en marcha (también EdgeWidget) y sus tareas;
-   - copia a `C:\Program Files\OpenControlEdge` solo `OpenControlEdge.exe` y sus 8 librerías nativas. Comprueba
-     con SHA-256 que la copia del ejecutable es idéntica al que aceptaste en el UAC y que cada librería es
-     exactamente la que se publicó con él (sus SHA-256 van compilados dentro del ejecutable), antes de cambiar la
-     carpeta de sitio (si algo falla, vuelve la copia anterior); después verifica que ningún usuario sin privilegios
-     pueda escribir en la carpeta ni en el ejecutable. La instalación local no exige firma: instala el ejecutable que
-     tú mismo has abierto;
-   - protege `%ProgramData%\OpenControlEdge\<SID>` (sin enlaces ni puntos de reanálisis, escritura solo para
-     administradores y etiqueta de integridad alta). Los ajustes de versiones anteriores no se migran;
-   - registra el inicio con Windows (Programador de tareas: al iniciar sesión tu usuario, **sin retraso**, con
-     privilegios elevados y prioridad normal) y quita las tareas antiguas `EdgeWidget` y «Claude - Mantener sesion».
-     La carpeta `C:\Program Files\EdgeWidget` y tus ajustes se conservan;
-   - arranca la copia instalada.
+   > **If you're coming from 2.1.0, install 2.2.0 by hand once** (steps below): 2.1.0 only accepts updates signed by
+   > SignPath, and 2.2.0 is signed with the project's own key. From 2.2.0 on, it updates itself.
+2. Extract the ZIP and open `OpenControlEdge.exe`. Accept the UAC prompt (the only one) and the
+   **"Install Open Control Edge"** window appears. It starts with **"Checking your system…"**: 64-bit Windows 10/11,
+   administrator rights, the Secondary Logon service (re-enabled if it was disabled), PawnIO (installed automatically,
+   with `-install`) and which AIs are detected. If PawnIO fails, the installation carries on and the CPU ring will say
+   so. When you click **Accept and install**:
+   - it closes the running version (EdgeWidget too) and its tasks;
+   - it copies only `OpenControlEdge.exe` and its 8 native libraries to `C:\Program Files\OpenControlEdge`. It checks
+     with SHA-256 that the copied executable is identical to the one you accepted in the UAC prompt and that each
+     library is exactly the one published with it (their SHA-256 hashes are compiled into the executable), before
+     moving the folder into place (if anything fails, the previous copy comes back); it then verifies that no
+     unprivileged user can write to the folder or the executable. The local installation doesn't require a signature:
+     it installs the executable you opened yourself;
+   - it protects `%ProgramData%\OpenControlEdge\<SID>` (no links or reparse points, write access for administrators
+     only and a high integrity label). Settings from earlier versions are not migrated;
+   - it registers start-up with Windows (Task Scheduler: when your user signs in, **with no delay**, with elevated
+     privileges and normal priority) and removes the old `EdgeWidget` and "Claude - Mantener sesion" tasks. The
+     `C:\Program Files\EdgeWidget` folder and your settings are kept;
+   - it starts the installed copy.
 
-   «Usar sin instalar» y las opciones `--portable` / `--no-elevate` solo están disponibles si el proceso ya corre sin
-   elevar; en una ejecución elevada la ventana oculta esa opción.
+   "Use without installing" and the `--portable` / `--no-elevate` options are only available if the process is already
+   running unelevated; in an elevated run the window hides that option.
 
-PawnIO también se puede instalar desde Ajustes → Información. Se descarga el asset oficial `PawnIO_setup.exe`;
-antes de abrirlo se comprueba la firma Authenticode, el sujeto `CN=namazso.eu` y la huella
-`F380DCC9F706E2756A5047B832FFE719E1BC35F5`. La carpeta temporal está bajo Archivos de programa y PowerShell no
-interviene en la verificación.
+PawnIO can also be installed from Settings → About. The official `PawnIO_setup.exe` asset is downloaded; before opening
+it, its Authenticode signature, the subject `CN=namazso.eu` and the thumbprint
+`F380DCC9F706E2756A5047B832FFE719E1BC35F5` are checked. The temporary folder lives under Program Files and PowerShell
+plays no part in the verification.
 
-Desde la copia instalada, el menú de la bandeja tiene **Iniciar con Windows** (activar / desactivar la tarea) y
-**Desinstalar…**, que quita la tarea, cierra el widget y deja la carpeta de Archivos de programa marcada para
-borrarse al reiniciar. Los datos de usuario en `%ProgramData%\OpenControlEdge\<SID>` se conservan.
+From the installed copy, the tray menu has **Start with Windows** (enable / disable the task) and **Uninstall…**,
+which removes the task, closes the widget and marks the Program Files folder for deletion on restart. User data in
+`%ProgramData%\OpenControlEdge\<SID>` is kept.
 
-### ¿Por qué necesita administrador?
+### Why does it need administrator rights?
 
-Leer la temperatura de la CPU requiere acceso a los registros MSR del procesador, y eso solo se puede
-hacer con privilegios elevados; contar los FPS de otros programas con ETW, también. Son las dos razones. Si prefieres no
-dárselos, la compilación en modo Debug funciona sin elevar: verás todo menos la temperatura de la CPU y los FPS reales
-del programa en primer plano (el anillo de FPS enseña entonces los de composición del escritorio).
+Reading the CPU temperature requires access to the processor's MSR registers, and that can only be done with elevated
+privileges; so does counting other programs' FPS with ETW. Those are the two reasons. If you'd rather not grant them,
+the Debug build runs unelevated: you'll see everything except the CPU temperature and the real FPS of the foreground
+program (the FPS ring then shows the desktop composition FPS).
 
-La copia instalada arranca con la tarea programada y heredaría el entorno de tu usuario, que cualquier programa tuyo
-puede cambiar. Desde la 3.0 la tarea no abre el programa directamente: pasa por `start.cmd`, en la carpeta de Program
-Files (solo administradores pueden escribir ahí), que borra todas las variables `DOTNET_*`, `COMPlus_*`, `CORECLR_*` y
-`COR_*` (las que .NET lee antes de arrancar: *profilers*, puertos de diagnóstico, volcados…) y deja el `PATH` en las
-carpetas de Windows antes de abrir el widget. Además ignora `DOTNET_STARTUP_HOOKS`, no busca DLL en el `PATH` y lee los
-archivos de sesión sin seguir enlaces y solo si son de tu usuario.
+The installed copy starts from the scheduled task and would inherit your user's environment, which any program of yours
+can change. Since 3.0 the task doesn't open the program directly: it goes through `start.cmd`, in the Program Files
+folder (only administrators can write there), which clears every `DOTNET_*`, `COMPlus_*`, `CORECLR_*` and `COR_*`
+variable (the ones .NET reads before starting: *profilers*, diagnostic ports, dumps…) and trims `PATH` to the Windows
+folders before opening the widget. On top of that it ignores `DOTNET_STARTUP_HOOKS`, doesn't search for DLLs in `PATH`
+and reads session files without following links and only if they belong to your user.
 
 ---
 
-## Configuración
+## Configuration
 
-`%ProgramData%\OpenControlEdge\<SID>\OpenControlEdge.settings.json` (copia instalada) o
-`%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json` (ejecución sin elevar).
+`%ProgramData%\OpenControlEdge\<SID>\OpenControlEdge.settings.json` (installed copy) or
+`%LOCALAPPDATA%\OpenControlEdge\OpenControlEdge.settings.json` (unelevated run).
 
-El registro está junto a los ajustes; los blobs DPAPI de las claves están en la subcarpeta `keys\`.
+The log sits next to the settings; the DPAPI blobs of the keys are in the `keys\` subfolder.
 
 ```json
 {
@@ -400,96 +397,104 @@ El registro está junto a los ajustes; los blobs DPAPI de las claves están en l
 }
 ```
 
-| Clave | Valores | Qué hace |
+| Key | Values | What it does |
 |---|---|---|
-| `panelMode` | `"pinned"` \| `"auto"` | Modo del panel. Lo escribe el propio botón. |
-| `usageView` | `"session"` \| `"total"` | Pestaña de los anillos de IA. La escriben las propias pestañas. |
-| `autoRenewClaude` | `true` (defecto) \| `false` | Renueva la sesión de Claude en segundo plano antes de que caduque. |
-| `ramCleanup` | `false` (defecto) \| `true` | Permite «Liberar RAM» con un clic en el anillo de RAM. |
-| `checkUpdates` | `true` (defecto) \| `false` | Busca versiones nuevas al arrancar y cada 6 h. Sustituye a `autoCheckUpdates` de la 2.1. |
-| `view` | `"ai"` (defecto) \| `"pc"` \| `"custom"` | Vista del panel. La escribe el propio botón de vista. |
-| `customView` | `true` (defecto) \| `false` | Si la vista Personalizada se puede elegir. |
-| `edge` | `"right"` (defecto) \| `"left"` \| `"top"` \| `"bottom"` | Borde del panel. |
-| `placement` / `offset` | `"center"` (defecto) \| `"manual"` / `0`…`1` | Centrado o donde lo dejaste con el asa (`offset`: dónde queda su centro a lo largo del borde). |
-| `monitor` | `"\\\\.\\DISPLAY2"` (opcional) | Pantalla del panel por su nombre de Windows; si falta o ya no está, la principal. |
-| `dismissedAccounts` | lista opcional | Carpetas de cuentas que quitaste: la búsqueda automática no las vuelve a añadir. |
-| `accountNames` | objeto opcional | Nombre de la cuenta principal de `claude`, `codex` o `cursor` para su etiqueta. |
-| `layouts` | objeto opcional | Por vista (`ai`, `pc`, `custom`): `order` (orden de los anillos) y `hidden` (los apagados). Lo escribe Ajustes → Personalización. |
-| `panelBackground` | `"#RRGGBB"` (opcional) | Color de fondo del panel; si falta, el del tema (negro en el oscuro). |
-| `gameMode` | objeto opcional | Modo juego: `enabled`, `processes`, `services`, `powerPlan` (`"balanced"` \| `"high"` \| `"keep"`), `disableGameBar` y `relaunch`. Lo escribe Ajustes → Modo juego. |
-| `accounts` / `selectedAccounts` | objetos opcionales | Cuentas adicionales de `claude`, `codex` y `cursor` (`name` y `folder`) y la que enseña cada anillo (0 = principal). Lo escribe Ajustes → Agentes. |
-| `providers` | objeto opcional | Visibilidad de cada anillo de IA (ver abajo). |
+| `panelMode` | `"pinned"` \| `"auto"` | Panel mode. Written by the button itself. |
+| `usageView` | `"session"` \| `"total"` | Tab of the AI rings. Written by the tabs themselves. |
+| `autoRenewClaude` | `true` (default) \| `false` | Renews the Claude session in the background before it expires. |
+| `ramCleanup` | `false` (default) \| `true` | Allows "Free RAM" with a click on the RAM ring. |
+| `checkUpdates` | `true` (default) \| `false` | Looks for new versions at start-up and every 6 h. Replaces `autoCheckUpdates` from 2.1. |
+| `view` | `"ai"` (default) \| `"pc"` \| `"custom"` | Panel view. Written by the view button itself. |
+| `customView` | `true` (default) \| `false` | Whether the Custom view can be selected. |
+| `edge` | `"right"` (default) \| `"left"` \| `"top"` \| `"bottom"` | Panel edge. |
+| `placement` / `offset` | `"center"` (default) \| `"manual"` / `0`…`1` | Centred, or wherever you left it with the handle (`offset`: where its centre sits along the edge). |
+| `monitor` | `"\\\\.\\DISPLAY2"` (optional) | The panel's screen, by its Windows name; if missing or no longer there, the primary one. |
+| `dismissedAccounts` | optional list | Account folders you removed: the automatic search won't add them again. |
+| `accountNames` | optional object | Name of the main `claude`, `codex` or `cursor` account, for its label. |
+| `layouts` | optional object | Per view (`ai`, `pc`, `custom`): `order` (ring order) and `hidden` (the ones turned off). Written by Settings → Appearance. |
+| `panelBackground` | `"#RRGGBB"` (optional) | Panel background colour; if missing, the theme's (black in the dark theme). |
+| `gameMode` | optional object | Game mode: `enabled`, `processes`, `services`, `powerPlan` (`"balanced"` \| `"high"` \| `"keep"`), `disableGameBar` and `relaunch`. Written by Settings → Game mode. |
+| `accounts` / `selectedAccounts` | optional objects | Additional `claude`, `codex` and `cursor` accounts (`name` and `folder`) and the one each ring shows (0 = main). Written by Settings → Agents. |
+| `providers` | optional object | Visibility of each AI ring (see below). |
 
-Cada clave dentro de `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) admite:
+Each key inside `providers` (`claude`, `codex`, `cursor`, `opencode`, `deepseek`, `openrouter`) accepts:
 
-| Valor | Qué hace |
+| Value | What it does |
 |---|---|
-| `"auto"` | Muestra el anillo solo si el cliente está instalado (valor por defecto). |
-| `"show"` | Fuerza el anillo aunque no se detecte la instalación (sin llamar a la API si no hay cliente). |
-| `"hide"` | Oculta el anillo aunque el cliente esté instalado. |
+| `"auto"` | Shows the ring only if the client is installed (default). |
+| `"show"` | Forces the ring even if no installation is detected (without calling the API if there's no client). |
+| `"hide"` | Hides the ring even if the client is installed. |
 
-Si omites `providers` o una clave concreta, se usa `"auto"`. El widget no escribe `providers` hasta que
-los edites tú; al cambiar el modo del panel se conservan las claves que ya tuvieras.
+If you leave out `providers` or a specific key, `"auto"` is used. The widget doesn't write `providers` until you edit
+it yourself; changing the panel mode keeps whatever keys you already had.
 
 ---
 
-## De dónde salen los datos
+## Where the data comes from
 
-| Fuente | Origen | Credenciales |
+| Source | Origin | Credentials |
 |---|---|---|
 | Claude | `api.anthropic.com/api/oauth/usage` | `%USERPROFILE%\.claude\.credentials.json` |
 | Codex | `chatgpt.com/backend-api/wham/usage` | `%USERPROFILE%\.codex\auth.json` |
-| Cursor | `cursor.com/api/usage-summary` | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (o el de la cuenta adicional) |
-| OpenCode | Base local SQLite `opencode.db` | CLI o base de datos local |
-| FPS | Eventos de presentación de ETW (PresentMon) y `DwmGetCompositionTimingInfo` | — |
-| DeepSeek | `api.deepseek.com/user/balance` | Clave DPAPI CurrentUser |
-| OpenRouter | `openrouter.ai/api/v1/key` | Clave DPAPI CurrentUser |
+| Cursor | `cursor.com/api/usage-summary` | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (or the additional account's) |
+| OpenCode | Local SQLite database `opencode.db` | CLI or local database |
+| FPS | ETW present events (PresentMon) and `DwmGetCompositionTimingInfo` | — |
+| DeepSeek | `api.deepseek.com/user/balance` | DPAPI CurrentUser key |
+| OpenRouter | `openrouter.ai/api/v1/key` | DPAPI CurrentUser key |
 | CPU / GPU | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) | — |
 
-Las credenciales de Claude, Codex y Cursor son las de la cuenta principal; cada cuenta adicional usa las de su carpeta.
-Los endpoints de Claude, Codex y Cursor **no están documentados** por sus proveedores. Los parsers exigen la forma
-exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventarse un número.
+The Claude, Codex and Cursor credentials are those of the main account; each additional account uses the ones in its
+folder. The Claude, Codex and Cursor endpoints are **not documented** by their providers. The parsers require the exact
+shape of the response: if it changes, the ring shows an error instead of making up a number.
 
-**Gasto y créditos** (formas comprobadas con peticiones reales el 29-09-2026, sin datos personales):
+**Spend and credits** (shapes checked against real requests on 2026-09-29, without personal data):
 
-- Claude: `spend.used = { amount_minor, currency, exponent }` → importe en su moneda. Se muestra si es mayor que cero.
-- Claude, desde el 07-11-2026: `"five_hour": null` y en `limits` solo `weekly_all` (y `weekly_scoped`, el límite de un
-  modelo, que no se muestra). Una respuesta con el semanal y sin sesión es una lectura válida; sin ninguna de las dos,
-  error. Tras un HTTP 429 no vuelve a preguntar en 5, 10, 20 y luego 30 minutos (o lo que pida `Retry-After`, si es
-  más), para ninguna cuenta ni para la (i); Codex espera 5 minutos tras un 429 y 1 tras un 5xx.
+- Claude: `spend.used = { amount_minor, currency, exponent }` → amount in its currency. Shown if greater than zero.
+- Claude, since 2026-11-07: `"five_hour": null` and in `limits` only `weekly_all` (and `weekly_scoped`, a per-model
+  limit, which isn't shown). A response with the weekly limit and no session is a valid reading; with neither, an
+  error. After an HTTP 429 it doesn't ask again for 5, 10, 20 and then 30 minutes (or whatever `Retry-After` asks for,
+  if longer), for any account or for the (i); Codex waits 5 minutes after a 429 and 1 after a 5xx.
 - Codex (`wham/usage`): `"credits": { "has_credits": false, "unlimited": false, "overage_limit_reached": false,
-  "balance": null, "approx_local_messages": null, "approx_cloud_messages": null }` en una cuenta Go sin créditos.
-  El saldo (en créditos, no en dinero) solo se muestra con `has_credits: true` y un `balance` numérico.
-- Cursor (`usage-summary`): importes en **céntimos de dólar** (`individualUsage.plan = { used: 1429, limit: 2000 }`
-  frente a los 20 $ incluidos en Pro). `individualUsage.onDemand = { enabled, used, limit, remaining }`: lo gastado
-  bajo demanda se muestra si está activado y `used` es mayor que cero.
+  "balance": null, "approx_local_messages": null, "approx_cloud_messages": null }` on a Go account without credits.
+  The balance (in credits, not money) is only shown with `has_credits: true` and a numeric `balance`.
+- Cursor (`usage-summary`): amounts in **US cents** (`individualUsage.plan = { used: 1429, limit: 2000 }` against the
+  $20 included in Pro). `individualUsage.onDemand = { enabled, used, limit, remaining }`: on-demand spend is shown if
+  it's enabled and `used` is greater than zero.
 
 ---
 
-## Proveedores añadidos y claves de API
+## Additional providers and API keys
 
-| IA | Fuente y métrica | Estado |
+| AI | Source and metric | Status |
 |---|---|---|
-| OpenCode | Base local `opencode.db`: tokens de entrada/salida/razonamiento/caché y coste | Implementado; no usa red |
-| DeepSeek | [`GET https://api.deepseek.com/user/balance`](https://api-docs.deepseek.com/api/get-user-balance/): saldo en CNY o USD | Implementado |
-| Perplexity | No encontré una API pública oficial de uso o saldo | No implementado |
-| GitHub Copilot | [API de facturación de GitHub](https://docs.github.com/en/rest/billing/usage): créditos consumidos; las peticiones premium solo aplican al modelo heredado | No implementado: no proporciona una cuota de peticiones universal para todas las cuentas |
-| OpenRouter | [`GET https://openrouter.ai/api/v1/key`](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key): uso y límite de la clave | Implementado |
-| Gemini CLI | `/stats`: estadísticas de sesión, no cuota persistente | No implementado |
-| Mistral | [Admin API de uso](https://docs.mistral.ai/admin/admin-api/usage-metrics): consumo/coste de organización | Requiere clave admin y alcance de organización |
-| Windsurf | Endpoint de cuota observado por terceros, no documentado oficialmente | No implementado |
+| OpenCode | Local `opencode.db` database: input/output/reasoning/cache tokens and cost | Implemented; no network |
+| DeepSeek | [`GET https://api.deepseek.com/user/balance`](https://api-docs.deepseek.com/api/get-user-balance/): balance in CNY or USD | Implemented |
+| Perplexity | I couldn't find an official public usage or balance API | Not implemented |
+| GitHub Copilot | [GitHub billing API](https://docs.github.com/en/rest/billing/usage): credits consumed; premium requests only apply to the legacy model | Not implemented: it doesn't provide a request quota that works for every account |
+| OpenRouter | [`GET https://openrouter.ai/api/v1/key`](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key): key usage and limit | Implemented |
+| Gemini CLI | `/stats`: session statistics, not a persistent quota | Not implemented |
+| Mistral | [Usage Admin API](https://docs.mistral.ai/admin/admin-api/usage-metrics): organisation usage/cost | Requires an admin key and organisation scope |
+| Windsurf | Quota endpoint observed by third parties, not officially documented | Not implemented |
 
-### Cómo guardar o borrar claves
+### Saving or deleting keys
 
-En el engranaje del widget, abre **Ajustes → Agentes**. DeepSeek y OpenRouter tienen un campo protegido para su clave con botones **Guardar** y **Borrar**.
+From the widget's gear, open **Settings → Agents**. DeepSeek and OpenRouter have a protected field for their key with
+**Save** and **Delete** buttons.
 
-Las claves se cifran con Windows DPAPI en ámbito `CurrentUser` y se guardan como blobs binarios en la subcarpeta `keys\` de la carpeta de datos. Nunca se guardan en el JSON de settings ni se escriben en el registro. Se descifran solo en memoria para formar la cabecera HTTPS.
+Keys are encrypted with Windows DPAPI in `CurrentUser` scope and stored as binary blobs in the `keys\` subfolder of the
+data folder. They're never stored in the settings JSON or written to the log. They're decrypted only in memory to build
+the HTTPS header.
 
-### Datos locales de OpenCode
+### OpenCode local data
 
-El detector busca `opencode` en `PATH` o `opencode.db` en el directorio de datos. Se respetan `OPENCODE_DB` y `XDG_DATA_HOME`; también se inspeccionan las ubicaciones de datos habituales de Windows. El lector abre solo la base activa `opencode.db` con SQLite en solo lectura y agrega solamente columnas de uso de la tabla `session`; en la copia instalada lo hace un proceso sin privilegios (ver [Privacidad y seguridad](#privacidad-y-seguridad)). No consulta la CLI para obtener los datos y no crea conexiones de red.
+The detector looks for `opencode` on `PATH` or for `opencode.db` in the data directory. `OPENCODE_DB` and
+`XDG_DATA_HOME` are respected; the usual Windows data locations are inspected too. The reader opens only the active
+`opencode.db` database with SQLite in read-only mode and aggregates only usage columns from the `session` table; in the
+installed copy this is done by an unprivileged process (see [Privacy and security](#privacy-and-security)). It doesn't
+query the CLI for the data and makes no network connections.
 
-La prueba del parser incluida en `--snapshot` usa este objeto **normalizado interno**; no representa una salida prometida de `opencode stats --json`:
+The parser test included in `--snapshot` uses this **internal normalised** object; it doesn't represent a promised
+output of `opencode stats --json`:
 
 ```json
 {
@@ -503,150 +508,148 @@ La prueba del parser incluida en `--snapshot` usa este objeto **normalizado inte
 }
 ```
 
-La tarjeta muestra los cinco contadores y el coste registrado. Si falta la tabla o cualquier campo esperado, indica error en lugar de calcular una cifra aproximada.
+The card shows the five counters and the recorded cost. If the table or any expected field is missing, it reports an
+error instead of computing an approximate figure.
 
-### Destinos de red y seguridad
+### Network destinations and security
 
-Además de Claude, Codex y Cursor, el widget contacta estos destinos solo para actualizar las tarjetas:
+Besides Claude, Codex and Cursor, the widget contacts these destinations only to update the cards:
 
-- `https://api.deepseek.com/user/balance` (DeepSeek; requiere la clave cifrada del usuario).
-- `https://openrouter.ai/api/v1/key` (OpenRouter; requiere la clave cifrada del usuario).
+- `https://api.deepseek.com/user/balance` (DeepSeek; requires the user's encrypted key).
+- `https://openrouter.ai/api/v1/key` (OpenRouter; requires the user's encrypted key).
 
-Y estos por otros motivos:
+And these for other reasons:
 
-- Las Releases de este repositorio en GitHub, para buscar y descargar actualizaciones (activado por defecto; se apaga en
-  Ajustes → Actualizaciones).
-- `https://formsubmit.co` (FormSubmit), solo cuando pulsas **Enviar** en Ajustes → Contribuye. Se manda el tipo de
-  mensaje, el texto, el correo de contacto si lo has escrito, la versión de la aplicación, la versión de Windows y las
-  imágenes que hayas añadido (hasta 3). FormSubmit lo reenvía por correo al autor; su dirección queda detrás de un alias
-  de FormSubmit. Sin pulsar **Enviar** no sale nada.
-- `https://api.github.com/repos/danielfinchdev/orb-dev/releases/latest`, solo al abrir Ajustes → Más aplicaciones
-  (como mucho cada 30 min), para enseñar la última versión de Orb.
-- `https://api.anthropic.com/api/oauth/profile`, solo al abrir la (i) de la tarjeta de Claude (como mucho cada 6 h),
-  con el mismo token que el uso; se leen únicamente el estado, el tipo de facturación y la fecha de alta de la
-  suscripción.
+- This repository's Releases on GitHub, to look for and download updates (on by default; turn it off in Settings →
+  Updates).
+- `https://formsubmit.co` (FormSubmit), only when you press **Send** in Settings → Contribute. It sends the message
+  type, the text, the contact email if you entered one, the app version, the Windows version and any images you added
+  (up to 3). FormSubmit forwards it by email to the author; their address stays behind a FormSubmit alias. Nothing is
+  sent unless you press **Send**.
+- `https://api.github.com/repos/danielfinchdev/orb-dev/releases/latest`, only when you open Settings → More apps (at
+  most every 30 min), to show Orb's latest version.
+- `https://api.anthropic.com/api/oauth/profile`, only when you open the (i) on the Claude card (at most every 6 h),
+  with the same token as the usage request; only the status, the billing type and the subscription's start date are
+  read.
 
-OpenCode es local. Perplexity y Windsurf no se contactan. Las cabeceras y los cuerpos de respuesta nunca se registran; los servicios muestran errores propios y tienen timeout de 15 segundos.
-
----
-
-## Privacidad y seguridad
-
-Este programa lee archivos de credenciales. Merece que se explique exactamente qué hace con ellos.
-
-**Qué lee, y solo eso**
-
-- De `.credentials.json`: únicamente `claudeAiOauth.accessToken`, `expiresAt` y `subscriptionType` (el plan).
-- De `auth.json`: únicamente `tokens.access_token` y, del `id_token`, solo el claim
-  `https://api.openai.com/auth` → `chatgpt_plan_type` (el plan). El `id_token` se decodifica desde los bytes del
-  archivo sin convertirlo en cadena; el resto de sus claims (correo, identificadores…) se saltan.
-- De `state.vscdb`: únicamente `cursorAuth/accessToken` y `cursorAuth/stripeMembershipType`; el token se materializa
-  como cadena porque se envía en la cookie HTTPS; el claim `sub` se lee directamente con `Utf8JsonReader`. La base se
-  abre en solo lectura y en modo defensivo, y en la copia instalada no la abre el proceso elevado (ver «El proceso
-  elevado no abre bases SQLite» más abajo). La base de OpenCode, igual.
-- Cursor envía la sesión en la cookie de la petición HTTPS a `cursor.com`; nunca la guarda ni la registra.
-
-Todo lo demás —**incluidos los tokens de refresco, el resto del `id_token` y el `account_id`**— se salta a nivel
-de lector JSON, sin llegar nunca a convertirse en una cadena de texto en memoria (el token de Cursor es la excepción indicada arriba). Los archivos se abren
-en **solo lectura** y no se escriben jamás. El búfer se limpia con `Array.Clear` al terminar de leer.
-
-**Qué no hace**
-
-- No renueva tokens por sí mismo ni escribe los archivos de credenciales. Si el token de acceso está caducado, ni
-  siquiera envía la petición. La renovación de Claude la hace la propia CLI de Claude Code, lanzada como usuario
-  normal (ver abajo); el widget solo lee la fecha de caducidad antes y después.
-- Nada de lo que lanza hereda sus permisos de administrador: la CLI de Claude y Configuración se abren con el token
-  del Explorador de tu sesión (`CreateProcessWithTokenW`), tras comprobar que es tu misma cuenta y que no está
-  elevado. Si no se puede, no se lanza nada.
-- No escribe secretos en el registro. Solo códigos de estado HTTP y mensajes propios; nunca cuerpos de
-  respuesta ni cabeceras. La única salida ajena que se anota es la primera línea de error de la CLI de Claude cuando
-  falla, recortada a 160 caracteres y con cualquier secuencia de 24 o más caracteres de aspecto de clave o token
-  sustituida por «…».
-- Solo envía peticiones HTTPS a los endpoints de Claude, Codex, Cursor, DeepSeek y OpenRouter indicados en este README,
-  a las Releases de este repositorio (actualizaciones) y, solo si pulsas **Enviar** en Contribuye, a FormSubmit con lo que
-  se detalla en «Destinos de red y seguridad». OpenCode no usa red.
-  Al renovar la sesión, la CLI de Claude Code hace además su propia petición mínima a Anthropic (un «ok» a Haiku).
-- No tiene telemetría, ni analítica ni servicios residentes. La comprobación de actualizaciones (al arrancar y cada
-  6 h) está activada por defecto y se apaga en Ajustes → Actualizaciones; la descarga e instalación siempre se piden con
-  un clic.
-
-**El proceso elevado no abre bases SQLite**
-
-Las bases de Cursor (`state.vscdb`) y OpenCode (`opencode.db`) las escribe un programa que corre con tu usuario, así que
-se tratan como no confiables. La copia instalada no las interpreta con permisos de administrador: arranca su propio
-ejecutable como usuario normal (`--read-database cursor|opencode <ruta|auto>`, con `__COMPAT_LAYER=RunAsInvoker`, oculto,
-dentro de un *job* que lo cierra y con un límite de 20 s). Ese proceso abre el archivo en solo lectura y en modo
-defensivo (`trusted_schema` desactivado, comprobación de celdas, sin mapear en memoria, solo archivos normales) y
-escribe un JSON pequeño por una tubería. Cuesta un arranque corto por cada refresco de Cursor u OpenCode (~0,1 s de CPU
-y ~30 MB durante menos de un segundo) y nada entre refrescos. Las copias sin elevar (Debug) lo leen en el propio
-proceso.
-
-**El ejecutable vive en `C:\Program Files`, a propósito**
-
-La tarea programada lo arranca como administrador sin pedir UAC. Si el ejecutable estuviese en una
-carpeta donde tu usuario puede escribir, cualquier programa que se ejecutase con tu cuenta —sin ser
-administrador— podría sustituirlo y heredar esos permisos en el siguiente inicio de sesión. En
-`C:\Program Files` solo un administrador puede escribir. El instalador verifica los permisos y avisa si
-no son correctos. Ajustes, registro, claves y caché del proceso elevado solo se escriben en una carpeta protegida
-de `%ProgramData%\OpenControlEdge\<SID>`.
-
-**Lo que queda, dicho claramente**
-
-- El widget corre como administrador y maneja tokens OAuth. Es una superficie de ataque mayor que la de
-  un programa normal. Está mitigado con lo anterior, no eliminado.
-- LibreHardwareMonitor carga un controlador de kernel (PawnIO) mientras el widget está abierto. Es el
-  mecanismo estándar para leer sensores en Windows, pero es código de kernel de terceros.
-- Mientras no esté activa la firma (ver [Firma](#firma)), el ejecutable no está firmado: SmartScreen puede avisar la
-  primera vez.
-- «Liberar RAM», como administrador, recorta la memoria de los procesos de tu sesión (no vacía la caché del sistema).
-  No borra datos de nadie, pero durante unos segundos los programas vuelven a cargar de disco lo que necesiten; la
-  memoria «liberada» vuelve a ocuparse en cuanto se usa. Por eso está desactivado por defecto.
-- El ejecutable que lee esas bases es el mismo que el widget, pero corre sin privilegios: un fallo al interpretar un
-  archivo manipulado queda dentro de ese proceso, que no hereda los permisos de administrador. Si no usas Cursor ni
-  OpenCode, ocúltalos en Ajustes → Agentes y el widget no las abrirá.
-- Modo juego, como administrador, cierra programas y detiene servicios de la lista que tú editas, y cambia el plan de
-  energía y valores de `HKCU`. Los programas se cierran sin guardar. Lo anterior se anota en `gamemode.json` antes de
-  cada cambio para restaurarlo, y está desactivado por defecto.
-- Las actualizaciones desde la app confían en que solo el autor publique las Releases de este repositorio y en la
-  clave de firma del proyecto (`UPDATE_SIGNING_KEY`, un secreto de GitHub Actions): quien la obtuviera podría firmar
-  un ZIP que la app instalaría. La firma de SignPath Foundation, que se sigue exigiendo cuando no hay `.sig`,
-  identifica al firmante, no al proyecto (ver [Instalación](#instalación)).
+OpenCode is local. Perplexity and Windsurf are not contacted. Headers and response bodies are never logged; the services
+show their own error messages and have a 15-second timeout.
 
 ---
 
-## Mantener viva la sesión de Claude
+## Privacy and security
 
-El token de acceso de Claude Code dura unas 8 horas. Cuando caduca, el anillo se queda en `--`.
+This program reads credential files. It deserves an exact explanation of what it does with them.
 
-Lo que **no** lo renueva: abrir la aplicación de escritorio de Claude (guarda su sesión en otro sitio),
-ni `claude auth status` (solo informa). Lo único que lo renueva es una llamada real a la API, que hace
-que la CLI use el token de refresco y reescriba el archivo.
+**What it reads, and nothing else**
 
-El widget lo hace él solo, sin scripts ni tareas programadas y **sin abrir ninguna ventana**:
+- From `.credentials.json`: only `claudeAiOauth.accessToken`, `expiresAt` and `subscriptionType` (the plan).
+- From `auth.json`: only `tokens.access_token` and, from the `id_token`, only the claim
+  `https://api.openai.com/auth` → `chatgpt_plan_type` (the plan). The `id_token` is decoded from the file's bytes
+  without turning it into a string; the rest of its claims (email, identifiers…) are skipped.
+- From `state.vscdb`: only `cursorAuth/accessToken` and `cursorAuth/stripeMembershipType`; the token is materialised as
+  a string because it's sent in the HTTPS cookie; the `sub` claim is read directly with `Utf8JsonReader`. The database
+  is opened read-only and in defensive mode, and in the installed copy the elevated process doesn't open it (see "The
+  elevated process doesn't open SQLite databases" below). Same for the OpenCode database.
+- Cursor sends the session in the cookie of the HTTPS request to `cursor.com`; it never stores or logs it.
 
-- **Clic en el anillo de Claude**: la tarjeta pasa a «Renovando sesión…», se ejecuta una vez la CLI de Claude Code,
-  se vuelve a leer el uso y la tarjeta dice el resultado («Sesión renovada: vale hasta las 18:53», «Sesión vigente
-  hasta…» o un error claro, como «No se encuentra Claude Code» o «Claude Code no ha respondido en 60 s»).
-- **En segundo plano** (`"autoRenewClaude": true`, por defecto): cuando al token le quedan menos de 30 minutos, se
-  lanza 4 minutos antes de que caduque, como mucho una vez cada 30 minutos.
-- La CLI se busca en `%USERPROFILE%\.local\bin\claude.exe` (instalador nativo), luego en el binario nativo del
-  paquete npm (`%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`) y, si no, `node` + `cli.js`
-  de paquetes npm antiguos.
-- La llamada es la mínima posible:
-  `claude -p --no-session-persistence --model haiku --tools "" --strict-mcp-config ok` (sin herramientas, sin
-  servidores MCP, sin guardar la conversación), sin ventana (`CREATE_NO_WINDOW`), dentro de un *job* que la cierra
-  entera si pasa de **60 s**, y **como tu usuario normal**, nunca como administrador.
-- Comprobado en Claude Code 2.1.284: la CLI solo refresca el token cuando le quedan **menos de 5 minutos**. Antes de
-  eso la llamada termina bien pero deja el token como estaba; por eso la tarjeta dice entonces «Sesión vigente
-  hasta…» y la renovación automática se programa dentro de esos 5 minutos.
-- En el registro quedan la duración, el código de salida, el resultado y, si la CLI falla, su primera línea de error
-  saneada (ver [Privacidad y seguridad](#privacidad-y-seguridad)). **Nunca ningún token.**
+Everything else — **including refresh tokens, the rest of the `id_token` and the `account_id`** — is skipped at the JSON
+reader level, without ever becoming a text string in memory (the Cursor token is the exception noted above). Files are
+opened **read-only** and never written. The buffer is cleared with `Array.Clear` once reading is done.
+
+**What it doesn't do**
+
+- It doesn't renew tokens on its own or write the credential files. If the access token has expired, it doesn't even
+  send the request. Claude's renewal is done by the Claude Code CLI itself, launched as a normal user (see below); the
+  widget only reads the expiry date before and after.
+- Nothing it launches inherits its administrator rights: the Claude CLI and Windows Settings are opened with the token
+  of your session's Explorer (`CreateProcessWithTokenW`), after checking that it's your same account and that it isn't
+  elevated. If that isn't possible, nothing is launched.
+- It doesn't write secrets to the log. Only HTTP status codes and its own messages; never response bodies or headers.
+  The only third-party output that gets logged is the first error line of the Claude CLI when it fails, cut to 160
+  characters and with any run of 24 or more characters that looks like a key or token replaced by "…".
+- It only sends HTTPS requests to the Claude, Codex, Cursor, DeepSeek and OpenRouter endpoints listed in this README, to
+  this repository's Releases (updates) and, only if you press **Send** in Contribute, to FormSubmit with what's detailed
+  in "Network destinations and security". OpenCode uses no network.
+  When renewing the session, the Claude Code CLI also makes its own minimal request to Anthropic (an "ok" to Haiku).
+- It has no telemetry, analytics or resident services. Update checking (at start-up and every 6 h) is on by default
+  and is turned off in Settings → Updates; downloading and installing always take a click.
+
+**The elevated process doesn't open SQLite databases**
+
+The Cursor (`state.vscdb`) and OpenCode (`opencode.db`) databases are written by a program running as your user, so
+they're treated as untrusted. The installed copy doesn't parse them with administrator rights: it starts its own
+executable as a normal user (`--read-database cursor|opencode <path|auto>`, with `__COMPAT_LAYER=RunAsInvoker`, hidden,
+inside a *job* that closes it and with a 20 s limit). That process opens the file read-only and in defensive mode
+(`trusted_schema` off, cell checks, no memory mapping, regular files only) and writes a small JSON through a pipe. It
+costs a short start-up for each Cursor or OpenCode refresh (~0.1 s of CPU and ~30 MB for less than a second) and nothing
+between refreshes. Unelevated copies (Debug) read them in-process.
+
+**The executable lives in `C:\Program Files`, on purpose**
+
+The scheduled task starts it as administrator without a UAC prompt. If the executable lived in a folder your user can
+write to, any program running under your account — without being administrator — could replace it and inherit those
+rights at the next sign-in. Only an administrator can write to `C:\Program Files`. The installer verifies the
+permissions and warns if they're not correct. Settings, log, keys and cache of the elevated process are only written
+to a protected folder in `%ProgramData%\OpenControlEdge\<SID>`.
+
+**What remains, stated plainly**
+
+- The widget runs as administrator and handles OAuth tokens. That's a larger attack surface than a normal program's.
+  It's mitigated by the above, not eliminated.
+- LibreHardwareMonitor loads a kernel driver (PawnIO) while the widget is open. It's the standard mechanism for reading
+  sensors on Windows, but it's third-party kernel code.
+- Until signing is active (see [Signing](#signing)), the executable isn't signed: SmartScreen may warn you the first
+  time.
+- "Free RAM", as administrator, trims the memory of the processes in your session (it doesn't empty the system cache).
+  It doesn't delete anyone's data, but for a few seconds programs reload from disk whatever they need; the "freed"
+  memory fills up again as soon as it's used. That's why it's disabled by default.
+- The executable that reads those databases is the same one as the widget, but it runs without privileges: a failure
+  while parsing a tampered file stays inside that process, which doesn't inherit administrator rights. If you don't use
+  Cursor or OpenCode, hide them in Settings → Agents and the widget won't open them.
+- Game mode, as administrator, closes programs and stops services from the list you edit, and changes the power plan
+  and `HKCU` values. Programs are closed without saving. The previous state is written to `gamemode.json` before every
+  change so it can be restored, and it's disabled by default.
+- In-app updates trust that only the author publishes this repository's Releases, and the project's signing key
+  (`UPDATE_SIGNING_KEY`, a GitHub Actions secret): whoever got hold of it could sign a ZIP the app would install. The
+  SignPath Foundation signature, still required when there's no `.sig`, identifies the signer, not the project (see
+  [Installation](#installation)).
 
 ---
 
-## Compilar
+## Keeping the Claude session alive
 
-Requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (`global.json` fija la 10.0.401).
+The Claude Code access token lasts about 8 hours. When it expires, the ring is stuck at `--`.
+
+What does **not** renew it: opening the Claude desktop app (it stores its session somewhere else), or
+`claude auth status` (it only reports). The only thing that renews it is a real API call, which makes the CLI use the
+refresh token and rewrite the file.
+
+The widget does it by itself, with no scripts or scheduled tasks and **without opening any window**:
+
+- **Click on the Claude ring**: the card switches to "Renewing session…", the Claude Code CLI runs once, usage is read
+  again and the card shows the result ("Session renewed: valid until 6:53 PM", "Session valid until…" or a clear error,
+  such as "Claude Code not found" or "Claude Code did not answer within 60 s").
+- **In the background** (`"autoRenewClaude": true`, the default): when the token has less than 30 minutes left, it runs
+  4 minutes before it expires, at most once every 30 minutes.
+- The CLI is looked for in `%USERPROFILE%\.local\bin\claude.exe` (native installer), then in the native binary of the
+  npm package (`%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`) and, failing that, `node` +
+  `cli.js` from older npm packages.
+- The call is as small as possible:
+  `claude -p --no-session-persistence --model haiku --tools "" --strict-mcp-config ok` (no tools, no MCP servers, no
+  saved conversation), with no window (`CREATE_NO_WINDOW`), inside a *job* that kills the whole thing if it goes over
+  **60 s**, and **as your normal user**, never as administrator.
+- Verified on Claude Code 2.1.284: the CLI only refreshes the token when it has **less than 5 minutes** left. Before
+  that, the call succeeds but leaves the token as it was; that's why the card then says "Session valid until…" and the
+  automatic renewal is scheduled within those 5 minutes.
+- The log records the duration, the exit code, the result and, if the CLI fails, its first error line, sanitised (see
+  [Privacy and security](#privacy-and-security)). **Never any token.**
+
+---
+
+## Building
+
+Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (`global.json` pins 10.0.401).
 
 ```powershell
 git clone https://github.com/danielfinchdev/open-control-edge.git
@@ -655,55 +658,56 @@ dotnet publish src\OpenControlEdge\OpenControlEdge.csproj -c Release -r win-x64 
 .\dist\OpenControlEdge.exe
 ```
 
-**Release** genera una carpeta autocontenida (no hace falta tener .NET instalado) que el flujo entrega como ZIP;
-al abrir su ejecutable aparece la ventana de instalación, que la copia completa (exige administrador). El ejecutable
-va sin comprimir y con ReadyToRun: medido el 29-09-2026, pinta el primer fotograma con datos en ~0,8 s en caliente y
-~1,5 s la primera vez, con ~150 MB de memoria, frente a ~1,4 s / 2,2 s y ~260 MB con compresión (ver CHANGELOG).
-**Debug** arranca sin elevar ni ofrecer la instalación, para iterar la interfaz sin UAC (`--welcome` la muestra).
+**Release** produces a self-contained folder (no need to have .NET installed) that the workflow ships as a ZIP; opening
+its executable brings up the installation window, which copies it in full (requires administrator). The executable is
+uncompressed and uses ReadyToRun: measured on 2026-09-29, it draws the first frame with data in ~0.8 s warm and ~1.5 s
+the first time, with ~150 MB of memory, versus ~1.4 s / 2.2 s and ~260 MB with compression (see the CHANGELOG).
+**Debug** starts without elevating or offering the installation, so you can iterate on the UI without UAC (`--welcome`
+shows it).
 
-El flujo de Build solo se ejecuta en `main`. Cada etiqueta `v*` lanza el mismo `dotnet publish` en
-[Actions](../../actions), firma el ZIP para las actualizaciones (ver [Firma](#firma)) y adjunta el ZIP y su `.sig` a la
-[Release](../../releases):
+The Build workflow only runs on `main`. Every `v*` tag runs the same `dotnet publish` in [Actions](../../actions), signs
+the ZIP for updates (see [Signing](#signing)) and attaches the ZIP and its `.sig` to the [Release](../../releases):
 
 ```powershell
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-### Revisar la interfaz sin ejecutar el widget
+### Reviewing the UI without running the widget
 
 ```powershell
-.\src\OpenControlEdge\bin\Debug\net10.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\capturas
+.\src\OpenControlEdge\bin\Debug\net10.0-windows\win-x64\OpenControlEdge.exe --snapshot C:\temp\screenshots
 ```
 
-Renderiza **242 PNG** con los dos modos, los cuatro bordes y la colocación manual, las tres vistas, las pestañas, las tarjetas (RAM, FPS y Modo juego
-incluidos), los estados de la renovación de Claude, el gasto de Claude / Codex / Cursor, varias cuentas, estados de
-error y sin datos, una cuenta gratuita de Claude, anillos ocultos, el requisito de PawnIO, temas, idiomas, escalas,
-el globo de suscripción, las etiquetas de cuenta, menú de bandeja, diálogo de claves y la ventana de instalación (bienvenida, comprobación del sistema, progreso, hecho,
-error y desinstalar), y la ventana de Ajustes en varios tamaños de pantalla. Incluye pruebas de los créditos de Codex y del gasto bajo demanda de Cursor con las formas reales
-observadas, de la búsqueda de cuentas
-(con carpetas de prueba que se borran al terminar), y una base de OpenCode de prueba leída con el servicio real (se borra al terminar). No lee credenciales, no
-toca los ajustes ni abre los sensores ni escribe en el registro.
+It renders **258 PNGs** with both modes, the four edges and manual placement, the three views, the tabs, the cards
+(RAM, FPS and Game mode included), the Claude renewal states, Claude / Codex / Cursor spend, several accounts, error and
+no-data states, a free Claude account, hidden rings, the PawnIO requirement, themes, languages, scales, the
+subscription bubble, the account labels, the tray menu, the keys dialog and the installation window (welcome, system
+check, progress, done, error and uninstall), and the Settings window at several screen sizes. It includes tests of
+Codex credits and Cursor on-demand spend with the real shapes observed, of the account search (with test folders that
+are deleted at the end), and a test OpenCode database read with the real service (deleted at the end). It doesn't read
+credentials, touch the settings, open the sensors or write to the log.
 
 ---
 
-## Firma
+## Signing
 
-El flujo de Release está preparado para firmar `OpenControlEdge.exe` con **[SignPath Foundation](https://signpath.org/)**,
-gratis para proyectos de código abierto: sube la carpeta publicada como artefacto, envía la petición de firma, espera
-a que termine, comprueba la firma Authenticode y adjunta a la Release el ZIP con el ejecutable firmado. Mientras no
-existan los datos de SignPath, el paso se salta con un aviso y el ejecutable de la Release sale sin firma Authenticode
-(el ZIP sí lleva la firma propia de [Firma propia para las actualizaciones](#firma-propia-para-las-actualizaciones)).
+The Release workflow is ready to sign `OpenControlEdge.exe` with **[SignPath Foundation](https://signpath.org/)**, free
+for open source projects: it uploads the published folder as an artifact, submits the signing request, waits for it to
+finish, checks the Authenticode signature and attaches the ZIP with the signed executable to the Release. Until the
+SignPath details exist, the step is skipped with a warning and the Release executable ships without an Authenticode
+signature (the ZIP does carry the project's own signature, see
+[Own signature for updates](#own-signature-for-updates)).
 
-Pasos para activarla (los da el dueño del repositorio):
+Steps to enable it (taken by the repository owner):
 
-1. Solicitar el alta del proyecto en [signpath.org/foundation](https://signpath.org/foundation) (formulario de
-   proyectos de código abierto). Piden que el repositorio sea público, con licencia OSI (MIT vale), releases
-   construidas en GitHub Actions y la política de firma publicada (sección siguiente).
-2. Cuando lo aprueben, en SignPath: instalar la aplicación de GitHub de SignPath en el repositorio, crear el proyecto
-   (por ejemplo `open-control-edge`) con un *trusted build system* de GitHub y una **configuración de artefacto** que
-   firme el ejecutable dentro del ZIP del artefacto, solo si su recurso de versión dice el nombre del proyecto y la
-   versión de la etiqueta (el flujo la pasa como parámetro `version` y comprueba que coincide con el csproj):
+1. Apply for the project at [signpath.org/foundation](https://signpath.org/foundation) (open source project form).
+   They require a public repository, an OSI license (MIT qualifies), releases built on GitHub Actions and a published
+   signing policy (next section).
+2. Once approved, in SignPath: install the SignPath GitHub app on the repository, create the project (for example
+   `open-control-edge`) with a GitHub *trusted build system* and an **artifact configuration** that signs the executable
+   inside the artifact's ZIP, only if its version resource carries the project name and the tag's version (the workflow
+   passes it as the `version` parameter and checks that it matches the csproj):
    ```xml
    <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
      <parameters>
@@ -716,28 +720,29 @@ Pasos para activarla (los da el dueño del repositorio):
      </zip-file>
    </artifact-configuration>
    ```
-   y una política de firma (por ejemplo `release-signing`) con aprobación manual.
-3. En GitHub → *Settings* → *Secrets and variables* → *Actions*:
-   - secreto `SIGNPATH_API_TOKEN` (token de API de un usuario de SignPath con permiso de envío);
-   - variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` y `SIGNPATH_SIGNING_POLICY_SLUG`.
-4. Publicar una etiqueta `v*`: el flujo pedirá la firma y esperará a que se apruebe en SignPath.
+   and a signing policy (for example `release-signing`) with manual approval.
+3. In GitHub → *Settings* → *Secrets and variables* → *Actions*:
+   - the `SIGNPATH_API_TOKEN` secret (API token of a SignPath user with submit permission);
+   - the `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG` variables.
+4. Push a `v*` tag: the workflow will request the signature and wait for it to be approved in SignPath.
 
-Solo se firma el ejecutable: SignPath Foundation no firma componentes de terceros. Las librerías de WPF y de
-Mono.Posix ya vienen firmadas por su editor; `e_sqlite3.dll` (SQLite) no. Con la firma de SignPath como única garantía,
-una actualización que cambie `e_sqlite3.dll` (al actualizar SQLitePCLRaw) la rechaza la app y hay que instalarla una vez
-desde su ZIP; la firma propia de abajo evita ese caso.
+Only the executable is signed: SignPath Foundation doesn't sign third-party components. The WPF and Mono.Posix
+libraries already come signed by their publisher; `e_sqlite3.dll` (SQLite) doesn't. With the SignPath signature as the
+only guarantee, an update that changes `e_sqlite3.dll` (when SQLitePCLRaw is updated) is rejected by the app and has to
+be installed once from its ZIP; the project's own signature below avoids that case.
 
-### Firma propia para las actualizaciones
+### Own signature for updates
 
-Mientras SignPath no esté aprobado (la solicitud sigue pendiente), y como vía propia después, el flujo de Release firma el ZIP completo con una clave
-ECDSA P-256 del proyecto y publica el resultado como `OpenControlEdge-win-x64.zip.sig` (Base64 de la firma IEEE P1363
-sobre SHA-256). La clave privada es el secreto de GitHub Actions `UPDATE_SIGNING_KEY` (PEM PKCS#8); la pública va
-compilada en la aplicación. Si falta el secreto, el flujo avisa y la Release sale sin `.sig`.
+While SignPath isn't approved (the application is still pending), and as its own path afterwards, the Release workflow
+signs the whole ZIP with the project's ECDSA P-256 key and publishes the result as `OpenControlEdge-win-x64.zip.sig`
+(Base64 of the IEEE P1363 signature over SHA-256). The private key is the GitHub Actions secret `UPDATE_SIGNING_KEY`
+(PKCS#8 PEM); the public key is compiled into the app. If the secret is missing, the workflow warns and the Release ships
+without a `.sig`.
 
-Al actualizarse, la app instala un ZIP cuya firma coincide con esa clave pública: la firma cubre todos los archivos, así
-que ya no hacen falta la firma Authenticode ni las comprobaciones por DLL. Se siguen exigiendo el SHA-256 que publica
-GitHub, la lista cerrada de archivos y que el recurso de versión del ejecutable diga «Open Control Edge» y la versión
-anunciada. Si la `.sig` no coincide, o la Release no la lleva, la actualización se rechaza.
+When updating, the app installs a ZIP whose signature matches that public key: the signature covers every file, so the
+Authenticode signature and the per-DLL checks are no longer needed. The SHA-256 published by GitHub, the closed list of
+files and the executable's version resource saying "Open Control Edge" and the announced version are still required.
+If the `.sig` doesn't match, or the Release doesn't carry one, the update is rejected.
 
 ## Code signing policy
 
@@ -752,81 +757,82 @@ commits are submitted for signing, and each signing request is approved manually
 
 **Privacy:** this program will not transfer any information to other networked systems unless specifically requested
 by the user or the person installing or operating it. It only sends HTTPS requests to the usage endpoints of the AI
-services the user is signed in to or has added an API key for (listed in «De dónde salen los datos»), carrying the
+services the user is signed in to or has added an API key for (listed in "Where the data comes from"), carrying the
 user's own credentials; it has no telemetry. It also checks this repository's GitHub Releases for updates at start-up
 and every 6 hours (on by default, can be turned off in Settings; installing an update always takes a click), PawnIO is
 downloaded from its official release only when the user asks for it or accepts the installation window's system check,
-and feedback is sent to FormSubmit (formsubmit.co) only when the user presses "Enviar" in Settings → Contribuye.
+and feedback is sent to FormSubmit (formsubmit.co) only when the user presses "Send" in Settings → Contribute.
 
 ---
 
-## Contribuir
+## Contributing
 
-Las propuestas llegan como *pull request* contra `main` y las revisa el mantenedor antes de fusionarlas (ver
-[Code signing policy](#code-signing-policy)). Los mensajes de commit van en español, cortos y en imperativo.
-Antes de enviar un cambio, comprueba que `dotnet build -c Release` termina sin avisos ni errores.
+Contributions come in as *pull requests* against `main` and are reviewed by the maintainer before merging (see
+[Code signing policy](#code-signing-policy)). Commit messages are in English and follow
+[Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, imperative and lowercase. Before
+submitting a change, check that `dotnet build -c Release` finishes with no warnings or errors.
 
 ---
 
-## Cómo está hecho
+## How it's built
 
-**C# 14 / .NET 10 / WPF.** Sin frameworks de interfaz, sin MVVM, sin inyección de dependencias: una
-ventana, unos cuantos controles dibujados a mano y llamadas directas a la API de Windows.
+**C# 14 / .NET 10 / WPF.** No UI frameworks, no MVVM, no dependency injection: one window, a handful of hand-drawn
+controls and direct calls to the Windows API.
 
 ```
 src/OpenControlEdge/
-├─ Services/     Lectura de credenciales, APIs de uso, sensores, ajustes, registro, lector de bases de datos, Modo juego y FPS
-├─ Ui/           Anillo, barra, iconos, paleta, formatos
-├─ Views/        Ventana del borde, menú de bandeja, renderizador de capturas
-└─ Interop/      user32 / shell32: bandeja, posición, clic-a-través; tokens, procesos, memoria y seguridad
+├─ Services/     Credential reading, usage APIs, sensors, settings, log, database reader, Game mode and FPS
+├─ Ui/           Ring, bar, icons, palette, formatting
+├─ Views/        Edge window, tray menu, snapshot renderer
+└─ Interop/      user32 / shell32: tray, position, click-through; tokens, processes, memory and security
 ```
 
-Algunas decisiones que quizá no son obvias:
+Some decisions that may not be obvious:
 
-- **Una sola ventana** contiene la franja, el panel y la tarjeta. Así la tarjeta puede deslizarse de un
-  anillo a otro con animaciones de render en vez de mover ventanas del sistema.
-- **El hover se detecta sondeando la posición del cursor**, no con eventos: cuando el panel está
-  recogido la ventana es transparente a los clics (`WS_EX_TRANSPARENT`) y no recibe ratón en absoluto.
-- **Ese sondeo va en dos velocidades.** Cada vuelta empieza con una comprobación barata; el sondeo rápido
-  solo se activa sobre las zonas interactivas del panel, franja o tarjeta, y en reposo se duerme del todo (lo despierta
-  el propio ratón). El consumo medido está en el [CHANGELOG](CHANGELOG.md) (2.1.0).
-- **Los sensores dependen de si el panel está a la vista**: cada 20 s con el panel fijado y visible, cada 60 s si no.
-  Nunca se paran del todo, para que «Máxima de la sesión» sea una cifra real y no solo los momentos en que estabas
-  mirando. El uso de las IAs se consulta con el intervalo elegido en Ajustes (2 minutos por defecto).
-- **Los anillos y las barras son `FrameworkElement` con `OnRender`**, no plantillas de control. Menos
-  árbol visual y control exacto del trazo.
-- **Los iconos están dibujados en código** en un espacio de 24×24, no son fuentes ni SVG.
-- **El icono de bandeja usa `Shell_NotifyIcon` directamente**, sin WinForms, con los filtros UIPI que
-  hacen falta para que un proceso elevado reciba los clics de un Explorer de integridad media.
-
----
-
-## Licencia
-
-[MIT](LICENSE). Úsalo, cámbialo y publícalo como quieras.
+- **A single window** holds the strip, the panel and the card. That way the card can slide from one ring to another
+  with render animations instead of moving system windows.
+- **Hover is detected by polling the cursor position**, not with events: when the panel is tucked away the window is
+  click-through (`WS_EX_TRANSPARENT`) and gets no mouse input at all.
+- **That polling runs at two speeds.** Each pass starts with a cheap check; fast polling only kicks in over the
+  interactive areas of the panel, strip or card, and at rest it goes fully to sleep (the mouse itself wakes it up). The
+  measured cost is in the [CHANGELOG](CHANGELOG.md) (2.1.0).
+- **Sensors depend on whether the panel is visible**: every 20 s with the panel pinned and visible, every 60 s
+  otherwise. They never stop completely, so that "Session maximum" is a real figure and not just the moments you were
+  looking. AI usage is queried at the interval chosen in Settings (2 minutes by default).
+- **Rings and bars are `FrameworkElement`s with `OnRender`**, not control templates. A smaller visual tree and exact
+  control over the stroke.
+- **Icons are drawn in code** in a 24×24 space; they're not fonts or SVG files.
+- **The tray icon uses `Shell_NotifyIcon` directly**, without WinForms, with the UIPI filters needed for an elevated
+  process to receive clicks from a medium-integrity Explorer.
 
 ---
 
-## Créditos
+## License
 
-Sensores: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL-2.0).
+[MIT](LICENSE). Use it, change it and publish it however you like.
 
-Tipografía: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (pesos 400, 500 y 600), incrustada en el ejecutable
-(SIL Open Font License 1.1, ver [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
+---
 
-Los iconos son glifos genéricos dibujados para este proyecto, no logotipos de marca. OpenControlEdge no está
-asociado con Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter ni OpenCode.
+## Credits
+
+Sensors: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL-2.0).
+
+Typeface: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (weights 400, 500 and 600), embedded in the executable
+(SIL Open Font License 1.1, see [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
+
+The icons are generic glyphs drawn for this project, not brand logos. Open Control Edge is not affiliated with
+Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter or OpenCode.
 
 # Feedback
 
-Errores e ideas, desde Ajustes → Contribuye, de dos maneras:
+Bugs and ideas, from Settings → Contribute, in two ways:
 
-- **Enviar**: no necesita ninguna cuenta. El mensaje llega por correo al autor a través de [FormSubmit](https://formsubmit.co)
-  (su dirección queda detrás de un alias de FormSubmit), con hasta 3 capturas (PNG o JPEG de hasta 5 MB: **Capturar
-  pantalla** fotografía la pantalla principal y **Añadir imagen…** elige un archivo) y un correo de contacto opcional
-  si quieres respuesta. Se envían el tipo, el texto, ese correo (si lo escribes), la versión de la aplicación, la versión
-  de Windows y las imágenes, y solo al pulsar **Enviar**.
-- **Abrir en GitHub**: abre un issue público ya rellenado, con tu cuenta de GitHub, y copia al portapapeles la primera
-  captura para que la pegues. Revisa y edita el texto antes de enviarlo.
+- **Send**: needs no account at all. The message reaches the author by email through
+  [FormSubmit](https://formsubmit.co) (their address stays behind a FormSubmit alias), with up to 3 screenshots (PNG or
+  JPEG up to 5 MB: **Capture screen** takes a picture of the primary screen and **Add image…** picks a file) and an
+  optional contact email if you'd like a reply. The type, the text, that email (if you enter it), the app version, the
+  Windows version and the images are sent, and only when you press **Send**.
+- **Open on GitHub**: opens a pre-filled public issue, with your GitHub account, and copies the first screenshot to the
+  clipboard so you can paste it. Review and edit the text before submitting it.
 
-No incluyas datos personales ni de otras personas en el texto ni en las capturas.
+Don't include personal data, yours or anyone else's, in the text or the screenshots.
