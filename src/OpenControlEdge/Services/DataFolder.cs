@@ -75,9 +75,18 @@ internal static class DataFolder
             string final = System.IO.Path.Combine(Path, name);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(final)!);
             string temp = final + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                output.Write(bytes);
-            File.Move(temp, final, overwrite: true);
+            try
+            {
+                using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    output.Write(bytes);
+                File.Move(temp, final, overwrite: true);
+            }
+            catch
+            {
+                // A half-written or unmoved temporary file is not left behind in the data folder.
+                try { File.Delete(temp); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                throw;
+            }
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
