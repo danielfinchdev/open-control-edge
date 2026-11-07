@@ -87,7 +87,7 @@ how to build it.
 | Requirement | What for | How |
 |---|---|---|
 | **PawnIO** (essential) | Reading CPU temperature and load | The installation window installs it, or `winget install --id namazso.PawnIO -e`, or the official installer from [pawnio.eu](https://pawnio.eu) |
-| Windows 11 (or Windows 10 22H2) | Operating system | — |
+| 64-bit Windows 11, or Windows 10 version 1809 or later | Operating system | The installation window checks it |
 | Administrator rights | Reading sensors and FPS (the widget starts elevated through a scheduled task) | The welcome window sets it up with a single UAC prompt |
 | .NET 10 SDK | Building only | The Release build already includes the runtime |
 
@@ -157,7 +157,7 @@ The panel shows one view at a time:
   button then just toggles between AI and PC.
 
 A round button on the panel (↓↑, "Switch view") cycles through the views (AI → PC → Custom) with a fade. In Settings →
-Appearance (Personalización) you choose the active view and, for each view, which rings are shown and in what order
+Appearance you choose the active view and, for each view, which rings are shown and in what order
 (↑↓). By default they're in alphabetical order and, in PC, the FPS ring comes first. The panel's scale is computed for
 the largest view (with the rings available), so it doesn't change size when you switch. The panel background is also
 chosen there (**Widget background**): preset colours, `#RRGGBB` or R/G/B sliders; black by default, and on light
@@ -294,7 +294,8 @@ down with the mode on, when it's opened again.
 
 ## Installation
 
-Requirements: **Windows 11** (or 10 22H2) and an administrator account matching the user of the interactive session.
+Requirements: 64-bit **Windows 11** (or Windows 10 version 1809 or later) and an administrator account matching the user
+of the interactive session.
 
 Signing: [Code signing policy](#code-signing-policy) (free code signing provided by SignPath.io, certificate by
 SignPath Foundation) and, for in-app updates, the project's own signature (see [Signing](#signing)).
@@ -304,8 +305,8 @@ SignPath Foundation) and, for in-app updates, the project's own signature (see [
    The workflow publishes a verifiable attestation, checked with
    `gh attestation verify OpenControlEdge.exe -R danielfinchdev/open-control-edge`.
    Update checking is **on by default** (at start-up and every 6 h; turn it off in Settings → Updates). If there's a
-   new version, the settings button gets a red dot and Settings shows "New version available · Download and install":
-   one click downloads, verifies and installs it, and the widget restarts. The app only accepts a ZIP that meets all of
+   new version, the settings button gets a red dot and Settings shows "New version available: X.Y.Z" with a
+   **Download and install** button: one click downloads, verifies and installs it, and the widget restarts. The app only accepts a ZIP that meets all of
    the following (otherwise it installs nothing):
    - its SHA-256 matches the `digest` GitHub publishes for that file;
    - it contains exactly `OpenControlEdge.exe` and its 8 native libraries: not one file more or less;
@@ -528,6 +529,8 @@ And these for other reasons:
   sent unless you press **Send**.
 - `https://api.github.com/repos/danielfinchdev/orb-dev/releases/latest`, only when you open Settings → More apps (at
   most every 30 min), to show Orb's latest version.
+- `https://api.github.com/repos/namazso/PawnIO.Setup/releases/latest` and its `PawnIO_setup.exe` asset, only when the
+  installation window or Settings → About installs PawnIO.
 - `https://api.anthropic.com/api/oauth/profile`, only when you open the (i) on the Claude card (at most every 6 h),
   with the same token as the usage request; only the status, the billing type and the subscription's start date are
   read.
@@ -569,8 +572,9 @@ opened **read-only** and never written. The buffer is cleared with `Array.Clear`
   The only third-party output that gets logged is the first error line of the Claude CLI when it fails, cut to 160
   characters and with any run of 24 or more characters that looks like a key or token replaced by "…".
 - It only sends HTTPS requests to the Claude, Codex, Cursor, DeepSeek and OpenRouter endpoints listed in this README, to
-  this repository's Releases (updates) and, only if you press **Send** in Contribute, to FormSubmit with what's detailed
-  in "Network destinations and security". OpenCode uses no network.
+  this repository's Releases (updates), to GitHub for Orb's and PawnIO's latest releases when you open More apps or
+  install PawnIO and, only if you press **Send** in Contribute, to FormSubmit; all of them are detailed in "Network
+  destinations and security". OpenCode uses no network.
   When renewing the session, the Claude Code CLI also makes its own minimal request to Anthropic (an "ok" to Haiku).
 - It has no telemetry, analytics or resident services. Update checking (at start-up and every 6 h) is on by default
   and is turned off in Settings → Updates; downloading and installing always take a click.
@@ -801,7 +805,7 @@ Some decisions that may not be obvious:
   looking. AI usage is queried at the interval chosen in Settings (2 minutes by default).
 - **Rings and bars are `FrameworkElement`s with `OnRender`**, not control templates. A smaller visual tree and exact
   control over the stroke.
-- **Icons are drawn in code** in a 24×24 space; they're not fonts or SVG files.
+- **Icons are vector paths in code** in a 24×24 space, parsed as WPF geometry; there are no icon fonts or SVG files.
 - **The tray icon uses `Shell_NotifyIcon` directly**, without WinForms, with the UIPI filters needed for an elevated
   process to receive clicks from a medium-integrity Explorer.
 
@@ -820,8 +824,11 @@ Sensors: [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHar
 Typeface: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (weights 400, 500 and 600), embedded in the executable
 (SIL Open Font License 1.1, see [`OFL.txt`](src/OpenControlEdge/Assets/Fonts/OFL.txt)).
 
-The icons are generic glyphs drawn for this project, not brand logos. Open Control Edge is not affiliated with
-Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter or OpenCode.
+Icons: the AI provider logos are vector paths from [Lobe Icons](https://github.com/lobehub/lobe-icons)
+(`@lobehub/icons-static-svg`, MIT), the interface icons come from [Lucide](https://lucide.dev) (ISC) and the GitHub mark
+from [Simple Icons](https://simpleicons.org) (CC0); see [`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt). The logos
+and names belong to their owners and are used only to identify each service. Open Control Edge is not affiliated with
+or endorsed by Anthropic, OpenAI, Anysphere, DeepSeek, OpenRouter or OpenCode.
 
 # Feedback
 
