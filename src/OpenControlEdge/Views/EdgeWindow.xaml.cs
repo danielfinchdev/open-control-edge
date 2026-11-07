@@ -1076,8 +1076,11 @@ public partial class EdgeWindow : Window
     // ✕ is the handle that drags the panel (a four-way arrow, filled) for a while after a long press on it, and the
     // whole time the widget is being edited from Ajustes; then it is ✕ again. A ring around it tells what is going on:
     // it fills while ✕ is held, stays full while it is the handle and drains over the seconds before ✕ comes back.
-    private static readonly TimeSpan HoldToMove = TimeSpan.FromMilliseconds(450);
-    private static readonly TimeSpan HandleRest = TimeSpan.FromSeconds(3);
+    // Whenever ✕ is the handle the size grip is out past the panel's end too (SyncGrip).
+    // A full second to arm, so a quick press is never taken for a hold. Dragging ✕ further than the slop arms it at once:
+    // a press that wanders that far (Windows' own drag threshold is 4 px) is a drag, not a click, and moving needs no wait.
+    private static readonly TimeSpan HoldToMove = TimeSpan.FromMilliseconds(1000);
+    private static readonly TimeSpan HandleRest = TimeSpan.FromSeconds(6);
     private const double HoldMoveSlop = 6;  // DIPs the pointer moves while ✕ is held before the drag starts at once
     private readonly DispatcherTimer _holdTimer = new(DispatcherPriority.Input) { Interval = HoldToMove };
     private readonly DispatcherTimer _handleRest = new(DispatcherPriority.Background) { Interval = HandleRest };
@@ -1099,6 +1102,29 @@ public partial class EdgeWindow : Window
         string tip = handle ? "Tip.Drag" : "Tip.Close";
         CloseButton.SetResourceReference(ToolTipProperty, tip);
         CloseButton.SetResourceReference(AutomationProperties.NameProperty, tip);
+        SyncGrip();
+    }
+
+    /// The size grip and its badge are out exactly while ✕ is the handle: after a long press and while editing.
+    private void SyncGrip()
+    {
+        bool show = HandleShown;
+        if (show == (ResizeGrip.Visibility == Visibility.Visible)) return;
+        UIElement[] elements = [ResizeGrip, SizeBadge];
+        if (show)
+        {
+            foreach (UIElement element in elements) element.Visibility = Visibility.Visible;
+            PlaceGrip();
+            foreach (UIElement element in elements) Animate(element, OpacityProperty, 1, 180);
+            return;
+        }
+        if (_resizing) ResizeGrip.ReleaseMouseCapture();
+        foreach (UIElement element in elements)
+        {
+            element.BeginAnimation(OpacityProperty, null);
+            element.Opacity = 0;
+            element.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// The hold ring: null hides it; otherwise it runs from one fill to another (0 empty, 1 full) in this time, evenly.
@@ -1149,7 +1175,8 @@ public partial class EdgeWindow : Window
         StartDrag();
     }
 
-    /// The panel was left in its place: the ring drains and, when it is empty, the handle is ✕ again (not while editing).
+    /// The panel was left in its place and size: the ring drains and, when it is empty, the handle is ✕ again and the grip
+    /// goes (not while editing).
     private void RestHandleSoon()
     {
         _handleRest.Stop();
@@ -1158,10 +1185,17 @@ public partial class EdgeWindow : Window
         _handleRest.Start();
     }
 
+    /// The handle or the grip was grabbed: no countdown meanwhile, and the ring is full again.
+    private void HoldHandle()
+    {
+        _handleRest.Stop();
+        if (_moveArmed && !_editing) SetHoldRing(1);
+    }
+
     private void OnHandleRested(object? sender, EventArgs e)
     {
         _handleRest.Stop();
-        if (_dragging || !_moveArmed) return;
+        if (_dragging || _resizing || _resizeFrames || !_moveArmed) return;
         _moveArmed = false;
         SyncCloseButton();
     }
@@ -1189,10 +1223,6 @@ public partial class EdgeWindow : Window
         Expand();
         SyncCloseButton();
         SyncSettingsButton();
-        ResizeGrip.Visibility = SizeBadge.Visibility = Visibility.Visible;
-        PlaceGrip();
-        Animate(ResizeGrip, OpacityProperty, 1, 180);
-        Animate(SizeBadge, OpacityProperty, 1, 180);
         ResumePointerWatch();
     }
 
@@ -1202,19 +1232,12 @@ public partial class EdgeWindow : Window
     {
         if (!_editing) return;
         Log.Trace("Edge", "edit widget: off");
-        if (_resizing) ResizeGrip.ReleaseMouseCapture();
         if (_dragging) CloseButton.ReleaseMouseCapture();
         _editing = false;
         _moveArmed = false;
         _handleRest.Stop();
-        SyncCloseButton();
+        SyncCloseButton();  // the grip goes with the handle
         SyncSettingsButton();
-        foreach (UIElement element in new UIElement[] { ResizeGrip, SizeBadge })
-        {
-            element.BeginAnimation(OpacityProperty, null);
-            element.Opacity = 0;
-            element.Visibility = Visibility.Collapsed;
-        }
         // Auto mode: the panel slides away on its own once the pointer is off it.
         _outside.Reset();
         ResumePointerWatch();
@@ -1298,7 +1321,7 @@ public partial class EdgeWindow : Window
     private void OnGripDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (!_editing || PreviewMode || _resizing) return;
+        if (!HandleShown || PreviewMode || _resizing || _dragging) return;
         if (e.ClickCount >= 2)
         {
             ResetSize();
@@ -1323,6 +1346,8 @@ public partial class EdgeWindow : Window
         _resizeMonitor = monitor;
         _resizeMoved = false;
         _resizing = ResizeGrip.CaptureMouse();
+        // ✕ held from a long press does not turn back while the size is being changed.
+        if (_resizing) HoldHandle();
     }
 
     private void OnGripMove(object sender, System.Windows.Input.MouseEventArgs e)
@@ -1354,8 +1379,14 @@ public partial class EdgeWindow : Window
         ResizeGrip.ReleaseMouseCapture();
     }
 
-    // The frames carry on until the scale has reached the last target, then FinishResize.
-    private void OnGripLost(object sender, System.Windows.Input.MouseEventArgs e) => _resizing = false;
+    // The frames carry on until the scale has reached the last target, then FinishResize. A plain click on the grip
+    // started none: the countdown to ✕ starts again now.
+    private void OnGripLost(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_resizing) return;
+        _resizing = false;
+        if (!_resizeFrames) RestHandleSoon();
+    }
 
     private void OnResizeFrame(object? sender, EventArgs e)
     {
@@ -1386,6 +1417,7 @@ public partial class EdgeWindow : Window
         PositionOnScreen();
         Log.Trace("Edge", $"resize end at scale {scale:0.##}");
         ScaleDragged?.Invoke(scale);
+        RestHandleSoon();
     }
 
     /// Double click on the grip: back to the automatic size.
@@ -1397,6 +1429,7 @@ public partial class EdgeWindow : Window
         SyncSizeBadge();
         Log.Trace("Edge", "resize: automatic size");
         ScaleDragged?.Invoke(null);
+        RestHandleSoon();
     }
 
     /// Before the grip moves: the window takes the room of the largest scale across the edge (it already runs the whole
@@ -1445,7 +1478,7 @@ public partial class EdgeWindow : Window
 
     private void StartDrag()
     {
-        _handleRest.Stop();
+        HoldHandle();
         HideCard();
         _dragMonitors = Monitors.All();
         _dragStart = _placement;
@@ -2148,7 +2181,7 @@ public partial class EdgeWindow : Window
         // below the (shorter) panel would expand/collapse in a loop.
         bool inside = Contains(EdgePanel, screen)
                       || (_cardVisible && Contains(Card, screen))
-                      || (_editing && Contains(ResizeGrip, screen))
+                      || (HandleShown && Contains(ResizeGrip, screen))
                       || (_mode == PanelMode.Auto && Contains(Strip, screen));
         if (inside) _outside.Reset();
         else HandleCursorAway();
@@ -2238,7 +2271,7 @@ public partial class EdgeWindow : Window
         if (!_expanded) return _mode == PanelMode.Auto && Contains(Strip, new Point(point.X, point.Y));
         return Contains(EdgePanel, new Point(point.X, point.Y))
                || (_cardVisible && Contains(Card, new Point(point.X, point.Y)))
-               || (_editing && Contains(ResizeGrip, new Point(point.X, point.Y)));
+               || (HandleShown && Contains(ResizeGrip, new Point(point.X, point.Y)));
     }
 
     // ─────────────────────────── Expand / collapse ───────────────────────────
@@ -2274,6 +2307,13 @@ public partial class EdgeWindow : Window
         _outside.Reset();
         _hoveredRing = -1;
         if (!PreviewMode) SetClickThrough(true);
+        // ✕ held from a long press: with the panel gone, ✕ is back and the grip goes at once.
+        if (_moveArmed && !_editing && !_dragging && !_resizing && !_resizeFrames)
+        {
+            _handleRest.Stop();
+            _moveArmed = false;
+            SyncCloseButton();
+        }
 
         HideCard();
         for (int i = 0; i < _rings.Length; i++) ScaleRing(i, 1.0);
@@ -2558,10 +2598,12 @@ public partial class EdgeWindow : Window
 
     internal void CollapseNow() => Collapse();
 
-    /// ✕ as the handle after a long press, its ring this full (the 3 s before ✕ comes back running out), or ✕ again.
+    /// ✕ as the handle after a long press (with the size grip out), its ring this full (the 6 s before ✕ comes back
+    /// running out), or ✕ again.
     internal void ShowHandleNow(double? ring)
     {
         _moveArmed = ring is not null;
+        if (_moveArmed) HideCard();  // as when ✕ is armed (StartDrag)
         SyncCloseButton();
         if (ring is double fill) SetHoldRing(fill);
     }

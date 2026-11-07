@@ -1,5 +1,15 @@
 # Registro de cambios
 
+## 3.1.1
+
+- **Cambia el tamaño sin abrir Ajustes.** Al mantener pulsada la ✕, además del asa para mover aparece fuera del panel el
+  tirador de tamaño (el mismo de «Editar widget»): arrástralo para hacer el panel más grande o más pequeño, con el % en
+  vivo, imán al 100 % y sin pasar de lo que cabe en la pantalla; doble clic vuelve al tamaño automático. Se guarda al
+  soltar (`uiScale`). Funciona en los cuatro bordes y con cualquier escala de pantalla.
+- **La ✕ ya no se convierte tan rápido.** Hay que mantenerla un segundo (antes 0,45 s); arrastrarla sigue activando el
+  asa al momento. El asa y el tirador duran 6 segundos quietos (antes 3), no cuentan mientras arrastras y, si el panel
+  se recoge, vuelve la ✕ enseguida.
+
 ## 3.1.0 — 2026-10-14
 
 - **Mueve el panel manteniendo pulsada la ✕.** Un anillo se llena alrededor mientras la mantienes; al completarse (o en

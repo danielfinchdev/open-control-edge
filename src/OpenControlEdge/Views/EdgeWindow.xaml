@@ -601,7 +601,7 @@
                                     <ScaleTransform x:Name="CloseScale" />
                                 </Button.RenderTransform>
                                 <!-- The ring fills while ✕ is held, stays full while it is the handle and drains over the
-                                     3 s before ✕ comes back (EdgeWindow.FillHoldRing / DrainHoldRing). -->
+                                     6 s before ✕ comes back (EdgeWindow.FillHoldRing / DrainHoldRing). -->
                                 <Grid>
                                     <Ellipse x:Name="HoldRing" Margin="-7" StrokeThickness="2.5" Opacity="0" IsHitTestVisible="False"
                                              Stroke="{DynamicResource Theme.Text}" RenderTransformOrigin="0.5,0.5">
@@ -619,8 +619,8 @@
             </Grid>
         </Grid>
 
-        <!-- Editing the widget (Ajustes › Personalización › Editar widget): a grip just past the panel's end; dragged
-             along the edge it makes the panel bigger or smaller (EdgeWindow.OnGripDown). -->
+        <!-- While ✕ is the drag handle (held down, or editing the widget from Ajustes › Personalización › Editar widget): a
+             grip just past the panel's end; dragged it makes the panel bigger or smaller (EdgeWindow.OnGripDown). -->
         <Button x:Name="ResizeGrip" Style="{StaticResource PanelRoundButton}" Tag="on" Visibility="Collapsed" Opacity="0"
                 PreviewMouseLeftButtonDown="OnGripDown" PreviewMouseMove="OnGripMove"
                 PreviewMouseLeftButtonUp="OnGripUp" LostMouseCapture="OnGripLost"

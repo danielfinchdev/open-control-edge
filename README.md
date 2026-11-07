@@ -181,9 +181,12 @@ En Ajustes → Personalización → **Posición** eliges:
   sale debajo o encima.
 - **Colocación** — **Centrado** en ese borde o **Manual**: donde lo dejaste con el asa.
 
-**Moverlo desde el propio panel**: mantén pulsado el botón ✕ (un anillo se llena alrededor) o arrástralo, y se
-convierte en un asa (↔); llévalo a cualquier borde de cualquier pantalla y se queda donde lo sueltes. Al soltarlo, el
-anillo se vacía en 3 segundos y vuelve la ✕ (un clic normal sigue cerrando la app).
+**Moverlo y cambiar su tamaño desde el propio panel**: mantén pulsado el botón ✕ un segundo (un anillo se llena
+alrededor) o arrástralo, y se convierte en un asa (↔); llévalo a cualquier borde de cualquier pantalla y se queda donde
+lo sueltes. Mientras es un asa, junto al panel aparece también el tirador de tamaño (⤢) con el % al lado: aléjalo o
+acércalo para hacerlo más grande o más pequeño (se pega al 100 %, no pasa de lo que cabe; doble clic: tamaño
+automático). Al soltar, el anillo se vacía en 6 segundos y vuelven la ✕ y el panel sin tirador; mientras arrastras no
+cuenta. Un clic normal sigue cerrando la app.
 
 **Editar widget** (Ajustes → Personalización): la ✕ pasa a ser el asa, el engranaje un ✓ y junto al panel aparece un
 tirador con el tamaño en %; aléjalo o acércalo para hacer el panel más grande o más pequeño, de forma fluida (se pega

@@ -489,7 +489,27 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "93_manual_placement.png"));
         window.ShowHandleNow(0.6);
         window.SaveSnapshot(Path.Combine(directory, "93b_held_handle.png"));
+        // Held ✕ brings the size grip out past the panel's end on every edge and at any size, and takes it away again.
+        foreach ((string name, PanelPlacement placement, double? scale) in new (string, PanelPlacement, double?)[]
+                 {
+                     ("93c_held_handle_left", PanelPlacement.Default with { Edge = PanelEdge.Left }, null),
+                     ("93d_held_handle_top", PanelPlacement.Default with { Edge = PanelEdge.Top }, null),
+                     ("93e_held_handle_bottom", PanelPlacement.Default with { Edge = PanelEdge.Bottom }, null),
+                     ("93f_held_handle_end_of_edge", PanelPlacement.Default with { Manual = true, Offset = 1 }, null),
+                     ("93g_held_handle_75", PanelPlacement.Default, 0.75),
+                     ("93h_held_handle_125", PanelPlacement.Default, 1.25),
+                 })
+        {
+            window.ApplyPlacement(placement);
+            window.ApplyScale(scale);
+            window.ShowHandleNow(1);
+            if (window.CloseIsClose) throw new InvalidDataException($"{name}: no size grip while ✕ is the handle");
+            window.SaveSnapshot(Path.Combine(directory, $"{name}.png"));
+        }
+        window.ApplyScale(null);
+        window.ApplyPlacement(PanelPlacement.Default with { Manual = true, Offset = 0.25 });
         window.ShowHandleNow(null);
+        if (!window.CloseIsClose) throw new InvalidDataException("held handle: ✕ or the size grip did not go back");
         window.BeginEdit();
         window.SaveSnapshot(Path.Combine(directory, "94_edit_widget.png"));
         window.ApplyScale(0.75);
