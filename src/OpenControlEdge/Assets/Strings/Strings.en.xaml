@@ -238,7 +238,6 @@
     <sys:String x:Key="Msg.InvalidResponse">Invalid response</sys:String>
     <sys:String x:Key="Msg.EmptyResponse">Empty response</sys:String>
     <sys:String x:Key="Msg.NoUsageData">Response without usage data</sys:String>
-    <sys:String x:Key="Msg.NoSessionData">Response without session data</sys:String>
     <sys:String x:Key="Msg.NoLocalData">Local data is empty</sys:String>
     <sys:String x:Key="Msg.UsageUnreadable">Could not read usage</sys:String>
     <sys:String x:Key="Msg.LocalUsageUnreadable">Could not read local usage</sys:String>

@@ -38,7 +38,6 @@ internal static partial class Loc
         ["Respuesta no válida"] = "Msg.InvalidResponse",
         ["Respuesta sin datos"] = "Msg.EmptyResponse",
         ["Respuesta sin datos de uso"] = "Msg.NoUsageData",
-        ["Respuesta sin datos de sesión"] = "Msg.NoSessionData",
         ["Respuesta local sin datos"] = "Msg.NoLocalData",
         ["No se pudo leer el uso"] = "Msg.UsageUnreadable",
         ["No se pudo leer la suscripción"] = "Msg.SubscriptionUnreadable",

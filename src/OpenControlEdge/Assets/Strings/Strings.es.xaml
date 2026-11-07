@@ -238,7 +238,6 @@
     <sys:String x:Key="Msg.InvalidResponse">Respuesta no válida</sys:String>
     <sys:String x:Key="Msg.EmptyResponse">Respuesta sin datos</sys:String>
     <sys:String x:Key="Msg.NoUsageData">Respuesta sin datos de uso</sys:String>
-    <sys:String x:Key="Msg.NoSessionData">Respuesta sin datos de sesión</sys:String>
     <sys:String x:Key="Msg.NoLocalData">Respuesta local sin datos</sys:String>
     <sys:String x:Key="Msg.UsageUnreadable">No se pudo leer el uso</sys:String>
     <sys:String x:Key="Msg.LocalUsageUnreadable">No se pudo leer el uso local</sys:String>
