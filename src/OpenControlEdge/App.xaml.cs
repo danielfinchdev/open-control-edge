@@ -562,9 +562,10 @@ public partial class App : Application
         if (!AiRingPolicy.ShouldShowRing(id, SettingsStore.Load())) return new("hidden", null, null, null);
         (string? message, string? plan) = id switch
         {
-            AiProviderId.Claude => (_lastClaude?.Message, _lastClaude?.Plan),
-            AiProviderId.Codex => (_lastCodex?.Message, _lastCodex?.Plan),
-            AiProviderId.Cursor => (_lastCursor?.Message, _lastCursor?.Plan),
+            // The plan as the card's badge shows it ("Ultra", "Pro"), not the raw id.
+            AiProviderId.Claude => (_lastClaude?.Message, Fmt.Plan(_lastClaude?.Plan, _lastClaude?.RateLimitTier)),
+            AiProviderId.Codex => (_lastCodex?.Message, Fmt.Plan(_lastCodex?.Plan)),
+            AiProviderId.Cursor => (_lastCursor?.Message, Fmt.Plan(_lastCursor?.Plan)),
             AiProviderId.OpenCode => (_lastOpenCode?.Message, null),
             AiProviderId.DeepSeek => (_lastDeepSeek?.Message, null),
             AiProviderId.OpenRouter => (_lastOpenRouter?.Message, null),
