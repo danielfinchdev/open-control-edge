@@ -541,6 +541,9 @@ public partial class App : Application
         if (!AiDetector.IsInstalled(id) || !AiRingPolicy.ShouldShowRing(id, settings)) return;
         switch (id)
         {
+            // Claude: not during a renewal, and a refresh already under way is waited for instead of asking twice.
+            case AiProviderId.Claude when _renewing: break;
+            case AiProviderId.Claude when _usageRefresh is { IsCompleted: false } running: await running; break;
             case AiProviderId.Claude: _lastClaude = await FetchClaudePreservingAsync(); TrackAgent(id, _lastClaude.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowClaude(settings); break;
             case AiProviderId.Codex: _lastCodex = await _codex.FetchAsync(); TrackAgent(id, _lastCodex.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowCodex(settings); break;
             case AiProviderId.Cursor: _lastCursor = await _cursor.FetchAsync(); TrackAgent(id, _lastCursor.Message); if (AiRingPolicy.ShouldShowRing(id, settings)) ShowCursor(settings); break;
@@ -1380,6 +1383,8 @@ public partial class App : Application
     {
         _autoRenewTimer?.Stop();
         if (_lastClaude is not { Hidden: false, TokenExpiresAt: DateTimeOffset expiry }) return;
+        // Already given up on this very token: it is not tried again until the token changes.
+        if (expiry == _autoRenewGaveUpOn) return;
         if (!SettingsStore.Load().AutoRenewClaude) return;
 
         TimeSpan due = expiry - AutoRenewLead - DateTimeOffset.UtcNow;
@@ -1392,9 +1397,10 @@ public partial class App : Application
     private async Task AutoRenewAsync()
     {
         if (!SettingsStore.Load().AutoRenewClaude) return;
-        if (ClaudeSessionRenewer.ReadExpiry() is not DateTimeOffset expiry || expiry - DateTimeOffset.UtcNow >= AutoRenewWindow) return;
+        // Off the UI thread: the login file may be on a slow or sleeping drive, and IsAvailable looks for the CLI.
+        if (await Task.Run(() => ClaudeSessionRenewer.ReadExpiry()) is not DateTimeOffset expiry || expiry - DateTimeOffset.UtcNow >= AutoRenewWindow) return;
         if (expiry == _autoRenewGaveUpOn) return;
-        if (DateTime.UtcNow - _lastAutoRenew < AutoRenewInterval || !ClaudeSessionRenewer.IsAvailable) return;
+        if (DateTime.UtcNow - _lastAutoRenew < AutoRenewInterval || !await Task.Run(() => ClaudeSessionRenewer.IsAvailable)) return;
         _lastAutoRenew = DateTime.UtcNow;
         await RenewClaudeSessionAsync(automatic: true);
     }
