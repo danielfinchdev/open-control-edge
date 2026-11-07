@@ -39,7 +39,7 @@ jobs:
 
       # Code signing with SignPath Foundation (free for open source). Runs only when the secret SIGNPATH_API_TOKEN and
       # the variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_SIGNING_POLICY_SLUG exist;
-      # otherwise the release goes out unsigned with a warning. See README, "Firma".
+      # otherwise the release goes out unsigned with a warning. See README, "Signing".
       - name: Check code signing configuration
         id: signing
         env:
@@ -52,7 +52,7 @@ jobs:
             "enabled=true" >> $env:GITHUB_OUTPUT
           } else {
             "enabled=false" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning title=Firma de código::SignPath no está configurado (falta el secreto SIGNPATH_API_TOKEN o alguna variable SIGNPATH_*). Se publica sin firmar."
+            Write-Output "::warning title=Code signing::SignPath is not configured (the SIGNPATH_API_TOKEN secret or a SIGNPATH_* variable is missing). Publishing unsigned."
           }
 
       - name: Upload unsigned application for signing
@@ -83,7 +83,7 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         run: |
           $signature = Get-AuthenticodeSignature signed/OpenControlEdge.exe
-          if ($signature.Status -ne 'Valid') { throw "La firma de OpenControlEdge.exe no es válida: $($signature.Status)" }
+          if ($signature.Status -ne 'Valid') { throw "The signature of OpenControlEdge.exe is not valid: $($signature.Status)" }
           Copy-Item signed/* dist/ -Recurse -Force
 
       - name: Package application folder
@@ -99,14 +99,14 @@ jobs:
         run: |
           if (-not $env:UPDATE_SIGNING_KEY) {
             "file=" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning title=Actualizaciones::Falta el secreto UPDATE_SIGNING_KEY: la Release no llevará firma para las actualizaciones desde la app."
+            Write-Output "::warning title=Updates::The UPDATE_SIGNING_KEY secret is missing: the Release will not carry a signature for in-app updates."
             exit 0
           }
           $key = [System.Security.Cryptography.ECDsa]::Create()
           $key.ImportFromPem($env:UPDATE_SIGNING_KEY)
           $bytes = [System.IO.File]::ReadAllBytes("OpenControlEdge-win-x64.zip")
           $signature = $key.SignData($bytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)
-          if (-not $key.VerifyData($bytes, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)) { throw "La firma recién hecha no se verifica." }
+          if (-not $key.VerifyData($bytes, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)) { throw "The freshly created signature does not verify." }
           [System.IO.File]::WriteAllText("OpenControlEdge-win-x64.zip.sig", [Convert]::ToBase64String($signature))
           "file=OpenControlEdge-win-x64.zip.sig" >> $env:GITHUB_OUTPUT
 
