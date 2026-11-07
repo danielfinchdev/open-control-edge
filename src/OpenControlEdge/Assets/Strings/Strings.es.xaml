@@ -421,6 +421,8 @@
     <sys:String x:Key="Settings.AccountFolder.codex">Carpeta de configuración de la otra cuenta de Codex</sys:String>
     <sys:String x:Key="Settings.AccountFolder.cursor">Carpeta de datos de la otra cuenta de Cursor</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">En esa carpeta no está {0}: quizá no es la de esa cuenta, o aún no has iniciado sesión. ¿Añadirla igualmente?</sys:String>
+    <sys:String x:Key="Settings.AccountMissing">No encontrada</sys:String>
+    <sys:String x:Key="Settings.AccountMissingHint">No está la carpeta o su {0}: la tarjeta no muestra esta cuenta. Si vuelve (p. ej., un disco externo), reaparece.</sys:String>
     <sys:String x:Key="Settings.AccountName">Nombre (opcional, p. ej. Trabajo)</sys:String>
     <sys:String x:Key="Settings.AddAccount">Añadir cuenta…</sys:String>
     <sys:String x:Key="Settings.GameMode">Modo juego</sys:String>

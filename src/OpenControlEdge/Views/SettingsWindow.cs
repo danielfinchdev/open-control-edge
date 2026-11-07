@@ -128,6 +128,16 @@ internal sealed class SettingsWindow : Window
     /// "Buscar en todo el equipo" (Ajustes › Agentes › Cuentas): the owner's search; returns the accounts added.
     internal Func<Task<int>>? ScanAccounts { get; init; }
 
+    /// Whether an extra account (provider, folder) was found at the owner's last check (AccountFolders); null when not
+    /// checked yet. Without it (snapshots) the page checks by itself.
+    internal Func<string, string, bool?>? AccountFound { get; init; }
+
+    private bool? Found(string provider, string folder) =>
+        AccountFound is not null ? AccountFound(provider, folder) : Preview ? AccountFolders.IsPresent(provider, folder) : null;
+
+    /// Snapshots: the settings the Agentes page shows instead of the saved ones.
+    private Settings? _previewSettings;
+
     /// "Editar widget" (Ajustes › Personalización): the owner starts (true) or ends (false) editing the panel on screen.
     internal Action<bool>? EditWidget { get; init; }
 
@@ -906,7 +916,7 @@ internal sealed class SettingsWindow : Window
     private void Agents()
     {
         var p = Inside(Card(string.Empty));
-        Settings settings = SettingsStore.Load();
+        Settings settings = _previewSettings ?? SettingsStore.Load();
         bool first = true;
         foreach (AiProviderId id in AiDetector.All)
         {
@@ -940,7 +950,8 @@ internal sealed class SettingsWindow : Window
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (id is AiProviderId.Claude or AiProviderId.Codex or AiProviderId.Cursor)
             {
-                int extra = settings.AccountsOf(AiProviderSettings.Key(id)).Length;
+                // Accounts not found (folder or login file gone) are left out of the count, as out of the card.
+                int extra = settings.AccountsOf(AiProviderSettings.Key(id)).Count(a => Found(AiProviderSettings.Key(id), a.Folder) != false);
                 Button accounts = SmallButton(extra > 0 ? Loc.Format("Settings.AccountsCount", extra + 1) : Loc.Get("Settings.Accounts"),
                     (_, _) => { _accountEditor = _accountEditor == id ? null : id; RenderPage(); });
                 accounts.Margin = new Thickness(0, 0, 6, 0);
@@ -1028,7 +1039,7 @@ internal sealed class SettingsWindow : Window
         editor.Children.Add(Muted(Loc.Get("Settings.AccountNameHint"), new Thickness(0, 0, 0, 8), 12));
         ImmutableArray<ExtraAccount> accounts = settings.AccountsOf(provider);
 
-        editor.Children.Add(AccountRow(Loc.Get("Account.Default"), settings.MainAccountName(provider) ?? "", null, name =>
+        editor.Children.Add(AccountRow(Loc.Get("Account.Default"), settings.MainAccountName(provider) ?? "", null, null, name =>
             SettingsStore.Update(x =>
             {
                 var map = x.AccountNames.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
@@ -1040,7 +1051,10 @@ internal sealed class SettingsWindow : Window
         {
             string folder = account.Folder;
             int Position(Settings x) => x.AccountsOf(provider).ToList().FindIndex(a => a.Folder.Equals(folder, StringComparison.OrdinalIgnoreCase));
-            editor.Children.Add(AccountRow(folder, account.Name, () =>
+            // Not found: kept (it comes back with its folder), marked so it can be removed.
+            string? missing = Found(provider, folder) == false
+                ? Loc.Format("Settings.AccountMissingHint", IOPath.GetFileName(AccountFolders.LoginFile(provider, folder))) : null;
+            editor.Children.Add(AccountRow(folder, account.Name, missing, () =>
             {
                 Settings? updated = SettingsStore.Update(x =>
                 {
@@ -1096,12 +1110,7 @@ internal sealed class SettingsWindow : Window
             var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Loc.Get("Settings.AccountFolder." + provider) };
             if (dialog.ShowDialog(this) != true) return;
             string folder = dialog.FolderName;
-            string expected = provider switch
-            {
-                AiProviderSettings.Claude => IOPath.Combine(folder, ".credentials.json"),
-                AiProviderSettings.Codex => IOPath.Combine(folder, "auth.json"),
-                _ => IOPath.Combine(folder, "User", "globalStorage", "state.vscdb"),
-            };
+            string expected = AccountFolders.LoginFile(provider, folder);
             if (!File.Exists(expected) && MessageBox.Show(Loc.Format("Settings.AccountFolderEmpty", IOPath.GetFileName(expected)),
                     "Open Control Edge", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             Settings? updated = SettingsStore.Update(x => WithAccounts(x, provider, x.AccountsOf(provider).Add(new ExtraAccount(name, folder)))
@@ -1117,9 +1126,19 @@ internal sealed class SettingsWindow : Window
         return editor;
     }
 
+    /// Every text on a page (TextBlocks and button captions), for the snapshot checks.
+    private static IEnumerable<string> Texts(DependencyObject element)
+    {
+        if (element is TextBlock { Text: { Length: > 0 } text }) yield return text;
+        if (element is ContentControl { Content: string caption }) yield return caption;
+        foreach (object child in LogicalTreeHelper.GetChildren(element))
+            if (child is DependencyObject inner)
+                foreach (string found in Texts(inner)) yield return found;
+    }
+
     /// One account: its name field (saved on Enter or when it loses focus), what it is (the default account or its
-    /// folder) and, for the extra ones, a button to remove it.
-    private DockPanel AccountRow(string what, string name, Action? remove, Func<string, Settings?> rename)
+    /// folder) and, for the extra ones, a button to remove it; missing (why, as its tooltip) marks one not found.
+    private DockPanel AccountRow(string what, string name, string? missing, Action? remove, Func<string, Settings?> rename)
     {
         var row = new DockPanel { Margin = new Thickness(0, 3, 0, 3) };
         if (remove is not null)
@@ -1128,6 +1147,15 @@ internal sealed class SettingsWindow : Window
             delete.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(delete, Dock.Right);
             row.Children.Add(delete);
+        }
+        if (missing is not null)
+        {
+            var notFound = Muted(Loc.Get("Settings.AccountMissing"), new Thickness(10, 0, 0, 0), 12);
+            notFound.SetResourceReference(TextBlock.ForegroundProperty, "Oce.Danger");
+            notFound.VerticalAlignment = VerticalAlignment.Center;
+            notFound.ToolTip = missing;
+            DockPanel.SetDock(notFound, Dock.Right);
+            row.Children.Add(notFound);
         }
         var box = new TextBox { Style = StyleOf("Oce.Input"), Text = name, MaxLength = SettingsStore.AccountNameLimit, Width = 130,
             VerticalAlignment = VerticalAlignment.Center, ToolTip = Loc.Get("Settings.AccountName") };
@@ -1641,6 +1669,20 @@ internal sealed class SettingsWindow : Window
             window._scroll.ScrollToHome();
             window._category = "Agentes"; window._accountEditor = AiProviderId.Claude;
             Save($"settings_{themeName}_{languageName}_agentes_cuentas.png", "");
+            // A Codex account whose folder is gone: marked as not found, and left out of the button's count.
+            string goneFolder = IOPath.Combine(directory, "accounts-missing", ".codex-pro");
+            window._previewSettings = SettingsStore.Load() with
+            {
+                Accounts = new Dictionary<string, ImmutableArray<ExtraAccount>> { [AiProviderSettings.Codex] = [new ExtraAccount("", goneFolder)] }
+                    .ToFrozenDictionary(StringComparer.Ordinal),
+            };
+            window._accountEditor = AiProviderId.Codex;
+            Save($"settings_{themeName}_{languageName}_agentes_cuenta_no_encontrada.png", "");
+            List<string> texts = [.. Texts(window._scroll)];
+            if (Directory.Exists(goneFolder) || !texts.Contains(Loc.Get("Settings.AccountMissing")) || !texts.Contains(goneFolder)
+                || texts.Contains(Loc.Format("Settings.AccountsCount", 2)))
+                throw new InvalidDataException($"settings: the missing account is not marked ({themeName} {languageName})");
+            window._previewSettings = null;
             window._accountEditor = null;
             if (language == UiLanguage.Spanish)
             {

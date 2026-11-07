@@ -510,6 +510,15 @@ internal static class Snapshot
         window.SaveSnapshot(Path.Combine(directory, "87b_card_codex_five_accounts.png"));
         window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
 
+        // An extra account whose folder is gone (it stays in the settings, chosen even): a single-account card.
+        CheckMissingAccounts(directory, out List<string> missingLabels, out int missingShown);
+        window.CloseInfoNow();
+        window.SetAccounts(AiProviderId.Codex, missingLabels, missingShown);
+        window.SetCodex(codexMonthly with { Plan = "pro" });
+        window.ShowCardNow(EdgeWindow.RingCodex);
+        window.SaveSnapshot(Path.Combine(directory, "87c_card_codex_missing_account.png"));
+        window.SetAccounts(AiProviderId.Codex, ["Go"], 0);
+
         // Every edge, centred, with a card open; then manual placement (the ✕ becomes the drag handle) on the right.
         foreach (PanelEdge edge in new[] { PanelEdge.Left, PanelEdge.Top, PanelEdge.Bottom })
         {
@@ -663,6 +672,58 @@ internal static class Snapshot
             throw new InvalidDataException("Orb release parser check failed");
     }
 
+    /// Extra accounts whose folder or login file is missing are neither tabs nor read (AccountFolders): with a stale
+    /// Codex account (its folder gone, still chosen in the settings) the card has one tag and shows the default account;
+    /// with one missing, one without auth.json and one present, the present one is the only extra tab and stays chosen.
+    /// Gives the labels and tab of the first case.
+    private static void CheckMissingAccounts(string directory, out List<string> labels, out int shown)
+    {
+        string root = Path.Combine(directory, "accounts-missing-fixture");
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        try
+        {
+            string gone = Path.Combine(root, ".codex-pro"), empty = Path.Combine(root, ".codex-empty"), present = Path.Combine(root, ".codex-work");
+            Directory.CreateDirectory(empty);
+            Directory.CreateDirectory(present);
+            File.WriteAllText(Path.Combine(present, "auth.json"), "{}");
+            Directory.CreateDirectory(Path.Combine(root, ".claude-work"));
+            File.WriteAllText(Path.Combine(root, ".claude-work", ".credentials.json"), "{}");
+            Directory.CreateDirectory(Path.Combine(root, "Cursor-2", "User"));
+            Settings Accounts(int selected, params string[] folders) => Settings.Defaults with
+            {
+                Accounts = new Dictionary<string, System.Collections.Immutable.ImmutableArray<ExtraAccount>>
+                {
+                    [AiProviderSettings.Codex] = [.. folders.Select(f => new ExtraAccount("", f))],
+                }.ToFrozenDictionary(StringComparer.Ordinal),
+                SelectedAccounts = new Dictionary<string, int> { [AiProviderSettings.Codex] = selected }.ToFrozenDictionary(StringComparer.Ordinal),
+            };
+            bool Present(string folder) => AccountFolders.IsPresent(AiProviderSettings.Codex, folder);
+
+            Settings stale = Accounts(1, gone);
+            List<ExtraAccount> visible = AccountFolders.Visible(stale, AiProviderSettings.Codex, Present);
+            shown = AccountFolders.ShownIndex(stale, AiProviderSettings.Codex, visible);
+            labels = App.AccountLabels(stale, AiProviderSettings.Codex, Fmt.Plan("pro"), visible.Select(a => (a, (string?)null)));
+            if (visible.Count != 0 || shown != 0 || labels.Count != 1)
+                throw new InvalidDataException($"Missing account check failed: {visible.Count} visible, tab {shown}, {labels.Count} tags");
+
+            Settings mixed = Accounts(3, gone, empty, present);
+            visible = AccountFolders.Visible(mixed, AiProviderSettings.Codex, Present);
+            if (visible.Count != 1 || visible[0].Folder != present || AccountFolders.ShownIndex(mixed, AiProviderSettings.Codex, visible) != 1
+                || AccountFolders.SettingsIndex(mixed, AiProviderSettings.Codex, visible[0]) != 3
+                || AccountFolders.ShownIndex(Accounts(2, gone, empty, present), AiProviderSettings.Codex, visible) != 0)
+                throw new InvalidDataException("Missing account check failed: the present account among missing ones");
+
+            if (!AccountFolders.IsPresent(AiProviderSettings.Claude, Path.Combine(root, ".claude-work"))
+                || AccountFolders.IsPresent(AiProviderSettings.Claude, gone)
+                || AccountFolders.IsPresent(AiProviderSettings.Cursor, Path.Combine(root, "Cursor-2")))
+                throw new InvalidDataException("Missing account check failed: Claude or Cursor login files");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     /// AccountDiscovery against fixture folders of made-up logins (never the real ones), created under the snapshot
     /// directory and deleted: what counts as a login, the same account in two folders (the freshest is kept, and none
     /// of the default account's), dismissed and configured folders, the depth limit, skipped folders, Cursor profiles.
@@ -708,6 +769,7 @@ internal static class Snapshot
             Codex(@"home\.codex-gone", "acct-f");                    // dismissed
             Codex(@"home\.codex-mine", "acct-g");                    // configured already
             Codex(@"home\.codex-mine2", "acct-g");                   // the configured account again
+            Directory.CreateDirectory(Path.Combine(home, ".codex-nologin"));  // no auth.json: not an account
             Login(Path.Combine(home, "composer"), "auth.json", """{"http-basic":{"repo":{"username":"u","password":"p"}}}""");
             Codex(@"drive\a\b\c\.codex-deep", "acct-c");             // only the walk finds it
             Codex(@"drive\1\2\3\4\5\6\7", "acct-d");                 // deeper than MaxDepth

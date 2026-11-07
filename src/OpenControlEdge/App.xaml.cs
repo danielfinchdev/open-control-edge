@@ -382,7 +382,7 @@ public partial class App : Application
         }, AgentStatus, RetryProviderAsync, category, release ?? _availableUpdate, () => _lastUsageRefresh,
             () => _lastCpu?.Temperature is not null || _lastGpu?.Temperature is not null)
         {
-            Anchor = _edge, ScanAccounts = ScanAccountsAsync,
+            Anchor = _edge, ScanAccounts = ScanAccountsAsync, AccountFound = AccountFound,
             EditWidget = on => { if (on) _edge?.BeginEdit(); else _edge?.EndEdit(); },
             WidgetEditing = () => _edge?.Editing == true,
         };
@@ -593,6 +593,14 @@ public partial class App : Application
         {
             Log.Trace("Usage", "refresh started");
             Settings settings = SettingsStore.Load();
+            // Extra accounts whose folder or login file went away are dropped before reading (and come back with them).
+            if (AccountFolders.Describe(settings).Length > 0 || _checkedAccounts is not null)
+            {
+                FrozenSet<string> present = await Task.Run(() => AccountFolders.Check(settings));
+                _presentAccounts = present;
+                _checkedAccounts = AccountFolders.Describe(settings);
+                SyncAccounts(settings);
+            }
 
             await Task.WhenAll(
                 ApplyClaudeAsync(settings), ApplyCodexAsync(settings), ApplyCursorAsync(settings),
@@ -672,7 +680,7 @@ public partial class App : Application
     private void ShowClaude(Settings s)
     {
         if (_edge is null || _lastClaude is null) return;
-        int index = s.SelectedAccount(AiProviderSettings.Claude);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
         _edge.SetAccounts(AiProviderId.Claude, AccountLabels(s, AiProviderSettings.Claude, Fmt.Plan(_lastClaude.Plan, _lastClaude.RateLimitTier),
             _claudeExtras.Select((e, i) => (e.Account, _claudeExtraReadings.ElementAtOrDefault(i) is { } r ? Fmt.Plan(r.Plan, r.RateLimitTier) : null))), index);
         _edge.SetClaude(_lastClaude.Hidden || index == 0 ? _lastClaude
@@ -682,7 +690,7 @@ public partial class App : Application
     private void ShowCodex(Settings s)
     {
         if (_edge is null || _lastCodex is null) return;
-        int index = s.SelectedAccount(AiProviderSettings.Codex);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account));
         _edge.SetAccounts(AiProviderId.Codex, AccountLabels(s, AiProviderSettings.Codex, Fmt.Plan(_lastCodex.Plan),
             _codexExtras.Select((e, i) => (e.Account, Fmt.Plan(_codexExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
         _edge.SetCodex(_lastCodex.Hidden || index == 0 ? _lastCodex
@@ -692,7 +700,7 @@ public partial class App : Application
     private void ShowCursor(Settings s)
     {
         if (_edge is null || _lastCursor is null) return;
-        int index = s.SelectedAccount(AiProviderSettings.Cursor);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account));
         _edge.SetAccounts(AiProviderId.Cursor, AccountLabels(s, AiProviderSettings.Cursor, Fmt.Plan(_lastCursor.Plan),
             _cursorExtras.Select((e, i) => (e.Account, Fmt.Plan(_cursorExtraReadings.ElementAtOrDefault(i)?.Plan)))), index);
         _edge.SetCursor(_lastCursor.Hidden || index == 0 ? _lastCursor
@@ -703,10 +711,18 @@ public partial class App : Application
     private void SelectAccount(AiProviderId provider, int index)
     {
         string key = AiProviderSettings.Key(provider);
+        // The tabs are the accounts present (AccountFolders); the settings count every account, present or not.
+        ExtraAccount? shown = index <= 0 ? null : provider switch
+        {
+            AiProviderId.Claude => _claudeExtras.ElementAtOrDefault(index - 1).Account,
+            AiProviderId.Codex => _codexExtras.ElementAtOrDefault(index - 1).Account,
+            AiProviderId.Cursor => _cursorExtras.ElementAtOrDefault(index - 1).Account,
+            _ => null,
+        };
         Settings? updated = SettingsStore.Update(x =>
         {
             var map = x.SelectedAccounts.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-            map[key] = index;
+            map[key] = AccountFolders.SettingsIndex(x, key, shown);
             return x with { SelectedAccounts = map.ToFrozenDictionary(StringComparer.Ordinal) };
         });
         Settings settings = updated ?? SettingsStore.Load();
@@ -718,31 +734,32 @@ public partial class App : Application
         }
     }
 
-    /// Rebuilds the services of the extra accounts when they changed and refreshes the account tabs. Returns whether
-    /// the accounts changed (then they have to be read).
+    /// Rebuilds the services of the extra accounts when they changed and refreshes the account tabs. Only the accounts
+    /// present at the last check (AccountFolders, made off the UI thread on each refresh) get a service and a tab.
+    /// Returns whether the accounts changed or were not checked yet (then they have to be read).
     private bool SyncAccounts(Settings settings)
     {
-        bool changed = false;
-        ImmutableArray<ExtraAccount> claude = settings.AccountsOf(AiProviderSettings.Claude);
+        bool changed = AccountFolders.Describe(settings) != (_checkedAccounts ?? "");
+        List<ExtraAccount> claude = AccountFolders.Visible(settings, AiProviderSettings.Claude, f => IsPresent(AiProviderSettings.Claude, f));
         if (!SameFolders(claude, _claudeExtras.Select(e => e.Account)))
         {
-            _claudeExtras = [.. claude.Select(a => (a, new ClaudeUsageService(Path.Combine(a.Folder, ".credentials.json"))))];
+            _claudeExtras = [.. claude.Select(a => (a, new ClaudeUsageService(AccountFolders.LoginFile(AiProviderSettings.Claude, a.Folder))))];
             _claudeExtraReadings = [];
             changed = true;
         }
         else _claudeExtras = [.. _claudeExtras.Select((e, i) => (claude[i], e.Service))];
-        ImmutableArray<ExtraAccount> codex = settings.AccountsOf(AiProviderSettings.Codex);
+        List<ExtraAccount> codex = AccountFolders.Visible(settings, AiProviderSettings.Codex, f => IsPresent(AiProviderSettings.Codex, f));
         if (!SameFolders(codex, _codexExtras.Select(e => e.Account)))
         {
-            _codexExtras = [.. codex.Select(a => (a, new CodexUsageService(Path.Combine(a.Folder, "auth.json"))))];
+            _codexExtras = [.. codex.Select(a => (a, new CodexUsageService(AccountFolders.LoginFile(AiProviderSettings.Codex, a.Folder))))];
             _codexExtraReadings = [];
             changed = true;
         }
         else _codexExtras = [.. _codexExtras.Select((e, i) => (codex[i], e.Service))];
-        ImmutableArray<ExtraAccount> cursor = settings.AccountsOf(AiProviderSettings.Cursor);
+        List<ExtraAccount> cursor = AccountFolders.Visible(settings, AiProviderSettings.Cursor, f => IsPresent(AiProviderSettings.Cursor, f));
         if (!SameFolders(cursor, _cursorExtras.Select(e => e.Account)))
         {
-            _cursorExtras = [.. cursor.Select(a => (a, new CursorUsageService(Path.Combine(a.Folder, "User", "globalStorage", "state.vscdb"))))];
+            _cursorExtras = [.. cursor.Select(a => (a, new CursorUsageService(AccountFolders.LoginFile(AiProviderSettings.Cursor, a.Folder))))];
             _cursorExtraReadings = [];
             changed = true;
         }
@@ -762,13 +779,24 @@ public partial class App : Application
 
     private string? _accountNames;
 
-    private static bool SameFolders(ImmutableArray<ExtraAccount> accounts, IEnumerable<ExtraAccount> current) =>
+    /// The extra accounts present at the last check (AccountFolders.Key), and the accounts that check covered.
+    private FrozenSet<string> _presentAccounts = FrozenSet<string>.Empty;
+    private string? _checkedAccounts;
+
+    private bool IsPresent(string provider, string folder) => _presentAccounts.Contains(AccountFolders.Key(provider, folder));
+
+    /// For Ajustes › Agentes › Cuentas: whether an extra account was found at the last check; null when not checked yet.
+    private bool? AccountFound(string provider, string folder) =>
+        _checkedAccounts?.Split('\n').Contains(AccountFolders.Key(provider, folder), StringComparer.OrdinalIgnoreCase) == true
+            ? IsPresent(provider, folder) : null;
+
+    private static bool SameFolders(List<ExtraAccount> accounts, IEnumerable<ExtraAccount> current) =>
         accounts.Select(a => a.Folder).SequenceEqual(current.Select(a => a.Folder), StringComparer.OrdinalIgnoreCase);
 
     /// The tag of each account: the name given in Ajustes, else its plan ("Go", "Pro"), else "Cuenta 2". Equal tags get
     /// a number ("Pro", "Pro 2") so the two can be told apart. The plans come as Fmt.Plan made them (with Claude's
     /// rate-limit tier: "Ultra"), the same text as the card's plan badge.
-    private static List<string> AccountLabels(Settings settings, string provider, string? mainPlan,
+    internal static List<string> AccountLabels(Settings settings, string provider, string? mainPlan,
         IEnumerable<(ExtraAccount Account, string? Plan)> extras)
     {
         var labels = new List<string> { settings.MainAccountName(provider) ?? mainPlan ?? Loc.Format("Account.Fallback", 1) };
@@ -879,7 +907,7 @@ public partial class App : Application
 
     private async Task<string> ClaudeSubscriptionText(Settings s)
     {
-        int index = s.SelectedAccount(AiProviderSettings.Claude);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
         ClaudeUsageService? service = index == 0 ? _claude : _claudeExtras.ElementAtOrDefault(index - 1).Service;
         if (service is null) return Loc.Format("Sub.Unknown", "Claude");
         (ClaudeSubscription? subscription, string? error) = await service.FetchSubscriptionAsync();
@@ -894,7 +922,7 @@ public partial class App : Application
 
     private string CodexSubscriptionText(Settings s)
     {
-        int index = s.SelectedAccount(AiProviderSettings.Codex);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Codex, _codexExtras.Select(e => e.Account));
         CodexSnapshot? shown = index == 0 ? _lastCodex : _codexExtraReadings.ElementAtOrDefault(index - 1);
         if (shown?.SubscriptionUntil is not DateTimeOffset until) return Loc.Format("Sub.Unknown", "Codex");
         // The id_token is only renewed with the login: a date already past means it renewed since, monthly.
@@ -903,7 +931,7 @@ public partial class App : Application
 
     private string CursorSubscriptionText(Settings s)
     {
-        int index = s.SelectedAccount(AiProviderSettings.Cursor);
+        int index = AccountFolders.ShownIndex(s, AiProviderSettings.Cursor, _cursorExtras.Select(e => e.Account));
         CursorSnapshot? shown = index == 0 ? _lastCursor : _cursorExtraReadings.ElementAtOrDefault(index - 1);
         return shown?.Cycle?.ResetsAt is DateTimeOffset renews ? Loc.Format("Sub.Renews", Day(renews)) : Loc.Format("Sub.Unknown", "Cursor");
     }
@@ -1168,7 +1196,7 @@ public partial class App : Application
             Log.Info("Claude", automatic ? "renovación automática de la sesión" : "renovación de sesión pedida desde el anillo");
 
             // A click renews the account the ring shows (its CLAUDE_CONFIG_DIR); the background renewal, the default one.
-            int shown = automatic ? 0 : SettingsStore.Load().SelectedAccount(AiProviderSettings.Claude);
+            int shown = automatic ? 0 : AccountFolders.ShownIndex(SettingsStore.Load(), AiProviderSettings.Claude, _claudeExtras.Select(e => e.Account));
             string? folder = shown > 0 ? _claudeExtras.ElementAtOrDefault(shown - 1).Account?.Folder : null;
             RenewResult result = await ClaudeSessionRenewer.RenewAsync(folder);
             Log.Info("Claude", $"renovación: {result.Outcome}");

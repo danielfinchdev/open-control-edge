@@ -2602,6 +2602,8 @@ public partial class EdgeWindow : Window
 
     internal void CollapseNow() => Collapse();
 
+    internal void CloseInfoNow() => CloseInfo();
+
     /// ✕ as the handle after a long press (with the size grip out), its ring this full (the 6 s before ✕ comes back
     /// running out), or ✕ again.
     internal void ShowHandleNow(double? ring)

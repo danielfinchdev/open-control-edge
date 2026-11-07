@@ -421,6 +421,8 @@
     <sys:String x:Key="Settings.AccountFolder.codex">Configuration folder of the other Codex account</sys:String>
     <sys:String x:Key="Settings.AccountFolder.cursor">Data folder of the other Cursor account</sys:String>
     <sys:String x:Key="Settings.AccountFolderEmpty">{0} is not in that folder: maybe it is not that account’s, or you have not signed in yet. Add it anyway?</sys:String>
+    <sys:String x:Key="Settings.AccountMissing">Not found</sys:String>
+    <sys:String x:Key="Settings.AccountMissingHint">The folder or its {0} is missing, so the card leaves this account out. It comes back if the folder does (an external drive, say).</sys:String>
     <sys:String x:Key="Settings.AccountName">Name (optional, e.g. Work)</sys:String>
     <sys:String x:Key="Settings.AddAccount">Add account…</sys:String>
     <sys:String x:Key="Settings.GameMode">Game mode</sys:String>

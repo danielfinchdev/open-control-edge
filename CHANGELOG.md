@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.2 (unreleased)
+
+- **No more ghost accounts.** An extra Claude Code, Codex or Cursor account whose folder or login file (`.credentials.json`,
+  `auth.json`, `state.vscdb`) is gone is no longer shown or read: with only one account left the card is a single-account
+  one again, and if the missing account was the chosen one the main account is shown. The entry stays in the settings (it
+  comes back with its folder, e.g. an external drive) and Settings › Agents › Accounts marks it as «Not found» so it can
+  be deleted.
+
 ## 3.1.1 — 2026-11-07
 
 - **Resize without opening Settings.** When you hold down the ✕, besides the handle for moving it, the size grip (the
