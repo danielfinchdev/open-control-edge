@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.1
+## 3.1.1 — 2026-11-07
 
 - **Resize without opening Settings.** When you hold down the ✕, besides the handle for moving it, the size grip (the
   same one as in "Edit widget") appears outside the panel: drag it to make the panel bigger or smaller, with a live %,
