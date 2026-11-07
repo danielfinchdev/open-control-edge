@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.2 (unreleased)
+## 3.1.2 — 2026-11-07
 
 - **No more ghost accounts.** An extra Claude Code, Codex or Cursor account whose folder or login file (`.credentials.json`,
   `auth.json`, `state.vscdb`) is gone is no longer shown or read: with only one account left the card is a single-account

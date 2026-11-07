@@ -9,7 +9,7 @@ It's free, it's open source and it doesn't spy on you.
 > *A Windows edge widget that shows your remaining Claude / Codex / Cursor quota, your CPU & GPU temperature and your
 > game's FPS at a glance. The app speaks English and Spanish.*
 
-![version](https://img.shields.io/badge/version-3.1.1-informational) ![license](https://img.shields.io/badge/license-MIT-green) ![platform](https://img.shields.io/badge/Windows-10%20and%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
+![version](https://img.shields.io/badge/version-3.1.2-informational) ![license](https://img.shields.io/badge/license-MIT-green) ![platform](https://img.shields.io/badge/Windows-10%20and%2011-blue) ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
 ## Download
 
