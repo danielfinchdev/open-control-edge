@@ -42,7 +42,7 @@ internal static class AccountFolders
     /// revoked): the account loads as usual. Only the file's presence is checked (IsPresent), never its contents.
     public static bool StartsSignedOut(string provider, string mainFolder) => !IsPresent(provider, mainFolder);
 
-    public static readonly string[] Providers =[AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor];
+    public static readonly string[] Providers = [AiProviderSettings.Claude, AiProviderSettings.Codex, AiProviderSettings.Cursor];
 
     /// The extra accounts of every provider that are present now, as Key(provider, folder).
     public static FrozenSet<string> Check(Settings settings) =>
