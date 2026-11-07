@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.1.3 (unreleased)
+
+- **In-app updates install again.** "Download and install" always rolled back to the previous version: the update
+  helper runs from the downloaded folder, and while it runs its executable stays open, so Windows refused to move that
+  folder into place. The helper now copies the verified files next to it (same administrators-only staging folder,
+  checked byte for byte) and swaps that copy in, retrying for up to about 10 seconds while a file is briefly held, e.g. by
+  the antivirus. Failures and rollbacks are logged with the reason, and the installed app removes, shortly after
+  starting, the `OpenControlEdge.update-*` and `OpenControlEdge.previous-update-*` folders earlier attempts left in
+  Program Files. The fix runs in the new version's helper, so updating from 3.1.2 to this version already uses it.
+
 ## 3.1.2 — 2026-11-07
 
 - **No more ghost accounts.** An extra Claude Code, Codex or Cursor account whose folder or login file (`.credentials.json`,

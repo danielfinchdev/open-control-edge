@@ -344,6 +344,7 @@ public partial class App : Application
         StartAutomaticUpdateCheck(atStartup: true);
         if (measureMode is null) ScheduleAccountScan();
         if (measureMode is null) _ = Task.Run(AutoStartService.Upgrade);
+        if (measureMode is null && Installer.IsInstalledCopy && UnelevatedLauncher.IsElevated) _ = Task.Run(CleanUpdateLeftoversAsync);
         ConfigureAutoUpdateTimer(SettingsStore.Load());
     }
 
@@ -455,6 +456,14 @@ public partial class App : Application
 
     private void OnAutoUpdateTimer(object? sender, EventArgs e) => StartAutomaticUpdateCheck();
 
+    /// Half a minute in, so the update helper that started this copy has exited and released its stage.
+    private static async Task CleanUpdateLeftoversAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        try { UpdateInstaller.CleanLeftovers(Installer.InstallDir); }
+        catch (Exception ex) { Log.Warn("Updates", "leftover cleanup skipped: " + ex.GetType().Name); }
+    }
+
     private async Task<bool> RunUpdateFixtureAsync(string endpoint, string resultPath)
     {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? uri) || !uri.IsLoopback || uri.Scheme != "http") return false;
@@ -498,9 +507,15 @@ public partial class App : Application
             if (Directory.Exists(target)) Directory.Delete(target, true);
             if (Directory.Exists(backup)) Directory.Delete(backup, true);
             Directory.CreateDirectory(target); await File.WriteAllTextAsync(old, "old");
-            // The update helper once ran with its current directory inside the payload, which Windows refuses to rename.
+            // The update helper runs from the payload: its current directory once was inside it, and the single-file host
+            // keeps its exe open, so Windows refuses to rename the payload. The helper swaps in a copy instead.
             Directory.SetCurrentDirectory(payload);
-            if (!UpdateInstaller.SwapDirectory(payload, target, backup)) throw new InvalidDataException("fixture directory swap failed");
+            string ready = Path.Combine(stage, "ready");
+            using (new FileStream(stagedExe, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                if (!UpdateInstaller.CopyPayload(payload, ready) || !UpdateInstaller.SwapDirectory(ready, target, backup))
+                    throw new InvalidDataException("fixture directory swap failed");
+            }
             string swappedExe = Path.Combine(target, "OpenControlEdge.exe");
             if (!File.Exists(swappedExe) || NativeLibraries.HashHex(swappedExe) != stagedHash || File.Exists(old))
                 throw new InvalidDataException("fixture directory swap left the wrong contents");
@@ -509,7 +524,7 @@ public partial class App : Application
             bool rolledBack = !UpdateInstaller.SwapDirectory(missing, target, backup, failAfterBackup: true)
                 && File.Exists(swappedExe);
             if (!rolledBack) throw new InvalidDataException("fixture rollback failed");
-            await File.WriteAllTextAsync(resultPath, $"OK {result.Release.Tag}; digest verified; missing and invalid digests rejected; extra file rejected; extraction, swap with the current directory inside the payload and rollback verified").ConfigureAwait(false);
+            await File.WriteAllTextAsync(resultPath, $"OK {result.Release.Tag}; digest verified; missing and invalid digests rejected; extra file rejected; extraction, swap from a copy with the current directory and an open exe inside the payload, and rollback verified").ConfigureAwait(false);
             return true;
         }
         finally

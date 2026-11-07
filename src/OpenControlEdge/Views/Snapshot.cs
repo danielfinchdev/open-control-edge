@@ -69,6 +69,7 @@ internal static class Snapshot
             throw new InvalidDataException("Claude rate-limit backoff check failed");
         CheckSubscriptionParsers();
         CheckAccountDiscovery(directory);
+        CheckUpdateSwap(directory);
 
         var cursor = new CursorSnapshot(false, new UsageWindow(64, now.AddDays(12)), cursorParsed.OnDemand, null)
         {
@@ -829,6 +830,70 @@ internal static class Snapshot
         }
         finally
         {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// The update swap (UpdateInstaller) on fixture folders under the snapshot directory, never Program Files: the
+    /// helper's exe held open inside the payload (as the single-file host does) blocks renaming the payload but not
+    /// swapping in its copy; a file briefly held in the old installation is waited out; a failure after moving the
+    /// installation aside restores it; leftovers not in use are removed, the one in use and unrelated folders kept.
+    private static void CheckUpdateSwap(string directory)
+    {
+        string root = Path.Combine(directory, "update-swap-fixture");
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        string install = Path.Combine(root, "OpenControlEdge");
+        string stage = install + ".update-" + Guid.NewGuid().ToString("N");
+        string payload = Path.Combine(stage, "payload"), ready = Path.Combine(stage, "ready");
+        string backup = install + ".previous-update-" + Guid.NewGuid().ToString("N");
+        string stagedExe = Path.Combine(payload, "OpenControlEdge.exe"), installedExe = Path.Combine(install, "OpenControlEdge.exe");
+        Directory.CreateDirectory(payload);
+        Directory.CreateDirectory(install);
+        File.WriteAllText(stagedExe, "new");
+        File.WriteAllText(Path.Combine(payload, "e_sqlite3.dll"), "library");
+        File.WriteAllText(installedExe, "old");
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            using (new FileStream(stagedExe, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Directory.SetCurrentDirectory(payload);
+                // Why every update up to 3.1.2 rolled back: the payload cannot be renamed while the helper runs from it.
+                try
+                {
+                    Directory.Move(payload, payload + "-renamed");
+                    Directory.Move(payload + "-renamed", payload);
+                    throw new InvalidOperationException("a folder with an open file was renamed: the update swap check no longer reproduces the helper");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+
+                var held = new FileStream(installedExe, FileMode.Open, FileAccess.Read, FileShare.Read);
+                _ = Task.Delay(600).ContinueWith(_ => held.Dispose(), TaskScheduler.Default);
+                if (!UpdateInstaller.CopyPayload(payload, ready) || !UpdateInstaller.SwapDirectory(ready, install, backup))
+                    throw new InvalidDataException("update swap from the payload copy failed");
+            }
+            if (File.ReadAllText(installedExe) != "new" || !File.Exists(Path.Combine(install, "e_sqlite3.dll"))
+                || File.ReadAllText(Path.Combine(backup, "OpenControlEdge.exe")) != "old" || !File.Exists(stagedExe) || Directory.Exists(ready))
+                throw new InvalidDataException("update swap left the wrong contents");
+
+            string failedBackup = install + ".previous-update-" + Guid.NewGuid().ToString("N");
+            if (UpdateInstaller.SwapDirectory(Path.Combine(stage, "missing"), install, failedBackup, failAfterBackup: true)
+                || File.ReadAllText(installedExe) != "new" || Directory.Exists(failedBackup))
+                throw new InvalidDataException("update swap rollback failed");
+
+            string inUse = install + ".update-" + Guid.NewGuid().ToString("N");
+            string unrelated = install + ".update-keep";
+            Directory.CreateDirectory(inUse);
+            Directory.CreateDirectory(unrelated);
+            using (new FileStream(Path.Combine(inUse, "OpenControlEdge.exe"), FileMode.Create, FileAccess.Write, FileShare.Read))
+                UpdateInstaller.CleanLeftovers(install);
+            if (Directory.Exists(stage) || Directory.Exists(backup) || !Directory.Exists(inUse) || !Directory.Exists(unrelated)
+                || File.ReadAllText(installedExe) != "new")
+                throw new InvalidDataException("update leftover cleanup removed the wrong folders");
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
