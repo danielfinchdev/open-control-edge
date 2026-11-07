@@ -1,4 +1,4 @@
-# Compilación
+# Build output
 bin/
 obj/
 dist/
@@ -6,29 +6,29 @@ OCE-instalar/
 *.user
 *.suo
 
-# Copias de seguridad y registros locales
+# Local backups and logs
 backup/
 *.log
 
-# Ajustes locales (se generan solos en %LOCALAPPDATA%)
+# Local settings (generated automatically in %LOCALAPPDATA%)
 EdgeWidget.settings.json
 OpenControlEdge.settings.json
 
-# Notas sobre este equipo concreto: no son parte del programa
+# Notes about one specific machine: not part of the program
 NOTAS-DEL-EQUIPO.md
 
-# Sistema
+# System files
 Thumbs.db
 desktop.ini
 .DS_Store
 
-# Handoff / locks del equipo (local; no publicar)
+# Team handoff / locks (local; never published)
 handoff/
 
-# Bitácora privada del proyecto (nunca se sube)
+# Private project log (never pushed)
 BITACORA.md
 
-# Herramientas y reglas locales de los asistentes de código (no se publican)
+# Local tools and rules for coding assistants (not published)
 AGENTS.md
 CLAUDE.md
 .claude/
