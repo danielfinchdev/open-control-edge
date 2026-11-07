@@ -479,10 +479,6 @@
     <sys:String x:Key="Msg.FeedbackNoForm">Sending without an account is not available in this version</sys:String>
     <sys:String x:Key="Msg.FeedbackEmpty">Write a message before sending it</sys:String>
     <sys:String x:Key="Msg.FeedbackFailed">The message could not be sent</sys:String>
-    <sys:String x:Key="Settings.ShareWithOrb">Share data with Orb</sys:String>
-    <sys:String x:Key="Settings.ShareWithOrbHint">Exchanges readings with Orb through local files; nothing leaves this PC.</sys:String>
-    <sys:String x:Key="Orb.Source">From Orb</sys:String>
-    <sys:String x:Key="Orb.SourceOf">From Orb · {0}</sys:String>
 
     <sys:String x:Key="Settings.Sidebar">Settings</sys:String>
     <sys:String x:Key="Settings.Nav.Contribute">Contribute</sys:String>

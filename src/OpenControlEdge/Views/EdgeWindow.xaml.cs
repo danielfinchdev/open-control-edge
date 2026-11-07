@@ -352,14 +352,6 @@ public partial class EdgeWindow : Window
         SettingsButton.SetResourceReference(AutomationProperties.NameProperty, tip);
     }
 
-    /// The line under a card whose reading is Orb's: "Dato de Orb · Personal · 5 h". Hidden for OCE's own readings.
-    private static void SetSource(TextBlock text, string? source)
-    {
-        text.Visibility = source is null ? Visibility.Collapsed : Visibility.Visible;
-        text.Text = source is null ? string.Empty
-            : source.Length == 0 ? Loc.Get("Orb.Source") : Loc.Format("Orb.SourceOf", source);
-    }
-
     /// The view and the layouts of the settings. A different view (or a different order or set of rings in it) fades
     /// the rings out and the new ones in when animate and the panel is on screen; otherwise it changes in one step.
     internal void ApplyViews(Settings settings, bool animate)
@@ -1622,7 +1614,6 @@ public partial class EdgeWindow : Window
                 ClaudeSpendRow.Visibility = Visibility.Collapsed;
             }
 
-            SetSource(ClaudeSource, snapshot.Source);
             ClaudeTabs.Visibility = Visibility.Visible;
             ClaudeMetrics.Visibility = Visibility.Visible;
             ClaudeMessage.Visibility = Visibility.Collapsed;
@@ -1669,7 +1660,6 @@ public partial class EdgeWindow : Window
                 CodexCreditsRow.Visibility = Visibility.Collapsed;
             }
 
-            SetSource(CodexSource, snapshot.Source);
             CodexTabs.Visibility = snapshot.Secondary is null ? Visibility.Collapsed : Visibility.Visible;
             CodexMetrics.Visibility = Visibility.Visible;
             CodexMessage.Visibility = Visibility.Collapsed;
@@ -1719,7 +1709,6 @@ public partial class EdgeWindow : Window
                 CursorOnDemandRow.Visibility = Visibility.Visible;
             }
             else CursorOnDemandRow.Visibility = Visibility.Collapsed;
-            SetSource(CursorSource, snapshot.Source);
             CursorMetrics.Visibility = Visibility.Visible;
             CursorMessage.Visibility = Visibility.Collapsed;
         }

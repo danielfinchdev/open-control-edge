@@ -70,10 +70,6 @@ internal sealed record Settings(PanelMode PanelMode, FrozenDictionary<string, Pr
     public bool AutoCheckUpdates { get; init; } = true;
     public DateTimeOffset? LastAutoUpdateCheck { get; init; }
 
-    /// Exchange readings with Orb through %LOCALAPPDATA%\OrbPuente (OrbBridge). Off: oce.json is deleted and
-    /// orb.json is no longer read.
-    public bool ShareWithOrb { get; init; } = true;
-
     /// The panel's edge, monitor and place along the edge (Ajustes › Personalización › Posición; the drag handle in
     /// manual placement).
     public PanelPlacement Placement { get; init; } = PanelPlacement.Default;
@@ -156,7 +152,6 @@ internal readonly record struct WindowBounds(int X, int Y, int Width, int Height
 ///     "usageRefreshMinutes": 2 | 5 | 10 | 15,
 ///     "checkUpdates": true | false,
 ///     "lastAutoUpdateCheck": "ISO-8601", // optional
-///     "shareWithOrb": true | false,
 ///     "providers": { "claude": "auto" | "show" | "hide", ... },
 ///     "settingsWindow": { "x": px, "y": px, "width": px, "height": px, "dpi": 96 … }, // optional
 ///     "view": "ai" | "pc" | "custom",
@@ -263,7 +258,6 @@ internal static class SettingsStore
                 // "checkUpdates" (2.2, on by default) replaces "autoCheckUpdates" (2.1, off by default and always saved).
                 AutoCheckUpdates = GetBool(root, "checkUpdates") ?? true,
                 LastAutoUpdateCheck = GetDate(root, "lastAutoUpdateCheck"),
-                ShareWithOrb = GetBool(root, "shareWithOrb") ?? true,
                 SettingsWindow = ParseBounds(root, "settingsWindow"),
                 View = RingKeys.ParseView(GetString(root, "view")) ?? WidgetView.Ai,
                 CustomViewEnabled = GetBool(root, "customView") ?? true,
@@ -353,7 +347,6 @@ internal static class SettingsStore
                 writer.WriteNumber("usageRefreshMinutes", settings.UsageRefreshMinutes);
                 writer.WriteBoolean("checkUpdates", settings.AutoCheckUpdates);
                 if (settings.LastAutoUpdateCheck is DateTimeOffset checkedAt) writer.WriteString("lastAutoUpdateCheck", checkedAt.ToString("o"));
-                writer.WriteBoolean("shareWithOrb", settings.ShareWithOrb);
                 if (settings.SettingsWindow is WindowBounds bounds)
                 {
                     writer.WriteStartObject("settingsWindow");

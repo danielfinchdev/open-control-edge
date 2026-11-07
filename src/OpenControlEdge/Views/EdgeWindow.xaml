@@ -93,8 +93,6 @@
                                 <TextBlock x:Name="ClaudeSpendValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
                                 <TextBlock Text="{DynamicResource Row.Spent}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
                             </DockPanel>
-                            <!-- Orb's reading, shown because OCE has none of its own (App.WithOrbUsage). -->
-                            <TextBlock x:Name="ClaudeSource" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
                         </StackPanel>
 
                         <!-- An earlier reading kept after HTTP 429 / 5xx (ClaudeSnapshot.StaleSince): how old it is. -->
@@ -155,8 +153,6 @@
                                 <TextBlock x:Name="CodexCreditsValue" DockPanel.Dock="Right" Style="{StaticResource ValueText}" VerticalAlignment="Center" />
                                 <TextBlock Text="{DynamicResource Row.Credits}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
                             </DockPanel>
-                            <!-- Orb's reading, shown because OCE has none of its own (App.WithOrbUsage). -->
-                            <TextBlock x:Name="CodexSource" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
                         </StackPanel>
 
                         <TextBlock x:Name="CodexMessage" Style="{StaticResource ValueText}" TextWrapping="Wrap"
@@ -199,8 +195,6 @@
                                 <ui:LinearBar x:Name="CursorOnDemandBar" Height="4" Margin="0,6,0,0" />
                                 <TextBlock x:Name="CursorOnDemandValue" Text="--" Style="{StaticResource ValueText}" Margin="0,5,0,0" />
                             </StackPanel>
-                            <!-- Orb's reading, shown because OCE has none of its own (App.WithOrbUsage). -->
-                            <TextBlock x:Name="CursorSource" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,9,0,0" Visibility="Collapsed" />
                         </StackPanel>
                         <TextBlock x:Name="CursorMessage" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,11,0,0" Visibility="Collapsed" />
                         <!-- "Abrir Cursor": its app, or its web page (AppLauncher). -->

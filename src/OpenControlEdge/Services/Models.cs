@@ -41,10 +41,6 @@ internal sealed record ClaudeSnapshot(bool Hidden, UsageWindow? Session, UsageWi
 
     /// The HTTP status of a failed request (429, 503…); null otherwise.
     public int? HttpStatus { get; init; }
-
-    /// Set when this reading is Orb's (orb.json), shown because OCE has none of its own: the account and window Orb
-    /// names, "" when it names neither. The card says where it comes from.
-    public string? Source { get; init; }
 }
 
 /// Temperature is null whenever it could not be read; Message then explains why.
@@ -81,10 +77,6 @@ internal sealed record CodexSnapshot(bool Hidden, CodexWindow? Primary, CodexWin
     /// checked it. Null when the token does not say.
     public DateTimeOffset? SubscriptionUntil { get; init; }
     public DateTimeOffset? SubscriptionCheckedAt { get; init; }
-
-    /// Set when this reading is Orb's (orb.json), shown because OCE has none of its own: the account and window Orb
-    /// names, "" when it names neither. The card says where it comes from.
-    public string? Source { get; init; }
 }
 
 /// Codex credits: Balance in credits (not a currency), null when the response carries none; Unlimited as reported.
@@ -102,10 +94,6 @@ internal sealed record CursorSnapshot(bool Hidden, UsageWindow? Cycle, UsageWind
     /// On-demand (paid, beyond the plan) spend this cycle and its limit; only when on-demand is enabled and used.
     public Money? OnDemandSpent { get; init; }
     public Money? OnDemandLimit { get; init; }
-
-    /// Set when this reading is Orb's (orb.json), shown because OCE has none of its own: the account and window Orb
-    /// names, "" when it names neither. The card says where it comes from.
-    public string? Source { get; init; }
 }
 
 internal sealed record OpenCodeSnapshot(bool Hidden, long TokensIn, long TokensOut, long TokensReasoning,

@@ -1,10 +1,9 @@
-using System.Diagnostics;
 using System.IO;
 using Microsoft.Win32;
 
 namespace OpenControlEdge.Services;
 
-/// "Abrir Claude", "Abrir Codex"… on each card, and the Orb ring: the agent's desktop app when it is installed, its
+/// "Abrir Claude", "Abrir Codex"… on each card, and "Abrir" Orb in Ajustes: the agent's desktop app when it is installed, its
 /// web page otherwise. Always started without elevation (UnelevatedLauncher), never with this process's rights.
 /// Never throws: the result is null, or a short Spanish message.
 internal static class AppLauncher
@@ -68,20 +67,14 @@ internal static class AppLauncher
 
     // ───────────────────────────── Orb ─────────────────────────────
 
-    /// Orb.exe of this user's installation (its uninstall entry, or the installer's default folder); with Orb running,
-    /// the executable of the pid orb.json names when it is an Orb.exe. Null: Orb is not installed.
-    public static string? OrbExecutable(int? runningPid = null)
+    /// Orb.exe of this user's installation (its uninstall entry, or the installer's default folder), for Ajustes ›
+    /// Más aplicaciones. Null: Orb is not installed.
+    public static string? OrbExecutable()
     {
         try
         {
             if (OrbFromUninstallEntry() is string registered) return registered;
             if (ExistingFile(Path.Combine(LocalAppData, "Programs", "Orb", "Orb.exe")) is string standard) return standard;
-            if (runningPid is int pid and > 0)
-            {
-                using Process process = Process.GetProcessById(pid);
-                string? path = process.MainModule?.FileName;
-                if (path is not null && Path.GetFileName(path).Equals("Orb.exe", StringComparison.OrdinalIgnoreCase)) return ExistingFile(path);
-            }
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception
                                        or IOException or UnauthorizedAccessException or System.Security.SecurityException)

@@ -11,8 +11,8 @@
   se recoge, vuelve la ✕ enseguida.
 - **Claude sin ventana de 5 horas.** La API de uso ha dejado de mandar la sesión de 5 h en algunas cuentas (solo el
   límite semanal) y el anillo salía «--». Ahora el semanal es una lectura válida: el anillo lo enseña en «Sesión» y en
-  «Total», la tarjeta dice «Sin límite de sesión» con el semanal y su reinicio debajo, y se guarda en la caché, el
-  aviso de la bandeja y `oce.json` (la ventana más corta que haya). Si vuelve la sesión, todo como antes; sin ninguna
+  «Total», la tarjeta dice «Sin límite de sesión» con el semanal y su reinicio debajo, y se guarda en la caché y en el
+  aviso de la bandeja. Si vuelve la sesión, todo como antes; sin ninguna
   de las dos, sigue siendo un error.
 - **Ultra.** Las cuentas Max 20x de Claude se etiquetan como **Ultra** (su nombre nuevo), tanto en la tarjeta como en
   las etiquetas de cada cuenta; Max 5x sigue siendo Max. Se distingue por `rateLimitTier` de las credenciales (solo
@@ -23,6 +23,11 @@
   ya hay una en curso o se está renovando la sesión, y la renovación automática no se reprograma para un token con el
   que ya se rindió.
 - Si falla la escritura atómica de un archivo de datos, ya no queda un `.tmp` suelto.
+- **Se retira la conexión con Orb.** Orb 3.8 ya no tiene el puente con Open Control Edge, así que el widget deja de
+  escribir `oce.json` cada 2 s en `%LOCALAPPDATA%\OrbPuente` y de leer `orb.json`. Desaparecen el ajuste «Compartir
+  datos con Orb» (Ajustes → Agentes; `"shareWithOrb"` de ajustes antiguos se ignora) y el «Dato de Orb» que suplía un
+  anillo sin lectura propia. Ajustes → Más aplicaciones sigue enseñando Orb para abrirlo o descargarlo. En Debug
+  desaparece `--orb-probe`.
 
 ## 3.1.0 — 2026-10-14
 
