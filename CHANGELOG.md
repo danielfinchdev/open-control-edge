@@ -9,6 +9,20 @@
 - **La ✕ ya no se convierte tan rápido.** Hay que mantenerla un segundo (antes 0,45 s); arrastrarla sigue activando el
   asa al momento. El asa y el tirador duran 6 segundos quietos (antes 3), no cuentan mientras arrastras y, si el panel
   se recoge, vuelve la ✕ enseguida.
+- **Claude sin ventana de 5 horas.** La API de uso ha dejado de mandar la sesión de 5 h en algunas cuentas (solo el
+  límite semanal) y el anillo salía «--». Ahora el semanal es una lectura válida: el anillo lo enseña en «Sesión» y en
+  «Total», la tarjeta dice «Sin límite de sesión» con el semanal y su reinicio debajo, y se guarda en la caché, el
+  aviso de la bandeja y `oce.json` (la ventana más corta que haya). Si vuelve la sesión, todo como antes; sin ninguna
+  de las dos, sigue siendo un error.
+- **Ultra.** Las cuentas Max 20x de Claude se etiquetan como **Ultra** (su nombre nuevo), tanto en la tarjeta como en
+  las etiquetas de cada cuenta; Max 5x sigue siendo Max. Se distingue por `rateLimitTier` de las credenciales (solo
+  lectura).
+- **Menos HTTP 429.** Tras un 429 de Claude espera 5, 10, 20 y luego 30 minutos seguidos (o más si lo pide
+  `Retry-After`), también para las cuentas extra y la (i) de suscripción; cualquier respuesta correcta lo reinicia.
+  Codex espera 5 minutos tras un 429 y 1 tras un error 5xx. Reintentar Claude desde Ajustes no lanza otra petición si
+  ya hay una en curso o se está renovando la sesión, y la renovación automática no se reprograma para un token con el
+  que ya se rindió.
+- Si falla la escritura atómica de un archivo de datos, ya no queda un `.tmp` suelto.
 
 ## 3.1.0 — 2026-10-14
 

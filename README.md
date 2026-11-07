@@ -127,7 +127,7 @@ detalle, que se desliza de un anillo a otro sin desaparecer.
 
 | Anillo | Qué muestra |
 |---|---|
-| **Claude** | % de la sesión de 5 h, límite semanal y, si has gastado créditos de uso, el gasto en su moneda (p. ej. €) |
+| **Claude** | % de la sesión de 5 h (si tu cuenta la tiene), límite semanal y, si has gastado créditos de uso, el gasto en su moneda (p. ej. €) |
 | **Codex** | % de la ventana de límite, etiquetada por su duración (sesión / diario / semanal / mensual) y, si la cuenta tiene créditos, el saldo de créditos |
 | **Cursor** | % del ciclo mensual Pro y, si usas el pago bajo demanda, lo gastado en USD (y su límite) |
 | **OpenCode** | Tokens de entrada / salida / razonamiento / caché y coste acumulado local |
@@ -197,7 +197,9 @@ al 100 %; doble clic: tamaño automático). Con el ✓, **Terminar** o al cerrar
 
 Arriba del panel, dos pestañas eligen qué mide cada anillo de IA (la elección se recuerda):
 
-- **Sesión** — la ventana corta: Claude 5 h, Codex su ventana más corta.
+- **Sesión** — la ventana corta: Claude 5 h, Codex su ventana más corta. Si tu cuenta de Claude no tiene ventana de
+  5 h (desde noviembre de 2026 la API puede no mandarla), el anillo enseña el semanal en las dos pestañas y la tarjeta
+  dice «Sin límite de sesión» con el semanal debajo.
 - **Total** — la ventana larga: Claude y Codex semanal (o la más larga), Cursor el ciclo mensual de facturación.
 
 Cursor solo tiene el ciclo mensual, así que muestra lo mismo en las dos; Codex con una sola ventana (plan Go:
@@ -205,8 +207,9 @@ mensual), también. La tarjeta sigue enseñando todas las ventanas.
 
 ### Plan de cada cuenta
 
-La cabecera de las tarjetas de Claude, Codex y Cursor lleva una etiqueta con el plan (Free, Go, Plus, Pro, Max,
-Team…). Una cuenta gratuita de Claude no tiene límites de sesión ni semanales que medir: la tarjeta lo dice
+La cabecera de las tarjetas de Claude, Codex y Cursor lleva una etiqueta con el plan (Free, Go, Plus, Pro, Max, Ultra,
+Team…). En Claude, el plan Max 20x sale como **Ultra** (su nombre nuevo; se distingue por `rateLimitTier` de las
+credenciales) y Max 5x como Max. Una cuenta gratuita de Claude no tiene límites de sesión ni semanales que medir: la tarjeta lo dice
 («Cuenta gratuita: sin límites de uso medibles») en vez de un error.
 
 ### Varias cuentas por IA
@@ -472,6 +475,10 @@ exacta de la respuesta: si cambia, el anillo muestra un error en vez de inventar
 **Gasto y créditos** (formas comprobadas con peticiones reales el 29-09-2026, sin datos personales):
 
 - Claude: `spend.used = { amount_minor, currency, exponent }` → importe en su moneda. Se muestra si es mayor que cero.
+- Claude, desde el 07-11-2026: `"five_hour": null` y en `limits` solo `weekly_all` (y `weekly_scoped`, el límite de un
+  modelo, que no se muestra). Una respuesta con el semanal y sin sesión es una lectura válida; sin ninguna de las dos,
+  error. Tras un HTTP 429 no vuelve a preguntar en 5, 10, 20 y luego 30 minutos (o lo que pida `Retry-After`, si es
+  más), para ninguna cuenta ni para la (i); Codex espera 5 minutos tras un 429 y 1 tras un 5xx.
 - Codex (`wham/usage`): `"credits": { "has_credits": false, "unlimited": false, "overage_limit_reached": false,
   "balance": null, "approx_local_messages": null, "approx_cloud_messages": null }` en una cuenta Go sin créditos.
   El saldo (en créditos, no en dinero) solo se muestra con `has_credits: true` y un `balance` numérico.
